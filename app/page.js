@@ -159,6 +159,11 @@ export default async function SystemCheckPage() {
       <footer className="text-xs text-rebar border-t border-line pt-4">
         Phase 1 · read-only · every number computed in code from raw Notion fields (coalesce, hour guards, weighted
         pipeline, reservoir capacity).
+        <span className="block mt-2 text-rebar/80">
+          Spine ready: Project is the hub (carries bid, timecards, production, invoices, payments); four pounds figures
+          tracked distinctly (installed · billable · billed · paid); Production/Invoice/Payment entities shaped for the
+          future Financials + Job Cost modules.
+        </span>
       </footer>
     </main>
   );

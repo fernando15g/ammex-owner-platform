@@ -51,3 +51,54 @@ Two quantities, shown SEPARATELY (never combined into one number):
 2. **Pipeline scope confirmed:** in-flight only (exclude Awarded/Lost/No Bid) is correct — awarded work is counted in The Book / Active Work, not pipeline, to avoid double-counting. (Owner OK with this; revisit only if a combined "total exposure" view is wanted.)
 3. **Placement freshness (§5.3):** running-work LBS depends on Rebar Placed To-Date being current; stale/blank placed → inflated remaining. Surface the as-of stamp; blank placed on an active job counts full tonnage as remaining (flag it).
 4. **Build Runway model (§13)** — this is the priority build next session; validate the two quantities against real data before wiring the signal.
+
+---
+
+## 15. Recalibration — Project-as-hub + entity spine (DONE, prep for Production/Financials)
+
+Ammex OS = operational source of truth (NOT accounting — QuickBooks stays the accounting endpoint). Production-based: bid lbs, installed lbs, hours, lbs/MH, billed lbs, paid, remaining balance.
+
+**Nine core entities:** Projects, Bids, Production Entries, Time Entries, Invoices, Payments, Employees/Crew, Customers/GCs/Fabricators, Documents.
+
+**THE PROJECT IS THE HUB.** Every project now carries: `.bid`, `.timecards[]`, `.production[]`, `.invoices[]`, `.payments[]`, `.financials`. Every metric reads from the project.
+
+**Four pounds figures, tracked DISTINCTLY (never collapsed):**
+- installed = field placed it (Rebar Placed To-Date — live today)
+- billable = approved to invoice (no field yet)
+- billed = on an invoice (needs Invoices)
+- paid = received (needs Payments)
+`makeFinancials()` also derives remainingContractLbs, unbilledInstalledLbs ("pounds in the field not yet billed"), outstandingAR.
+
+**Entity shapes defined now, empty until data exists** (lib/rules/entities.js): ProductionEntry, Invoice, Payment. Adding modules later = "fill the mapper," not "restructure."
+
+**Production = separate admin-authored log** (not on timecards). Office admin reconciles fabricator shipments vs. field-reported installs, logs installed lbs. Joined to labor hours at project+date → actual lbs/MH computed in code. Natural home for the "webapp placement input" + "fab-email auto-extract" ideas.
+
+**Build order (revised):** finish Owner Platform zones → Production capture module (the heartbeat; feeds everything) → Project Financials/Receivables (billing by installed/approved pounds) → Job Costing (actual profit; falls out once Production + Financials exist).
+
+**Do NOT overbuild:** no payroll, HR, tax, GL, AP, or accounting replacement. Only Ammex-unique logic (rebar production, installed lbs, lbs/MH, bid-vs-actual, billing by pounds, receivables visibility, job profitability, capacity/runway, historical bid feedback).
+
+---
+
+## 16. Design north star — Procore philosophy, Ammex simplicity
+
+Use **Procore as UI/UX inspiration, NOT its feature set.** Emulate the design philosophy; stay dramatically simpler.
+
+**Borrow from Procore:** clean project-centric navigation, professional dashboards, logical information hierarchy, excellent spacing/readability, minimal clutter, clear status indicators (pills/chips), easy-to-scan project pages, financials presented clearly, modern enterprise-SaaS polish.
+
+**Diverge deliberately (Ammex = ~20-person rebar sub, not a large GC):** far fewer nav items, no role sprawl, no module built just because Procore has one. Design test for every screen: *"If Procore were rebuilt for a rebar placement subcontractor with 20 employees, what would this screen look like?"*
+
+**Governing rule:** every screen answers one question — *"What does the user need to know or do right now?"* Prioritize clarity over feature count. **If copying Procore conflicts with a faster/simpler Ammex workflow, always choose the simpler Ammex workflow.**
+
+**Reconciles with mobile-first (§2):** phone decides WHAT earns space (priority); Procore-inspired styling decides HOW it looks with room (presentation); desktop + wallboard are where the polish shows most (wallboard = clean Procore-style command screen). No conflict.
+
+Applies to the ZONE build (next session) — tonight was the invisible spine.
+
+---
+
+## 17. Surface priority FLIPPED — desktop-first (supersedes §2 mobile-first)
+
+Design source of truth is now **DESKTOP**, not phone. Rationale: Procore (§16) is desktop-first enterprise UX; the owner's serious review happens at a desk; the office wallboard is desktop. Phone = quick "truck check," secondary.
+
+**New order:** Desktop interactive (primary, full Procore polish — left sidebar nav, roomy project pages, financials in real tables, side-by-side panels) → Wallboard (ambient office screen) → iPad (desktop-lite) → Phone (deliberate CONDENSED quick-check, its own intentional layout, not a shrunk spreadsheet).
+
+**Unchanged:** still one responsive codebase; still "what do I need right now" per screen; still prioritized — desktop just has room to answer more richly. Design desktop properly, then shrink gracefully to iPad/phone (each intentional, desktop leading).
