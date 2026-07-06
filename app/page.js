@@ -143,11 +143,13 @@ export default async function SystemCheckPage() {
                 <h2 className="text-xs tracking-widest uppercase text-rebar mb-3">Data health</h2>
                 <ul className="space-y-2 text-sm">
                   <HealthRow label="Unassigned hours (timecards with no project set)" value={`${fmtNum(check.computed.health.unassignedHours)} hrs`} bad={check.computed.health.unassignedHours > 0} />
-                  <HealthRow label="Hours under review (held)" value={`${fmtNum(check.computed.health.underReviewHours)} hrs`} bad={check.computed.health.underReviewHours > 0} />
-                  <HealthRow label="Open reconciliation issues" value={fmtNum(check.computed.health.openRecIssues)} bad={check.computed.health.openRecIssues > 0} />
+                  <HealthRow label="Timecards currently held (Under Review)" value={`${fmtNum(check.computed.health.heldTimecards)} cards · ${fmtNum(check.computed.health.heldHours)} hrs`} bad={check.computed.health.heldTimecards > 0} />
                   <HealthRow label="Awarded bids with no project" value={fmtNum(check.computed.health.awardedBidsNoProject)} bad={check.computed.health.awardedBidsNoProject > 0} />
                   <HealthRow label="In-flight bids missing LBS or rate" value={fmtNum(check.computed.health.bidsMissingInputs)} bad={check.computed.health.bidsMissingInputs > 0} />
                 </ul>
+                <p className="text-xs text-rebar mt-2">
+                  Held count reads the timecard&apos;s own Under Review checkbox — the authoritative live state, not the Rec Log audit history.
+                </p>
               </section>
             </>
           )}
