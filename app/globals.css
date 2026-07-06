@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #1c2127; /* steel */
+  color: #f4f3f0; /* concrete */
+}
