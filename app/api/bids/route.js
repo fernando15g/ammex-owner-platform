@@ -1,4 +1,4 @@
-// POST /api/bids — create a bid (OS admin form). Minimal: existing fields only.
+// POST /api/bids — create a bid tracking record (metadata + numbers, no math).
 import { NextResponse } from "next/server";
 import { createBid } from "@/lib/notion/bidRepository";
 

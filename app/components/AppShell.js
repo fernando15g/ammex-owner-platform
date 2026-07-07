@@ -10,7 +10,7 @@ import { useState } from "react";
 
 const NAV = [
   { key: "home", label: "Home", href: "/", ready: false },
-  { key: "pipeline", label: "Pipeline", href: "/pipeline", ready: false },
+  { key: "pipeline", label: "Pipeline", href: "/pipeline", ready: true },
   { key: "active", label: "Active Work", href: "/active", ready: true },
   { key: "performance", label: "Performance", href: "/performance", ready: false },
   { key: "book", label: "The Book", href: "/book", ready: false },
