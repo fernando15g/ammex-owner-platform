@@ -63,7 +63,7 @@ export default function AppShell({ current, title, subtitle, actions, children }
 
       {/* Main column */}
       <div className="flex-1 min-w-0">
-        <header className="h-16 border-b border-line flex items-center gap-3 px-4 lg:px-8 sticky top-0 bg-steel/95 backdrop-blur z-20">
+        <header className="h-16 border-b border-line flex items-center gap-3 px-4 lg:px-8 sticky top-0 z-20" style={{ background: "var(--surface)" }}>
           <button
             className="lg:hidden -ml-1 p-2 text-rebar"
             onClick={() => setOpen(true)}
@@ -110,7 +110,8 @@ function NavItem({ item, active }) {
   return (
     <a
       href={item.href}
-      className={`${base} ${active ? "bg-steel text-concrete font-medium" : "text-rebar hover:text-concrete hover:bg-steel/60"}`}
+      className={`${base} ${active ? "text-concrete font-medium" : "text-rebar hover:text-concrete"}`}
+      style={active ? { background: "var(--surface-2)" } : undefined}
     >
       <span className="flex-1">{item.label}</span>
     </a>

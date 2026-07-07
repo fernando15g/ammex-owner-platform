@@ -42,7 +42,11 @@ html, body { background: var(--bg); color: var(--text); }
 
 /* Map the old Tailwind color classes onto theme variables so existing markup
    flips automatically without rewriting every className. */
-.bg-steel    { background: var(--bg) !important; }
+.bg-steel    { background: var(--surface-2) !important; }
+.bg-steel\/60, .hover\:bg-steel\/60:hover { background: var(--surface-2) !important; }
+.bg-graphite\/60, .hover\:bg-graphite\/60:hover { background: var(--surface-2) !important; }
+.hover\:bg-graphite:hover { background: var(--surface-2) !important; }
+.text-concrete\/80, .text-concrete\/85, .text-concrete\/90 { color: var(--text-2) !important; }
 .bg-graphite { background: var(--surface) !important; }
 .bg-concrete { background: var(--bg) !important; }
 .text-concrete { color: var(--text) !important; }
