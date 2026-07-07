@@ -97,7 +97,7 @@ export default function NewBidForm() {
         <a href="/pipeline" className="px-5 py-2.5 rounded-md border border-line text-rebar text-sm hover:bg-graphite">Cancel</a>
       </div>
 
-      <style jsx>{`.inp { width: 100%; background: #272d35; border: 1px solid #39414c; border-radius: 8px; padding: 9px 12px; font-size: 14px; color: #f4f3f0; outline: none; } .inp:focus { border-color: #ff6a13; }`}</style>
+      <style jsx>{`.inp { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 14px; color: var(--text); outline: none; } .inp:focus { border-color: var(--accent); }`}</style>
     </div>
   );
 }

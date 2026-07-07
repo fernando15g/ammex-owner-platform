@@ -7,6 +7,7 @@
 // =============================================================================
 
 import { getSystemCheck } from "@/lib/data";
+import CheckThemeToggle from "@/app/components/CheckThemeToggle";
 
 export const dynamic = "force-dynamic"; // always fresh — never cache a stale check
 
@@ -31,6 +32,13 @@ export default async function SystemCheckPage() {
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-10">
+      <div className="flex items-center justify-between mb-6">
+        <a href="/active" className="inline-flex items-center gap-1.5 text-sm text-rebar hover:text-concrete">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back to app
+        </a>
+        <CheckThemeToggle />
+      </div>
       <header className="mb-8">
         <p className="text-xs tracking-widest uppercase text-rebar mb-1">Ammex OS</p>
         <h1 className="text-2xl font-semibold">Data layer check</h1>
