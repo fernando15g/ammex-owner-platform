@@ -200,6 +200,16 @@ export default function BidDetailClient({ bid }) {
 }
 
 // ---- field components: render text in view mode, inputs in edit mode --------
+function Row({ label, value, big, tone }) {
+  const c = tone === "ok" ? "text-ok" : "text-concrete";
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-rebar text-xs">{label}</span>
+      <span className={`${big ? "text-lg font-semibold" : "text-sm"} ${c} tabular-nums text-right`}>{value}</span>
+    </div>
+  );
+}
+
 function Section({ title, hint, children }) {
   return (<section><h2 className="text-sm font-semibold text-concrete border-b border-line pb-2 mb-4">{title}{hint && <span className="text-xs text-safety font-normal ml-2">{hint}</span>}</h2><div className="space-y-4">{children}</div></section>);
 }
