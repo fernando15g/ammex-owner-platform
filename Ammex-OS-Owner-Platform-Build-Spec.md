@@ -175,3 +175,20 @@ Built per architect's write-layer contract. This is the reusable write infrastru
 **Billing / Due-Billing tracker = the most important part of the whole build (owner).** Next big build. Full design captured in the TODO file (#4). Key shape: bill by installed pounds (progress billing), admin enters dollars directly, track each bill/payment EVENT over time, per-project workspace that's the admin's ONE place to work (installed-pounds entry lives there too), unbilled-in-field is the star metric, plus aging/retention/outstanding. New billing store to be designed from scratch when built. This is the Project Financials / Receivables module from §15/§10 — finally the priority.
 
 **Sequencing now:** Billing tracker is the next major module (ahead of the remaining read-only zones), because owner says it's the core need. Zones (Performance, The Book, Home) and light/dark theming remain queued.
+
+---
+
+## 22. Bid detail page — amend-in-place with live recompute (SHIPPED)
+
+**The decision (owner's amendment scenario settled it):** a bid must be able to update its own economics when inputs change — the calculator creates a NEW bid on re-price (orphans), and a raw-field edit leaves money stale. So the OS bid detail recomputes.
+
+**No-fork guarantee:** `lib/rules/bidCostEngine.js` recreated VERBATIM from the calculator (verified again: 234,213 lbs @160 → 34.1343¢ → 34.25¢ → 25.25%). The engine is the secret sauce — never refactor it. Division of labor: calculator = original pricing on the phone; OS detail = amendments on the existing record. If the pricing formula ever changes, update BOTH (on the TODO list).
+
+**Built:**
+- `/pipeline/[id]` — full-page bid detail (dev-correct: roomy for editing, clean URL that maps to Postgres later). Pipeline rows click through.
+- View mode → Edit button → all fields editable (metadata + drivers + assumptions) → Save PATCHes the SAME bid.
+- **Live economics panel**: change LBS/productivity/wage/rate/assumptions → contract value, operating profit/margin, fully-loaded, burdened labor recompute live via the shared engine. Bid rate field = the held/active rate (blank → recommended, quarter-cent-rounded). Save writes raw inputs + all 9 calc columns (incl. assumptions actually used).
+- mapBid now also reads stored assumptions from the calc columns; blank assumptions fall back to CALC_DEFAULTS (mob 8, burden .20, tools .03, contingency .03, target margin .25, wage 32, productivity 140).
+- This detail+edit pattern is the TEMPLATE the Billing workspace reuses.
+
+**Deferred consciously:** version-based concurrency (team of 2, near-zero collision risk — revisit if estimators are added).

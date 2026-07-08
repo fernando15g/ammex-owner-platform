@@ -40,7 +40,7 @@ export default function PipelineClient({ data }) {
               const urgent = d != null && d <= 3;
               const soon = d != null && d > 3 && d <= 7;
               return (
-                <tr key={r.id} className="border-t border-line hover:bg-graphite/60">
+                <tr key={r.id} onClick={() => { window.location.href = `/pipeline/${r.id}`; }} className="border-t border-line cursor-pointer hover:bg-graphite/60">
                   <td className="px-4 py-3">
                     <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
                     <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
