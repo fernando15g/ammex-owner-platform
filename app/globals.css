@@ -62,3 +62,16 @@ html, body { background: var(--bg); color: var(--text); }
 
 /* form inputs (used via styled-jsx .inp) read variables too */
 input, select, textarea { color: var(--text); }
+
+/* shared form input style (used by detail/edit pages and forms) */
+.inp {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+}
+.inp:focus { border-color: var(--accent); }

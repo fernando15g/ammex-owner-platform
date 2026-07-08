@@ -208,19 +208,19 @@ function L({ children }) { return <span className="text-xs text-rebar block mb-1
 function V({ children }) { return <span className="text-sm text-concrete">{children || "—"}</span>; }
 
 function F({ label, edit, value, onChange }) {
-  return (<div><L>{label}</L>{edit ? <input className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}<style jsx>{inp}</style></div>);
+  return (<div><L>{label}</L>{edit ? <input className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}</div>);
 }
 function FNum({ label, edit, value, onChange, step, placeholder, hint }) {
-  return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /> : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}<style jsx>{inp}</style></div>);
+  return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /> : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}</div>);
 }
 function FDate({ label, edit, value, onChange }) {
-  return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</V>}<style jsx>{inp}</style></div>);
+  return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</V>}</div>);
 }
 function FSelect({ label, edit, value, options, onChange }) {
-  return (<div><L>{label}</L>{edit ? <select className="inp" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select> : <V>{value}</V>}<style jsx>{inp}</style></div>);
+  return (<div><L>{label}</L>{edit ? <select className="inp" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select> : <V>{value}</V>}</div>);
 }
 function FArea({ label, edit, value, onChange }) {
-  return (<div><L>{label}</L>{edit ? <textarea className="inp min-h-[56px] w-full" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}<style jsx>{inp}</style></div>);
+  return (<div><L>{label}</L>{edit ? <textarea className="inp min-h-[56px] w-full" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}</div>);
 }
 function FChips({ label, edit, items, onChange }) {
   const onKey = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); onChange([...items, e.target.value.trim()]); e.target.value = ""; } };
@@ -231,8 +231,7 @@ function FChips({ label, edit, items, onChange }) {
           {it}{edit && <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-rebar hover:text-danger">✕</button>}
         </span>))}</div>}
       {edit ? <input className="inp" placeholder="Type + Enter" onKeyDown={onKey} /> : items.length === 0 ? <V /> : null}
-      <style jsx>{inp}</style>
+      
     </div>
   );
 }
-const inp = `.inp { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; font-size: 14px; color: var(--text); outline: none; } .inp:focus { border-color: var(--accent); }`;
