@@ -20,8 +20,8 @@ export default function BidDetailClient({ bid }) {
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState({ saving: false, saved: false, error: null });
 
-  // Editable working copy. Numbers held as strings for inputs; blank = unset.
-  const [w, setW] = useState(() => ({
+  // Build the working copy from the bid — used at init AND to restore on Cancel.
+  const initialW = () => ({
     projectName: bid.name || "",
     status: bid.status || "Reviewing",
     bidDueDate: bid.bidDueDate || "",
@@ -42,8 +42,16 @@ export default function BidDetailClient({ bid }) {
     contingencyPct: bid.contingencyPct ?? "",
     mobilizationHrs: bid.mobilizationHrs ?? "",
     targetMarginPct: bid.targetMarginPct ?? "",
-  }));
+  });
+  const [w, setW] = useState(initialW);
   const set = (k, v) => setW((s) => ({ ...s, [k]: v }));
+
+  // Cancel: discard edits, restore original values, exit edit mode.
+  function cancelEdit() {
+    setW(initialW());
+    setEditing(false);
+    setState({ saving: false, saved: false, error: null });
+  }
 
   // Live economics — recompute whenever drivers change (edit mode), or show the
   // stored/derived numbers in view mode. Only runs when LBS is present.
@@ -126,7 +134,7 @@ export default function BidDetailClient({ bid }) {
           ) : (
             <>
               <button onClick={save} disabled={state.saving} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save"}</button>
-              <button onClick={() => setEditing(false)} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+              <button onClick={cancelEdit} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
             </>
           )}
         </div>
