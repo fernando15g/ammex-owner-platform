@@ -111,12 +111,13 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPercent: data.settings.retentionPercent ?? "",
     retentionFlatAmount: data.settings.retentionFlatAmount ?? "",
+    installedPounds: data.installedPounds ?? "",
   });
   async function save() {
     setBusy(true); setErr(null);
     try {
       const n = (v) => (v === "" ? null : Number(v));
-      const res = await fetch("/api/billing/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: data.id, settings: { billingContractValue: n(s.billingContractValue), retentionEnabled: s.retentionEnabled, retentionPercent: n(s.retentionPercent), retentionFlatAmount: n(s.retentionFlatAmount) } }) });
+      const res = await fetch("/api/billing/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: data.id, settings: { billingContractValue: n(s.billingContractValue), retentionEnabled: s.retentionEnabled, retentionPercent: n(s.retentionPercent), retentionFlatAmount: n(s.retentionFlatAmount), installedPounds: n(s.installedPounds) } }) });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
       onSaved();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
@@ -144,6 +145,9 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
           </Lbl>
         </div>
       )}
+      <Lbl text="Installed pounds to date" info="Total rebar placed on this job so far. Drives the unbilled-in-field number. Update this as the field reports progress.">
+        <input type="number" className="inp" value={s.installedPounds} onChange={(e) => setS({ ...s, installedPounds: e.target.value })} placeholder="0" />
+      </Lbl>
       <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save settings"}</button>
       <style jsx>{inpStyle}</style>
     </div>
