@@ -72,7 +72,7 @@ export default function ProjectBillingClient({ data }) {
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
       </div>
-      {showAdd && <AddEventForm type={showAdd} projectId={data.id} onClose={() => setShowAdd(null)} onSaved={refresh} />}
+      {showAdd && <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />}
 
       {/* Event history */}
       <div className="rounded-lg border border-line overflow-hidden">
@@ -154,11 +154,21 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
   );
 }
 
-function AddEventForm({ type, projectId, onClose, onSaved }) {
+function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
   const [f, setF] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), dueDate: "", invoiceNumber: "", pounds: "", retentionWithheld: "", notes: "" });
   const [busy, setBusy] = useState(false);
+  const [genning, setGenning] = useState(false);
   const [err, setErr] = useState(null);
   const isBill = type === "Bill";
+  async function generateInvoiceNumber() {
+    setGenning(true); setErr(null);
+    try {
+      const res = await fetch("/api/billing/next-invoice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId, projectIdLabel }) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      setF((cur) => ({ ...cur, invoiceNumber: d.invoiceNumber }));
+    } catch (e) { setErr(String(e.message || e)); }
+    setGenning(false);
+  }
   async function save() {
     setBusy(true); setErr(null);
     try {
@@ -178,13 +188,24 @@ function AddEventForm({ type, projectId, onClose, onSaved }) {
         <Lbl text="Amount"><input type="number" className="inp" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="0.00" /></Lbl>
         <Lbl text="Date"><input type="date" className="inp" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Lbl>
         {isBill && <Lbl text="Due date" info="When this invoice is due (net 30/60). Drives the aging buckets."><input type="date" className="inp" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} /></Lbl>}
-        {isBill && <Lbl text="Invoice number"><input className="inp" value={f.invoiceNumber} onChange={(e) => setF({ ...f, invoiceNumber: e.target.value })} placeholder="INV-2026-014" /></Lbl>}
+        {isBill && <Lbl text="Invoice number" info="Auto-generates as ProjectID-INV-N (e.g. 26-18-INV-3). You can also type your own.">
+          <div className="flex gap-2">
+            <input className="inp" value={f.invoiceNumber} onChange={(e) => setF({ ...f, invoiceNumber: e.target.value })} placeholder="26-18-INV-1" />
+            <button onClick={generateInvoiceNumber} disabled={genning} className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap disabled:opacity-40" title="Auto-generate invoice number">{genning ? "…" : "Generate"}</button>
+          </div>
+        </Lbl>}
         {isBill && <Lbl text="Pounds billed" info="Installed pounds this bill covers. Used for unbilled-in-field."><input type="number" className="inp" value={f.pounds} onChange={(e) => setF({ ...f, pounds: e.target.value })} /></Lbl>}
         {isBill && <Lbl text="Retention withheld" info="Retention held on THIS bill, if you track it per-bill. Leave blank to auto-calc from the % setting."><input type="number" className="inp" value={f.retentionWithheld} onChange={(e) => setF({ ...f, retentionWithheld: e.target.value })} placeholder="(optional)" /></Lbl>}
       </div>
       <div className="mt-3"><Lbl text="Notes"><input className="inp" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="e.g. extras e4-e5" /></Lbl></div>
-      <div className="flex gap-2 mt-4">
+      <div className="flex flex-wrap gap-2 mt-4 items-center">
         <button onClick={save} disabled={busy || f.amount === ""} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : `Save ${type.toLowerCase()}`}</button>
+        {isBill && (
+          <button disabled title="Coming soon — generate a printable PDF invoice to send the GC" className="text-sm px-4 py-2 rounded-md border border-line text-rebar/60 cursor-not-allowed flex items-center gap-1.5">
+            View / Print PDF
+            <span className="text-[9px] uppercase tracking-wider bg-info/20 text-info rounded px-1 py-0.5">soon</span>
+          </button>
+        )}
         <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
       </div>
       <style jsx>{inpStyle}</style>
