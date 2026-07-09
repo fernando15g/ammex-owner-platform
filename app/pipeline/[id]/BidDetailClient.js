@@ -185,16 +185,19 @@ export default function BidDetailClient({ bid }) {
           <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Economics {editing && <span className="text-safety normal-case">· live</span>}</p>
           {econ ? (
             <div className="space-y-2.5 text-sm">
-              <Row label="Bid rate" value={`$${econ.bidRatePerLb}/lb`} big />
+              <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={`$${econ.bidRatePerLb}/lb`} big />
               <Row label="Contract value" value={money(econ.contractValue)} />
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
               <Row label="Operating margin" value={pctFmt(econ.operatingMargin)} tone="ok" />
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />
               <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMH))} />
-              <div className="pt-2 mt-2 border-t border-line text-xs text-rebar">
-                Recommended {econ.recommendedCents.toFixed(2)}¢ → rounds to {econ.roundedCents}¢
-                {Number(w.bidRate) > 0 && ` · holding ${(Number(w.bidRate) * 100).toFixed(2)}¢`}
+              <div className="pt-2 mt-2 border-t border-line text-xs text-rebar leading-relaxed">
+                {Number(w.bidRate) > 0 ? (
+                  <>Using your rate of {(Number(w.bidRate) * 100).toFixed(2)}¢/lb. Clear the bid rate to use the recommended rate.</>
+                ) : (
+                  <>To hit the {(econ.assumptions.targetMarginPct * 100).toFixed(0)}% target margin, recommended {econ.recommendedCents.toFixed(2)}¢/lb → rounded to {econ.roundedCents}¢.</>
+                )}
               </div>
             </div>
           ) : (

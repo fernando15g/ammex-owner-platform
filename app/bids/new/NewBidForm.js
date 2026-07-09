@@ -118,7 +118,7 @@ export default function NewBidForm() {
         </div>
 
         <button onClick={() => setShowAssumptions((s) => !s)} className="text-xs text-info hover:underline">
-          {showAssumptions ? "\u2212 Hide" : "+ Show / edit"} assumptions (burden, tools, contingency, mobilization, target margin)
+          {showAssumptions ? "− Hide" : "+ Show / edit"} assumptions (burden, tools, contingency, mobilization, target margin)
         </button>
         {showAssumptions && (
           <div className="grid sm:grid-cols-3 gap-4 p-4 rounded-lg border border-line" style={{ background: "var(--surface)" }}>
@@ -134,24 +134,27 @@ export default function NewBidForm() {
         <Field label="Notes"><textarea className="inp min-h-[56px]" value={form.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
 
         <div className="flex gap-3 pt-2">
-          <button onClick={submit} disabled={state.saving || !form.projectName.trim()} className="px-5 py-2.5 rounded-md bg-safety text-steel font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed">{state.saving ? "Saving\u2026" : "Save bid"}</button>
+          <button onClick={submit} disabled={state.saving || !form.projectName.trim()} className="px-5 py-2.5 rounded-md bg-safety text-steel font-medium text-sm disabled:opacity-40 disabled:cursor-not-allowed">{state.saving ? "Saving…" : "Save bid"}</button>
           <a href="/pipeline" className="px-5 py-2.5 rounded-md border border-line text-rebar text-sm hover:bg-graphite">Cancel</a>
         </div>
       </div>
 
       <div className="lg:w-72 shrink-0 mt-6 lg:mt-0">
         <div className="rounded-lg border border-line p-5 lg:sticky lg:top-24" style={{ background: "var(--surface)" }}>
-          <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Economics <span className="text-safety normal-case">\u00b7 live</span></p>
+          <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Economics <span className="text-safety normal-case">· live</span></p>
           {econ ? (
             <div className="space-y-2.5 text-sm">
-              <PRow label="Bid rate" value={`$${econ.bidRatePerLb}/lb`} big />
+              <PRow label={Number(form.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={`$${econ.bidRatePerLb}/lb`} big />
               <PRow label="Contract value" value={`$${econ.contractValue.toLocaleString()}`} />
               <PRow label="Operating profit" value={`$${econ.operatingProfit.toLocaleString()}`} tone="ok" />
               <PRow label="Operating margin" value={`${(econ.operatingMargin * 100).toFixed(1)}%`} tone="ok" />
               <PRow label="Fully-loaded cost" value={`$${econ.fullyLoadedCost.toLocaleString()}`} />
-              <div className="pt-2 mt-2 border-t border-line text-xs text-rebar">
-                Recommended {econ.recommendedCents.toFixed(2)}\u00a2 \u2192 rounds to {econ.roundedCents}\u00a2
-                {Number(form.bidRate) > 0 && ` \u00b7 holding ${(Number(form.bidRate) * 100).toFixed(2)}\u00a2`}
+              <div className="pt-2 mt-2 border-t border-line text-xs text-rebar leading-relaxed">
+                {Number(form.bidRate) > 0 ? (
+                  <>Using your rate of {(Number(form.bidRate) * 100).toFixed(2)}¢/lb (${Number(form.bidRate).toFixed(4)}/lb). Leave bid rate blank to use the recommended rate instead.</>
+                ) : (
+                  <>To hit your {(econ.assumptions.targetMarginPct * 100).toFixed(0)}% target margin, the math recommends {econ.recommendedCents.toFixed(2)}¢/lb, rounded to {econ.roundedCents}¢ (= ${econ.bidRatePerLb}/lb). Type your own bid rate above to override.</>
+                )}
               </div>
             </div>
           ) : (
@@ -176,7 +179,7 @@ function Field({ label, hint, required, children }) {
 }
 function ChipField({ label, items, onAdd, placeholder }) {
   const onKey = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); onAdd([...items, e.target.value.trim()]); e.target.value = ""; } };
-  return (<Field label={label}>{items.length > 0 && <div className="flex flex-wrap gap-1.5 mb-2">{items.map((it, i) => (<span key={i} className="inline-flex items-center gap-1 text-xs border border-line rounded-full px-2.5 py-1 text-concrete" style={{ background: "var(--surface-2)" }}>{it}<button onClick={() => onAdd(items.filter((_, j) => j !== i))} className="text-rebar hover:text-danger">\u2715</button></span>))}</div>}<input className="inp" placeholder={placeholder} onKeyDown={onKey} /></Field>);
+  return (<Field label={label}>{items.length > 0 && <div className="flex flex-wrap gap-1.5 mb-2">{items.map((it, i) => (<span key={i} className="inline-flex items-center gap-1 text-xs border border-line rounded-full px-2.5 py-1 text-concrete" style={{ background: "var(--surface-2)" }}>{it}<button onClick={() => onAdd(items.filter((_, j) => j !== i))} className="text-rebar hover:text-danger">✕</button></span>))}</div>}<input className="inp" placeholder={placeholder} onKeyDown={onKey} /></Field>);
 }
 function PRow({ label, value, big, tone }) {
   const c = tone === "ok" ? "text-ok" : "text-concrete";
