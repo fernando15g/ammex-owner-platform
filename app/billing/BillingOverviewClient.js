@@ -1,0 +1,84 @@
+"use client";
+
+// Billing & Receivables overview — the A/R schedule. One row per project
+// (like the paper report), but with computed aging, outstanding, retention,
+// and unbilled-in-field. Click a project → its billing workspace.
+
+const money = (n) => (typeof n !== "number" ? "—" : n < 0 ? `-$${Math.abs(Math.round(n)).toLocaleString()}` : `$${Math.round(n).toLocaleString()}`);
+
+const STATUS_TONE = {
+  "Overdue": "text-danger",
+  "Billing in progress": "text-concrete",
+  "Fully billed": "text-info",
+  "Paid in full": "text-ok",
+  "Not billed": "text-rebar",
+};
+
+export default function BillingOverviewClient({ data }) {
+  const { rows, totals } = data;
+  return (
+    <div>
+      {/* Portfolio A/R summary */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <Stat label="Outstanding (owed to you)" value={money(totals.outstanding)} accent />
+        <Stat label="Overdue" value={money(totals.overdueTotal)} tone={totals.overdueTotal > 0 ? "danger" : "ok"} />
+        <Stat label="Remaining to bill" value={money(totals.remainingToBill)} />
+        <Stat label="Retention held" value={money(totals.retention)} />
+      </div>
+
+      {/* Aging strip */}
+      <div className="rounded-lg border border-line p-4 mb-6" style={{ background: "var(--surface)" }}>
+        <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Aging — outstanding by age</p>
+        <div className="grid grid-cols-5 gap-2 text-center">
+          <Age label="Current" value={money(totals.aging.current)} />
+          <Age label="1–30" value={money(totals.aging.d1_30)} warn={totals.aging.d1_30 > 0} />
+          <Age label="31–60" value={money(totals.aging.d31_60)} warn={totals.aging.d31_60 > 0} />
+          <Age label="61–90" value={money(totals.aging.d61_90)} danger={totals.aging.d61_90 > 0} />
+          <Age label="90+" value={money(totals.aging.d90_plus)} danger={totals.aging.d90_plus > 0} />
+        </div>
+      </div>
+
+      {/* Per-project A/R table */}
+      <div className="rounded-lg border border-line overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
+              <th className="text-left font-medium px-4 py-2.5">Project</th>
+              <th className="text-right font-medium px-3 py-2.5 hidden md:table-cell">Contract</th>
+              <th className="text-right font-medium px-3 py-2.5">Billed</th>
+              <th className="text-right font-medium px-3 py-2.5">Outstanding</th>
+              <th className="text-right font-medium px-3 py-2.5 hidden lg:table-cell">Unbilled field</th>
+              <th className="text-left font-medium px-4 py-2.5">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} onClick={() => { window.location.href = `/billing/${r.id}`; }} className="border-t border-line cursor-pointer hover:bg-graphite/60">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
+                  <div className="text-xs text-rebar mt-0.5">{r.projectId || ""}{r.gc?.length ? ` · ${r.gc.join(", ")}` : ""}</div>
+                </td>
+                <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell text-concrete/80">{money(r.billing.revisedContract)}</td>
+                <td className="px-3 py-3 text-right tabular-nums text-concrete">{money(r.billing.billedToDate)}</td>
+                <td className="px-3 py-3 text-right tabular-nums font-medium text-concrete">{money(r.billing.outstanding)}</td>
+                <td className="px-3 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/70">{r.billing.unbilledInFieldValue != null ? money(r.billing.unbilledInFieldValue) : "—"}</td>
+                <td className="px-4 py-3"><span className={`text-xs ${STATUS_TONE[r.billing.status] || "text-concrete"}`}>{r.billing.status}</span></td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-rebar">No billing yet. Open a project to set its contract value and log the first bill.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-rebar mt-3">Click a project to manage its billing — log bills, payments, change orders, and update installed pounds. All totals computed live.</p>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent, tone }) {
+  const c = tone === "danger" ? "text-danger" : tone === "ok" ? "text-ok" : accent ? "text-safety" : "text-concrete";
+  return (<div className="rounded-lg border border-line px-4 py-3" style={{ background: "var(--surface)" }}><p className="text-[11px] text-rebar mb-1 leading-tight">{label}</p><p className={`text-lg font-semibold ${c}`}>{value}</p></div>);
+}
+function Age({ label, value, warn, danger }) {
+  const c = danger ? "text-danger" : warn ? "text-warn" : "text-concrete";
+  return (<div><p className="text-[11px] text-rebar mb-1">{label}</p><p className={`text-sm font-medium tabular-nums ${c}`}>{value}</p></div>);
+}

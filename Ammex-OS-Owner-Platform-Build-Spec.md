@@ -192,3 +192,25 @@ Built per architect's write-layer contract. This is the reusable write infrastru
 - This detail+edit pattern is the TEMPLATE the Billing workspace reuses.
 
 **Deferred consciously:** version-based concurrency (team of 2, near-zero collision risk — revisit if estimators are added).
+
+---
+
+## 23. Billing / Due-Billing tracker — BUILT (the priority module)
+
+The A/R module the owner said matters most. Grounded in the associate's real paper report (event log: bill date/amount, payment date/amount, total due) plus the upgrades a well-run sub needs.
+
+**Data store (created in Notion):**
+- Projects DB — 4 new fields: `Billing Contract Value` ($), `Retention Enabled` (checkbox), `Retention Percent` (number), `Retention Flat Amount` ($).
+- New `Billing Events` DB (id `3989aeba538380cd93d1e53d71c3c459`): Event Name (title), Project (relation), Type (select: Bill/Payment/Change Order), Invoice Number, Amount ($), Retention Withheld ($), Date, Due Date, Pounds, Notes. Schema verified via inspector.
+
+**ALL math in code** (`lib/rules/billing.js`) — never Notion formulas (migration-safe). Computes: revised contract (base + change orders), billed/paid to date, outstanding, remaining-to-bill, retention held (percent or flat, only when enabled), unbilled-in-field ($ = (installed − billed) lbs × contract rate), aging buckets (current/30/60/90+ via FIFO payment application to bills by due date), computed billing status. Verified against a hand-checked 6-event scenario (revised 540k, outstanding 140k, retention 33k, unbilled 44,100, aging correct).
+
+**DAL:** `lib/notion/billingRepository.js` (read/create/update events, update project settings). **Data:** `getBillingOverview()` (portfolio A/R + per-project rows) and `getProjectBilling(id)`. **API:** POST/PATCH billing event, PATCH settings.
+
+**UI:**
+- `/billing` — A/R overview: portfolio stats (outstanding, overdue, remaining, retention), aging strip, per-project table (contract/billed/outstanding/unbilled-field/status), sorted overdue-first. Nav tab live.
+- `/billing/[id]` — the admin's ONE workspace per project: full money picture, aging, collapsible Contract & retention settings (with "use bid" contract assist + ⓘ tooltips explaining retention % vs flat and the bid-vs-contract nuance), installed-pounds shown, and log Bill / Payment / Change Order events with an editable event history. Reuses the detail+edit pattern from the bid page.
+
+**Interconnection:** all computed live from events at the Project hub on each load — log a payment → outstanding/aging update; update installed pounds → unbilled-in-field updates; add change order → revised contract/remaining update. Migration-safe (connections live in code, not Notion relations).
+
+**Deferred (event model supports adding later):** short-pay reasons, lien waivers, pay-when-paid, billing-deadline reminders, cash forecast, retention release events.
