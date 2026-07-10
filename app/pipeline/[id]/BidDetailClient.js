@@ -128,6 +128,7 @@ export default function BidDetailClient({ bid }) {
             Pipeline
           </a>
           <span className="ml-auto" />
+          <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Bid sheet</a>
           {state.saved && !editing && <span className="text-xs text-ok">Saved ✓</span>}
           {!editing ? (
             <button onClick={() => { setEditing(true); setState({ saving: false, saved: false, error: null }); }} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
