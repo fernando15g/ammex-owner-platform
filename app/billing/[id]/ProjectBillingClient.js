@@ -87,7 +87,11 @@ export default function ProjectBillingClient({ data }) {
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
       </div>
-      {showAdd && <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />}
+      {showAdd === "Payment" ? (
+        <PaymentForm projectId={data.id} bills={data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0)} events={data.events} onClose={() => setShowAdd(null)} onSaved={refresh} />
+      ) : showAdd ? (
+        <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />
+      ) : null}
 
       {/* Estimate vs actual — line-item progress vs the bid */}
       {data.lines && data.lines.length > 0 && (() => {
@@ -222,6 +226,69 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
       </Lbl>
       <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save settings"}</button>
       <style jsx>{inpStyle}</style>
+    </div>
+  );
+}
+
+function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
+  const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+  // outstanding per invoice = (gross - retention) - payments already tied to it
+  const paidByInvoice = {};
+  for (const e of events) if (e.type === "Payment" && e.invoiceNumber) paidByInvoice[e.invoiceNumber] = (paidByInvoice[e.invoiceNumber] || 0) + (e.amount || 0);
+  const options = bills.map((b) => {
+    const net = (b.amount || 0) - (b.retentionWithheld || 0);
+    const already = paidByInvoice[b.invoiceNumber] || 0;
+    return { id: b.id, invoiceNumber: b.invoiceNumber, date: b.date, net, outstanding: net - already };
+  });
+
+  const [billEventId, setBillEventId] = useState(options[0]?.id || "");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const selected = options.find((o) => o.id === billEventId);
+  const amtNum = amount === "" ? null : Number(amount);
+  const isShort = selected && amtNum != null && amtNum < selected.net - 0.005;
+
+  async function save() {
+    if (amtNum == null || isNaN(amtNum)) { setErr("Enter a valid amount."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/billing/log-payment", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, billEventId: billEventId || null, paidAmount: amtNum, paymentDate: date }),
+      });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      onSaved();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
+  return (
+    <div className="rounded-lg border border-line p-4 mb-4" style={{ background: "var(--surface)" }}>
+      <p className="text-sm font-medium text-concrete mb-3">Log a payment</p>
+      {err && <div className="text-sm text-danger mb-3">{err}</div>}
+      <div className="grid sm:grid-cols-3 gap-3">
+        <label className="block sm:col-span-1">
+          <span className="text-xs text-rebar mb-1 block">Against invoice</span>
+          <select className="inp" value={billEventId} onChange={(e) => setBillEventId(e.target.value)}>
+            {options.length === 0 && <option value="">No invoices yet</option>}
+            {options.map((o) => <option key={o.id} value={o.id}>{o.invoiceNumber || "invoice"} — {money(o.outstanding)} due</option>)}
+          </select>
+        </label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Amount received</span><input type="text" inputMode="decimal" className="inp" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={selected ? String(selected.outstanding.toFixed(2)) : "0.00"} /></label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Date</span><input type="date" className="inp" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      </div>
+      {selected && (
+        <p className="text-xs mt-2 text-rebar">
+          {selected.invoiceNumber || "Invoice"} · expected net {money(selected.net)}{" "}
+          {isShort ? <span className="text-warn">· short pay — the ${(selected.net - amtNum).toFixed(2)} difference will roll to the next invoice automatically.</span> : <span className="text-ok">· full payment.</span>}
+        </p>
+      )}
+      <div className="flex gap-2 mt-4">
+        <button onClick={save} disabled={busy || amount === ""} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : isShort ? "Log short payment" : "Log payment"}</button>
+        <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+      </div>
     </div>
   );
 }
