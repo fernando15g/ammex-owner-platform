@@ -22,6 +22,20 @@ export default function ProjectBillingClient({ data }) {
 
   async function refresh() { window.location.reload(); }
 
+  async function shortPay(ev) {
+    const expected = (ev.amount || 0) - (ev.retentionWithheld || 0);
+    const input = window.prompt(`Short pay on ${ev.invoiceNumber || "this bill"}\nExpected (net of retention): $${expected.toFixed(2)}\n\nEnter the amount ACTUALLY received:`);
+    if (input == null) return;
+    const paid = Number(String(input).replace(/[$,]/g, ""));
+    if (isNaN(paid) || paid < 0) { setErr("Enter a valid dollar amount."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/billing/short-pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: ev.id, paidAmount: paid }) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      refresh();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
   return (
     <div className="max-w-4xl">
       <a href="/billing" className="inline-flex items-center gap-1.5 text-sm text-rebar hover:text-concrete mb-5">
@@ -68,7 +82,7 @@ export default function ProjectBillingClient({ data }) {
 
       {/* Log new event */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <AddBtn label="+ Log a bill" onClick={() => setShowAdd("Bill")} primary />
+        <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Create bill (itemized)</a>
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
       </div>
@@ -94,7 +108,10 @@ export default function ProjectBillingClient({ data }) {
                 </td>
                 <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{money(e.amount)}</td>
-                <td className="px-4 py-2.5 hidden md:table-cell text-rebar text-xs">{e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{e.notes ? ` ${e.notes}` : ""}</td>
+                <td className="px-4 py-2.5 hidden md:table-cell text-rebar text-xs">
+                  {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{e.notes ? ` ${String(e.notes).split("[snap]")[0].trim()}` : ""}
+                  {e.type === "Bill" && <button onClick={() => shortPay(e)} disabled={busy} className="ml-2 text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40" title="They paid less than billed — adjust the record and roll the difference forward">Short pay</button>}
+                </td>
               </tr>
             ))}
             {data.events.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-rebar">No events yet. Log the first bill above.</td></tr>}
