@@ -2,8 +2,10 @@
 // Body: { projectId, relatedBidId, invoiceNumber, date, dueDate, notes,
 //         retentionEnabled, retentionPct, rows: [{ lineId?, itemNo, description,
 //         unit, unitPrice, estimateQty, toDateQty }] }
-// Rows with lineId advance existing lines; rows without create NEW line items
-// (weight-sheet additions). Retention only applies when the toggle is on.
+//
+// ORDER MATTERS: validate and compute the FULL invoice BEFORE writing anything
+// to Notion. If the bill is invalid ("nothing to bill", etc.) we throw before
+// any create/update — so a rejected bill leaves ZERO records behind.
 import { NextResponse } from "next/server";
 import { getAllLineItems, createLineItem, updateLineItem } from "@/lib/notion/lineItemRepository";
 import { createBillingEvent } from "@/lib/notion/billingRepository";
@@ -21,15 +23,18 @@ export async function POST(req) {
 
     const all = await getAllLineItems();
 
-    // 1) create any NEW lines (from the weight sheet)
-    const working = []; // { line, toDateQty, edited }
+    // -------------------------------------------------------------------------
+    // PHASE A — PLAN ONLY (no writes). Build the working set in memory. New
+    // lines are planned with a temp id so we can compute the invoice; they are
+    // only actually created in Phase C, AFTER validation passes.
+    // -------------------------------------------------------------------------
+    const plan = []; // { kind: "existing"|"new", tempId, stored?, line, toDateQty, edited?, createPayload? }
+    let tmp = 0;
     for (const r of rows) {
       const toDate = n(r.toDateQty);
       if (r.lineId) {
         const stored = all.find((l) => l.id === r.lineId);
         if (!stored) continue;
-        // row values win (existing lines are editable on the bill screen);
-        // prev qty stays authoritative from the stored line
         const line = {
           ...stored,
           itemNo: r.itemNo ?? stored.itemNo,
@@ -39,10 +44,11 @@ export async function POST(req) {
           unitPrice: n(r.unitPrice) ?? stored.unitPrice,
         };
         const edited = line.itemNo !== stored.itemNo || line.description !== stored.description || line.quantity !== stored.quantity || line.unit !== stored.unit || line.unitPrice !== stored.unitPrice;
-        working.push({ line, toDateQty: toDate, edited });
+        plan.push({ kind: "existing", line, toDateQty: toDate, edited });
       } else {
         if (!r.description && !r.itemNo) continue;
-        const created = await createLineItem({
+        const tempId = `tmp-${tmp++}`;
+        const createPayload = {
           description: r.description || r.itemNo,
           itemNo: r.itemNo || "",
           bidId: relatedBidId || null,
@@ -54,24 +60,42 @@ export async function POST(req) {
           lineType: "Standard",
           status: "Active",
           qtyToDate: 0,
-        });
-        working.push({
-          line: { id: created.id, itemNo: r.itemNo || "", description: r.description || "", quantity: n(r.estimateQty) ?? toDate ?? 0, unit: r.unit || "LBS", unitPrice: n(r.unitPrice) ?? 0, furnInst: null, qtyToDate: 0 },
+        };
+        plan.push({
+          kind: "new", tempId, createPayload,
+          line: { id: tempId, itemNo: createPayload.itemNo, description: createPayload.description, quantity: createPayload.quantity, unit: createPayload.unit, unitPrice: createPayload.unitPrice, furnInst: null, qtyToDate: 0 },
           toDateQty: toDate,
         });
       }
     }
-    if (!working.length) throw new Error("No valid rows.");
+    if (!plan.length) throw new Error("No valid rows.");
 
-    // 2) compute the invoice (template math) over exactly these rows
-    const lines = working.map((w) => w.line);
+    // -------------------------------------------------------------------------
+    // PHASE B — VALIDATE (still no writes). Compute the invoice; throw if empty.
+    // -------------------------------------------------------------------------
+    const lines = plan.map((p) => p.line);
     const newQty = {};
-    for (const w of working) if (w.toDateQty != null) newQty[w.line.id] = w.toDateQty;
+    for (const p of plan) if (p.toDateQty != null) newQty[p.line.id] = p.toDateQty;
     const inv = computeInvoice(lines, newQty, pct);
-    if (inv.grossThisEstimate <= 0) throw new Error("Nothing to bill — no quantities advanced this period.");
+    if (inv.grossThisEstimate <= 0) {
+      throw new Error("Nothing to bill — no quantities advanced this period. Nothing was saved.");
+    }
 
-    // 3) the invoice record, carrying a compact snapshot for view/short-pay/undo
-    const snap = { r: pct, lines: inv.rows.filter((x) => x.thisQty !== 0).map((x) => ({ id: x.id, u: x.unitPrice, q: x.thisQty })) };
+    // -------------------------------------------------------------------------
+    // PHASE C — COMMIT (writes happen only now, after validation passed).
+    // 1) create the new lines, 2) remap temp ids -> real ids in the invoice,
+    // 3) create the invoice event, 4) advance/patch lines.
+    // -------------------------------------------------------------------------
+    const idMap = {};
+    for (const p of plan) {
+      if (p.kind === "new") {
+        const created = await createLineItem(p.createPayload);
+        idMap[p.tempId] = created.id;
+      }
+    }
+    const realId = (id) => idMap[id] || id;
+
+    const snap = { r: pct, lines: inv.rows.filter((x) => x.thisQty !== 0).map((x) => ({ id: realId(x.id), u: x.unitPrice, q: x.thisQty })) };
     const event = await createBillingEvent({
       projectId,
       type: "Bill",
@@ -85,21 +109,21 @@ export async function POST(req) {
       notes: `${notes || ""}\n[snap]${JSON.stringify(snap)}`,
     });
 
-    // 4) advance lines + activate on the project
     for (const x of inv.rows) {
-      const w = working.find((k) => k.line.id === x.id);
-      if (!w) continue;
-      const wasNew = !rows.find((r) => r.lineId === x.id);
-      if (x.toDateQty !== x.prevQty || wasNew || w.edited) {
+      const p = plan.find((k) => k.line.id === x.id);
+      if (!p) continue;
+      const id = realId(x.id);
+      const wasNew = p.kind === "new";
+      if (x.toDateQty !== x.prevQty || wasNew || p.edited) {
         const patch = { qtyToDate: x.toDateQty, status: "Active", projectId };
-        if (w.edited) {
-          patch.itemNo = w.line.itemNo;
-          patch.description = w.line.description;
-          patch.quantity = w.line.quantity;
-          patch.unit = w.line.unit;
-          patch.unitPrice = w.line.unitPrice;
+        if (p.edited) {
+          patch.itemNo = p.line.itemNo;
+          patch.description = p.line.description;
+          patch.quantity = p.line.quantity;
+          patch.unit = p.line.unit;
+          patch.unitPrice = p.line.unitPrice;
         }
-        await updateLineItem(x.id, patch);
+        await updateLineItem(id, patch);
       }
     }
 
