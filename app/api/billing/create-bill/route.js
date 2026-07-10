@@ -22,13 +22,24 @@ export async function POST(req) {
     const all = await getAllLineItems();
 
     // 1) create any NEW lines (from the weight sheet)
-    const working = []; // { line, toDateQty }
+    const working = []; // { line, toDateQty, edited }
     for (const r of rows) {
       const toDate = n(r.toDateQty);
       if (r.lineId) {
-        const line = all.find((l) => l.id === r.lineId);
-        if (!line) continue;
-        working.push({ line, toDateQty: toDate });
+        const stored = all.find((l) => l.id === r.lineId);
+        if (!stored) continue;
+        // row values win (existing lines are editable on the bill screen);
+        // prev qty stays authoritative from the stored line
+        const line = {
+          ...stored,
+          itemNo: r.itemNo ?? stored.itemNo,
+          description: r.description ?? stored.description,
+          quantity: n(r.estimateQty) ?? stored.quantity,
+          unit: r.unit || stored.unit,
+          unitPrice: n(r.unitPrice) ?? stored.unitPrice,
+        };
+        const edited = line.itemNo !== stored.itemNo || line.description !== stored.description || line.quantity !== stored.quantity || line.unit !== stored.unit || line.unitPrice !== stored.unitPrice;
+        working.push({ line, toDateQty: toDate, edited });
       } else {
         if (!r.description && !r.itemNo) continue;
         const created = await createLineItem({
@@ -79,8 +90,16 @@ export async function POST(req) {
       const w = working.find((k) => k.line.id === x.id);
       if (!w) continue;
       const wasNew = !rows.find((r) => r.lineId === x.id);
-      if (x.toDateQty !== x.prevQty || wasNew) {
-        await updateLineItem(x.id, { qtyToDate: x.toDateQty, status: "Active", projectId });
+      if (x.toDateQty !== x.prevQty || wasNew || w.edited) {
+        const patch = { qtyToDate: x.toDateQty, status: "Active", projectId };
+        if (w.edited) {
+          patch.itemNo = w.line.itemNo;
+          patch.description = w.line.description;
+          patch.quantity = w.line.quantity;
+          patch.unit = w.line.unit;
+          patch.unitPrice = w.line.unitPrice;
+        }
+        await updateLineItem(x.id, patch);
       }
     }
 

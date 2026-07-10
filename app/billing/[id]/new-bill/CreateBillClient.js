@@ -54,6 +54,44 @@ export default function CreateBillClient({ data }) {
   const addBlankRow = () => setRows((rs) => [...rs, { lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }]);
   const removeRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i));
 
+  // ---- Excel-like grid behavior (same as the bid sheet) ----------------------
+  const GRID_COLS = ["itemNo", "description", "estimateQty", "unitPrice", "toDateQty"];
+  function focusCell(row, col) {
+    const el = document.querySelector(`[data-r="${row}"][data-c="${col}"]`);
+    if (el) { el.focus(); if (el.select) el.select(); }
+  }
+  function onKeyDown(e, i, ci) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (i === rows.length - 1) { addBlankRow(); setTimeout(() => focusCell(i + 1, ci), 30); }
+      else focusCell(i + 1, ci);
+    } else if (e.key === "ArrowDown") { e.preventDefault(); focusCell(i + 1, ci); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); focusCell(i - 1, ci); }
+  }
+  // Paste tab/newline data across the grid from the pasted cell; auto-adds rows.
+  function onCellPaste(e, i, ci) {
+    const text = e.clipboardData?.getData("text/plain") || "";
+    if (!text.includes("\t") && !text.includes("\n")) return; // single value
+    e.preventDefault();
+    const pasted = text.replace(/\r/g, "").split("\n").filter((l) => l.trim() !== "");
+    setRows((rs) => {
+      const next = [...rs];
+      pasted.forEach((lineTxt, li) => {
+        const r = i + li;
+        while (r >= next.length) next.push({ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null });
+        const vals = lineTxt.split("\t");
+        const updated = { ...next[r] };
+        vals.forEach((v, vi) => {
+          const col = GRID_COLS[ci + vi];
+          if (!col) return;
+          updated[col] = v.trim().replace(/[$,]/g, "");
+        });
+        next[r] = updated;
+      });
+      return next;
+    });
+  }
+
   // ---- live invoice math (mirrors the template) ------------------------------
   const pct = head.retentionEnabled ? Number(head.retentionPct) || 0 : 0;
   const calc = useMemo(() => {
@@ -266,17 +304,17 @@ export default function CreateBillClient({ data }) {
           <tbody>
             {calc.rows.map((r, i) => (
               <tr key={i} className="border-t border-line">
-                <td className="px-1.5 py-1">{r.lineId ? <span className="px-1.5 text-concrete/70">{r.itemNo || "—"}</span> : <input className="cell" value={r.itemNo} onChange={(e) => setCell(i, "itemNo", e.target.value)} placeholder="28410" />}</td>
-                <td className="px-1.5 py-1">{r.lineId ? <span className="px-1.5 text-concrete">{r.description}</span> : <input className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Description" />}</td>
-                <td className="px-1.5 py-1">{r.lineId ? <span className="block text-right px-1.5 tabular-nums text-concrete/70">{qf(num(r.estimateQty))}</span> : <input type="text" inputMode="decimal" className="cell text-right" value={r.estimateQty} onChange={(e) => setCell(i, "estimateQty", e.target.value)} />}</td>
-                <td className="px-1.5 py-1">{r.lineId ? <span className="block text-right px-1.5 tabular-nums text-concrete/70">{r.unitPrice}</span> : <input type="text" inputMode="decimal" className="cell text-right" value={r.unitPrice} onChange={(e) => setCell(i, "unitPrice", e.target.value)} placeholder="0.30" />}</td>
-                <td className="px-1.5 py-1 border-l border-line"><input type="text" inputMode="decimal" className="cell text-right" value={r.toDateQty} placeholder={String(r.prevQty)} onChange={(e) => setCell(i, "toDateQty", e.target.value)} /></td>
+                <td className="px-1.5 py-1"><input data-r={i} data-c={0} onKeyDown={(e) => onKeyDown(e, i, 0)} onPaste={(e) => onCellPaste(e, i, 0)} className="cell" value={r.itemNo} onChange={(e) => setCell(i, "itemNo", e.target.value)} placeholder="28410" /></td>
+                <td className="px-1.5 py-1"><input data-r={i} data-c={1} onKeyDown={(e) => onKeyDown(e, i, 1)} onPaste={(e) => onCellPaste(e, i, 1)} className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Description" /></td>
+                <td className="px-1.5 py-1"><input data-r={i} data-c={2} onKeyDown={(e) => onKeyDown(e, i, 2)} onPaste={(e) => onCellPaste(e, i, 2)} type="text" inputMode="decimal" className="cell text-right" value={r.estimateQty} onChange={(e) => setCell(i, "estimateQty", e.target.value)} /></td>
+                <td className="px-1.5 py-1"><input data-r={i} data-c={3} onKeyDown={(e) => onKeyDown(e, i, 3)} onPaste={(e) => onCellPaste(e, i, 3)} type="text" inputMode="decimal" className="cell text-right" value={r.unitPrice} onChange={(e) => setCell(i, "unitPrice", e.target.value)} placeholder="0.30" /></td>
+                <td className="px-1.5 py-1 border-l border-line"><input data-r={i} data-c={4} onKeyDown={(e) => onKeyDown(e, i, 4)} onPaste={(e) => onCellPaste(e, i, 4)} type="text" inputMode="decimal" className="cell text-right" value={r.toDateQty} placeholder={String(r.prevQty)} onChange={(e) => setCell(i, "toDateQty", e.target.value)} /></td>
                 <td className="px-2 py-1 text-right tabular-nums text-concrete/80">{money(r.toDateAmt)}</td>
                 <td className="px-2 py-1 text-right tabular-nums text-concrete/60 border-l border-line">{qf(r.prevQty)}</td>
                 <td className="px-2 py-1 text-right tabular-nums text-concrete/60">{money(r.prevAmt)}</td>
                 <td className={`px-2 py-1 text-right tabular-nums border-l border-line ${r.thisQty < 0 ? "text-danger" : "text-concrete"}`}>{qf(r.thisQty)}</td>
                 <td className={`px-2 py-1 text-right tabular-nums ${r.thisAmt < 0 ? "text-danger" : "text-concrete"}`}>{money(r.thisAmt)}</td>
-                <td className="px-1 py-1 text-center">{!r.lineId && <button onClick={() => removeRow(i)} className="text-rebar hover:text-danger text-xs">✕</button>}</td>
+                <td className="px-1 py-1 text-center"><button onClick={() => removeRow(i)} className="text-rebar hover:text-danger text-xs" title={r.lineId ? "Remove from this bill (line stays on the project)" : "Remove row"}>✕</button></td>
               </tr>
             ))}
             <tr className="border-t-2 border-line bg-graphite/40">
@@ -309,7 +347,7 @@ export default function CreateBillClient({ data }) {
         <button onClick={addBlankRow} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">+ Add row</button>
         <label className="block flex-1"><input className="inp" value={head.notes} onChange={(e) => setHead({ ...head, notes: e.target.value })} placeholder="Notes — e.g. extras e4-e5" /></label>
       </div>
-      <p className="text-xs text-rebar mt-3">Enter each line&apos;s new <span className="text-concrete">Total Work To Date</span> (from the weight sheet), or use Paste weight sheet. Blank = unchanged. This Estimate = To Date − Previous. Saving creates the invoice and carries these quantities into the next one.</p>
+      <p className="text-xs text-rebar mt-3">Enter each line&apos;s new <span className="text-concrete">Total Work To Date</span> (from the weight sheet), paste rows straight from Excel into any cell (rows auto-add), or use Paste weight sheet for item-number matching. Enter moves down. Blank = unchanged. This Estimate = To Date − Previous. Saving creates the invoice and carries these quantities into the next one.</p>
 
       <style jsx>{`
         .cell { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 13px; color: var(--text); outline: none; }
