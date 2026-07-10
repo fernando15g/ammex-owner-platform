@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 // Billing & Receivables overview — the A/R schedule. One row per project
 // (like the paper report), but with computed aging, outstanding, retention,
 // and unbilled-in-field. Click a project → its billing workspace.
@@ -16,8 +18,34 @@ const STATUS_TONE = {
 
 export default function BillingOverviewClient({ data }) {
   const { rows, totals } = data;
+  const [q, setQ] = useState("");
+  const active = rows.filter((r) => r.hasBilling);
+  const matches = q.trim() === "" ? [] : rows.filter((r) => {
+    const hay = `${r.name || ""} ${r.projectId || ""} ${(r.gc || []).join(" ")}`.toLowerCase();
+    return hay.includes(q.trim().toLowerCase());
+  }).slice(0, 8);
   return (
     <div>
+      {/* Find a project (incl. ones with no billing yet) */}
+      <div className="relative mb-4 max-w-md">
+        <input
+          className="inp"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Find a project to bill — name, ID, or GC…"
+        />
+        {matches.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full rounded-lg border border-line shadow-lg overflow-hidden" style={{ background: "var(--surface)" }}>
+            {matches.map((m) => (
+              <button key={m.id} onClick={() => { window.location.href = `/billing/${m.id}`; }} className="w-full text-left px-3 py-2.5 hover:bg-graphite/60 border-b border-line last:border-b-0">
+                <span className="text-sm text-concrete">{m.name || "—"}</span>
+                <span className="text-xs text-rebar ml-2">{m.projectId || ""}{m.gc?.length ? ` · ${m.gc.join(", ")}` : ""}{!m.hasBilling ? " · no billing yet" : ""}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Portfolio A/R summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
         <Stat label="Outstanding (owed to you)" value={money(totals.outstanding)} accent />
@@ -52,7 +80,7 @@ export default function BillingOverviewClient({ data }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {active.map((r) => (
               <tr key={r.id} onClick={() => { window.location.href = `/billing/${r.id}`; }} className="border-t border-line cursor-pointer hover:bg-graphite/60">
                 <td className="px-4 py-3">
                   <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
@@ -65,11 +93,11 @@ export default function BillingOverviewClient({ data }) {
                 <td className="px-4 py-3"><span className={`text-xs ${STATUS_TONE[r.billing.status] || "text-concrete"}`}>{r.billing.status}</span></td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-rebar">No billing yet. Open a project to set its contract value and log the first bill.</td></tr>}
+            {active.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-rebar">No projects with billing yet. Use the search above to pull up a project and set its contract value or create its first bill.</td></tr>}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-rebar mt-3">Click a project to manage its billing — log bills, payments, change orders, and update installed pounds. All totals computed live.</p>
+      <p className="text-xs text-rebar mt-3">Showing projects with billing activity. To start billing a new project, find it with the search above. All totals computed live.</p>
     </div>
   );
 }
