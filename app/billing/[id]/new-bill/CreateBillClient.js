@@ -45,6 +45,7 @@ export default function CreateBillClient({ data }) {
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPct: data.settings.retentionPercent ?? "",
   });
+  const [adot, setAdot] = useState({ enabled: false, totalSqft: "" });
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [showLast, setShowLast] = useState(false);
@@ -108,6 +109,21 @@ export default function CreateBillClient({ data }) {
     const retention = out.reduce((a, r) => a + r.ret, 0);
     return { rows: out, gross, retention, totalDue: gross - retention, toDateAmt: out.reduce((a, r) => a + r.toDateAmt, 0), prevAmt: out.reduce((a, r) => a + r.prevAmt, 0) };
   }, [rows, pct]);
+
+  // ---- ADOT: bid in lbs, bill in sqft via % complete -------------------------
+  const adotCalc = useMemo(() => {
+    if (!adot.enabled) return null;
+    const totalEstQty = calc.rows.reduce((a, r) => a + (num(r.estimateQty) || 0), 0);
+    const totalToDateQty = calc.rows.reduce((a, r) => a + (r.toDate || 0), 0);
+    const prevToDate = calc.rows.reduce((a, r) => a + (r.prevQty || 0), 0);
+    const pctToDate = totalEstQty > 0 ? totalToDateQty / totalEstQty : 0;
+    const pctPrev = totalEstQty > 0 ? prevToDate / totalEstQty : 0;
+    const totalSqft = num(adot.totalSqft) || 0;
+    const sqftToDate = totalSqft * pctToDate;
+    const sqftPrev = totalSqft * pctPrev;
+    const sqftThis = sqftToDate - sqftPrev;
+    return { totalEstQty, totalToDateQty, pctToDate, pctPrev, totalSqft, sqftToDate, sqftPrev, sqftThis };
+  }, [adot, calc.rows]);
 
   // ---- weight-sheet paste: whole rows, matched by Item No --------------------
   function applyPaste() {
@@ -278,6 +294,26 @@ export default function CreateBillClient({ data }) {
         </div>
       </div>
 
+      {/* ADOT sqft conversion */}
+      <div className="rounded-lg border border-line mb-4" style={{ background: "var(--surface)" }}>
+        <label className="flex items-center gap-2 px-4 py-2.5 text-sm cursor-pointer">
+          <input type="checkbox" checked={adot.enabled} onChange={(e) => setAdot({ ...adot, enabled: e.target.checked })} />
+          <span className="text-concrete font-medium">ADOT job — bill in square feet</span>
+          <span className="text-xs text-rebar">bid in lbs, ADOT pays by sq ft → uses % complete</span>
+        </label>
+        {adot.enabled && adotCalc && (
+          <div className="px-4 pb-4 border-t border-line pt-3">
+            <div className="grid sm:grid-cols-4 gap-3 items-end">
+              <label className="block"><span className="text-xs text-rebar mb-1 block">Total job sq ft (from ADOT)</span><input type="text" inputMode="decimal" className="inp" value={adot.totalSqft} onChange={(e) => setAdot({ ...adot, totalSqft: e.target.value })} placeholder="2400" /></label>
+              <Metric label="% complete (by lbs)" value={`${(adotCalc.pctToDate * 100).toFixed(1)}%`} />
+              <Metric label="Sq ft to date" value={qf(adotCalc.sqftToDate)} />
+              <Metric label="Sq ft this estimate" value={qf(adotCalc.sqftThis)} accent />
+            </div>
+            <p className="text-[11px] text-rebar mt-2">{qf(adotCalc.totalToDateQty)} of {qf(adotCalc.totalEstQty)} lbs = {(adotCalc.pctToDate * 100).toFixed(1)}% → bill {(adotCalc.pctToDate * 100).toFixed(1)}% of {qf(adotCalc.totalSqft)} sq ft. Previous billed {qf(adotCalc.sqftPrev)} sq ft; this estimate = {qf(adotCalc.sqftThis)} sq ft. (Dollar amount still from the line items below.)</p>
+          </div>
+        )}
+      </div>
+
       {/* the template grid */}
       <div className="rounded-lg border border-line overflow-x-auto">
         <table className="w-full text-sm" style={{ minWidth: 1020 }}>
@@ -355,6 +391,10 @@ export default function CreateBillClient({ data }) {
       `}</style>
     </div>
   );
+}
+
+function Metric({ label, value, accent }) {
+  return (<div className="rounded-md border border-line px-3 py-2" style={{ background: "var(--surface-2)" }}><p className="text-[11px] text-rebar">{label}</p><p className={`text-sm font-semibold tabular-nums ${accent ? "text-safety" : "text-concrete"}`}>{value}</p></div>);
 }
 
 function BackLink({ id }) {

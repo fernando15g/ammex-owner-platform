@@ -17,6 +17,7 @@ export default function ProjectBillingClient({ data }) {
   const b = data.billing;
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [evaOpen, setEvaOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -87,6 +88,60 @@ export default function ProjectBillingClient({ data }) {
         <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
       </div>
       {showAdd && <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />}
+
+      {/* Estimate vs actual — line-item progress vs the bid */}
+      {data.lines && data.lines.length > 0 && (() => {
+        const rows = data.lines;
+        const estTotal = rows.reduce((a, l) => a + (l.quantity || 0), 0);
+        const actualTotal = rows.reduce((a, l) => a + (l.qtyToDate || 0), 0);
+        const pct = estTotal > 0 ? (actualTotal / estTotal) * 100 : 0;
+        return (
+          <div className="rounded-lg border border-line mb-6" style={{ background: "var(--surface)" }}>
+            <button onClick={() => setEvaOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-sm">
+              <span className="text-concrete font-medium">Estimate vs actual (line items)</span>
+              <span className="text-rebar text-xs">{lbs(actualTotal)} / {lbs(estTotal)} lbs billed · {pct.toFixed(1)}% · {evaOpen ? "hide" : "show"}</span>
+            </button>
+            {evaOpen && (
+              <div className="px-4 pb-4 border-t border-line pt-3 overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: 620 }}>
+                  <thead><tr className="text-rebar text-[11px] uppercase tracking-wider">
+                    <th className="text-left font-medium px-2 py-1.5">Item</th>
+                    <th className="text-left font-medium px-2 py-1.5">Description</th>
+                    <th className="text-right font-medium px-2 py-1.5">Bid est.</th>
+                    <th className="text-right font-medium px-2 py-1.5">Billed to date</th>
+                    <th className="text-right font-medium px-2 py-1.5">Diff</th>
+                    <th className="text-right font-medium px-2 py-1.5">% done</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map((l) => {
+                      const est = l.quantity || 0, act = l.qtyToDate || 0, diff = act - est;
+                      const lp = est > 0 ? (act / est) * 100 : 0;
+                      return (
+                        <tr key={l.id} className="border-t border-line">
+                          <td className="px-2 py-1.5 text-concrete/70">{l.itemNo || "—"}</td>
+                          <td className="px-2 py-1.5 text-concrete">{l.description}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-concrete/70">{lbs(est)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-concrete">{lbs(act)}</td>
+                          <td className={`px-2 py-1.5 text-right tabular-nums ${diff > 0 ? "text-warn" : diff < 0 ? "text-rebar" : "text-concrete/50"}`}>{diff > 0 ? "+" : ""}{lbs(diff)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-concrete/80">{lp.toFixed(0)}%</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t-2 border-line bg-graphite/40">
+                      <td colSpan={2} className="px-2 py-2 text-xs text-rebar">TOTAL</td>
+                      <td className="px-2 py-2 text-right tabular-nums text-concrete/70">{lbs(estTotal)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-medium text-concrete">{lbs(actualTotal)}</td>
+                      <td className={`px-2 py-2 text-right tabular-nums ${actualTotal - estTotal > 0 ? "text-warn" : "text-rebar"}`}>{actualTotal - estTotal > 0 ? "+" : ""}{lbs(actualTotal - estTotal)}</td>
+                      <td className="px-2 py-2 text-right tabular-nums font-medium text-concrete">{pct.toFixed(1)}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p className="text-[11px] text-rebar mt-2">Positive diff = billed more than the bid estimate (weights came in higher). Helps see drift from bid and how close to complete.</p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Event history */}
       <div className="rounded-lg border border-line overflow-hidden">
