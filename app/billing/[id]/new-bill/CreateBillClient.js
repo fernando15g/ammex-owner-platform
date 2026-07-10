@@ -19,6 +19,19 @@ const num = (v) => (v === "" || v == null ? null : Number(v));
 
 export default function CreateBillClient({ data }) {
   const priorBills = data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0);
+  // Short-pay carry-forwards: quiet reminder that a prior short-paid balance
+  // re-bills within its line items this cycle (audit trail, not a line item).
+  const carryForwards = (() => {
+    const out = [];
+    for (const e of data.events) {
+      if (e.type !== "Payment") continue;
+      const m = (e.notes || "").match(/\[carry\](\{.*\})\s*$/s);
+      if (!m) continue;
+      try { out.push({ ...JSON.parse(m[1]), date: e.date }); } catch {}
+    }
+    return out;
+  })();
+  const totalCarry = carryForwards.reduce((a, c) => a + (c.netShort || 0), 0);
   const isFirstInvoice = priorBills.length === 0;
   const hasBidLines = data.lines.length > 0;
 
@@ -263,6 +276,12 @@ export default function CreateBillClient({ data }) {
       </div>
 
       {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{state.error}</div>}
+
+      {carryForwards.length > 0 && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm mb-4">
+          <p className="text-concrete"><span className="font-medium">Carried over from short pay:</span> {carryForwards.map((c) => `$${(c.netShort || 0).toFixed(2)} from ${c.fromInvoice || "a prior invoice"}`).join(", ")}. This re-bills automatically within its line items as you advance the quantities below — no need to add it manually.</p>
+        </div>
+      )}
 
       {/* last invoice panel */}
       {showLast && lastBill && (

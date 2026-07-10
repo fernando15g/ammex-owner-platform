@@ -168,7 +168,7 @@ export default function ProjectBillingClient({ data }) {
                 <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{money(e.amount)}</td>
                 <td className="px-4 py-2.5 hidden md:table-cell text-rebar text-xs">
-                  {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{e.notes ? ` ${String(e.notes).split("[snap]")[0].trim()}` : ""}
+                  {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{e.notes ? ` ${String(e.notes).split("[snap]")[0].split("[carry]")[0].replace(/\[short pay\][\s\S]*/, "").trim()}` : ""}
                   {e.type === "Bill" && <button onClick={() => shortPay(e)} disabled={busy} className="ml-2 text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40" title="They paid less than billed — adjust the record and roll the difference forward">Short pay</button>}
                 </td>
               </tr>

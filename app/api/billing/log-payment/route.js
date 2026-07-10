@@ -75,13 +75,21 @@ export async function POST(req) {
       if (!line) continue;
       await updateLineItem(red.id, { qtyToDate: Math.max((line.qtyToDate || 0) - red.qtyReduction, 0) });
     }
-    // 3) log the payment received, tied to the invoice
+    // 3) log the payment received, tied to the invoice, with a structured
+    //    carry-forward tag: the next bill reads this to show a quiet reminder,
+    //    and it's the audit trail of what rolled back to which lines.
+    const carry = {
+      fromInvoice: bill.invoiceNumber || "",
+      grossRolled: Number(grossCut.toFixed(2)),
+      netShort: Number(shortNet.toFixed(2)),
+      lines: reductions.filter((x) => x.qtyReduction > 0).map((x) => ({ id: x.id, qty: Number(x.qtyReduction.toFixed(1)), amt: Number(x.dollarCut.toFixed(2)) })),
+    };
     await createBillingEvent({
       projectId: bill.projectId, type: "Payment",
       name: `Payment — ${bill.invoiceNumber || "short pay"}`,
       invoiceNumber: bill.invoiceNumber || "",
       amount: paid, date,
-      notes: `Short pay against ${bill.invoiceNumber || "invoice"} — unpaid balance rolls to next invoice`,
+      notes: `Short pay against ${bill.invoiceNumber || "invoice"} — $${shortNet.toFixed(2)} re-bills next cycle within its line items\n[carry]${JSON.stringify(carry)}`,
     });
     return NextResponse.json({ ok: true, mode: "short", rolledForward: Number(shortNet.toFixed(2)) });
   } catch (e) {
