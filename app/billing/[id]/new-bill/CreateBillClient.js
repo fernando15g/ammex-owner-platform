@@ -39,7 +39,7 @@ export default function CreateBillClient({ data }) {
     estimateQty: li.quantity ?? "", unit: li.unit || "LBS", unitPrice: li.unitPrice ?? "",
     prevQty: li.qtyToDate || 0, toDateQty: "", furnInst: li.furnInst || null,
   }));
-  const [rows, setRows] = useState(() => (isFirstInvoice && hasBidLines ? [] : fromLines()));
+  const [rows, setRows] = useState(() => { const base = isFirstInvoice && hasBidLines ? [] : fromLines(); return base.length === 0 && !(isFirstInvoice && hasBidLines) ? [{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }] : base; });
   const [head, setHead] = useState({
     invoiceNumber: "", date: new Date().toISOString().slice(0, 10), dueDate: "", notes: "",
     retentionEnabled: !!data.settings.retentionEnabled,
@@ -187,7 +187,7 @@ export default function CreateBillClient({ data }) {
             <p className="text-concrete font-medium mb-1">Use the bid sheet</p>
             <p className="text-xs text-rebar">Load the {data.lines.length} proposal line{data.lines.length === 1 ? "" : "s"} below to confirm — you can adjust and add more before billing.</p>
           </button>
-          <button onClick={() => { setRows([]); setMode("grid"); }} className="text-left rounded-lg border border-line p-5 hover:border-safety" style={{ background: "var(--surface)" }}>
+          <button onClick={() => { setRows([{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }]); setMode("grid"); }} className="text-left rounded-lg border border-line p-5 hover:border-safety" style={{ background: "var(--surface)" }}>
             <p className="text-concrete font-medium mb-1">Start blank (weight sheet)</p>
             <p className="text-xs text-rebar">Paste rows straight from the fabricator&apos;s weight sheet — matching item numbers update the bid lines automatically.</p>
           </button>

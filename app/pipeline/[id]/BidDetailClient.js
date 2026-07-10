@@ -42,6 +42,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
     contingencyPct: bid.contingencyPct ?? "",
     mobilizationHrs: bid.mobilizationHrs ?? "",
     targetMarginPct: bid.targetMarginPct ?? "",
+    hoursPerDay: "",
   });
   const [w, setW] = useState(initialW);
   const set = (k, v) => setW((s) => ({ ...s, [k]: v }));
@@ -58,21 +59,20 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
   const econ = useMemo(() => {
     const n = (v) => (v === "" || v == null ? null : Number(v));
     if (!n(w.estimatedLbs)) return null;
-    return priceBid(
-      {
-        weightLb: n(w.estimatedLbs),
-        outputLbPerMH: n(w.productivity) ?? "",
-        crewSize: n(w.crewSize) ?? "",
-        wageRate: n(w.baseWage) ?? "",
-        ptSpecialty: n(w.ptSpecialty) ?? 0,
-        mobilizationHrs: n(w.mobilizationHrs) ?? "",
-        burdenPct: n(w.burdenPct) ?? "",
-        toolsPct: n(w.toolsPct) ?? "",
-        contingencyPct: n(w.contingencyPct) ?? "",
-        targetMarginPct: n(w.targetMarginPct) ?? "",
-      },
-      n(w.bidRate) // hold the active rate; null → recommended
-    );
+    // CRITICAL: only pass fields that HAVE values — blanks must fall back to
+    // the engine defaults, never override them to zero.
+    const inputs = { weightLb: n(w.estimatedLbs), ptSpecialty: n(w.ptSpecialty) ?? 0 };
+    const add = (k, v) => { if (v != null) inputs[k] = v; };
+    add("outputLbPerMH", n(w.productivity));
+    add("crewSize", n(w.crewSize));
+    add("wageRate", n(w.baseWage));
+    add("mobilizationHrs", n(w.mobilizationHrs));
+    add("burdenPct", n(w.burdenPct));
+    add("toolsPct", n(w.toolsPct));
+    add("contingencyPct", n(w.contingencyPct));
+    add("targetMarginPct", n(w.targetMarginPct));
+    add("hoursPerDay", n(w.hoursPerDay));
+    return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
   }, [w]);
 
   async function save() {
@@ -174,6 +174,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
                 <FNum label="Contingency %" edit value={w.contingencyPct} onChange={(v) => set("contingencyPct", v)} step="0.01" placeholder="0.03" />
                 <FNum label="Target margin %" edit value={w.targetMarginPct} onChange={(v) => set("targetMarginPct", v)} step="0.01" placeholder="0.25" />
                 <FNum label="Mobilization hrs" edit value={w.mobilizationHrs} onChange={(v) => set("mobilizationHrs", v)} placeholder="8" />
+                <FNum label="Hours per day" edit value={w.hoursPerDay} onChange={(v) => set("hoursPerDay", v)} placeholder="8" />
               </Grid>
             </details>
           )}

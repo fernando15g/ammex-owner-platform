@@ -13,7 +13,7 @@ import { priceBid } from "@/lib/rules/bidCostEngine";
 const DEFAULTS = {
   productivity: "200", baseWage: "32", crewSize: "",
   burdenPct: "0.20", toolsPct: "0.03", contingencyPct: "0.03",
-  mobilizationHrs: "8", targetMarginPct: "0.25",
+  mobilizationHrs: "8", targetMarginPct: "0.25", hoursPerDay: "8",
 };
 
 export default function NewBidForm() {
@@ -29,18 +29,20 @@ export default function NewBidForm() {
   const econ = useMemo(() => {
     const n = (v) => (v === "" || v == null ? null : Number(v));
     if (!n(form.estimatedLbs)) return null;
-    return priceBid({
-      weightLb: n(form.estimatedLbs),
-      outputLbPerMH: n(form.productivity) ?? "",
-      crewSize: n(form.crewSize) ?? "",
-      wageRate: n(form.baseWage) ?? "",
-      ptSpecialty: n(form.ptSpecialty) ?? 0,
-      mobilizationHrs: n(form.mobilizationHrs) ?? "",
-      burdenPct: n(form.burdenPct) ?? "",
-      toolsPct: n(form.toolsPct) ?? "",
-      contingencyPct: n(form.contingencyPct) ?? "",
-      targetMarginPct: n(form.targetMarginPct) ?? "",
-    }, n(form.bidRate));
+    // CRITICAL: only pass fields that HAVE values — blanks must fall back to
+    // the engine defaults, never override them to zero.
+    const inputs = { weightLb: n(form.estimatedLbs), ptSpecialty: n(form.ptSpecialty) ?? 0 };
+    const add = (k, v) => { if (v != null) inputs[k] = v; };
+    add("outputLbPerMH", n(form.productivity));
+    add("crewSize", n(form.crewSize));
+    add("wageRate", n(form.baseWage));
+    add("mobilizationHrs", n(form.mobilizationHrs));
+    add("burdenPct", n(form.burdenPct));
+    add("toolsPct", n(form.toolsPct));
+    add("contingencyPct", n(form.contingencyPct));
+    add("targetMarginPct", n(form.targetMarginPct));
+    add("hoursPerDay", n(form.hoursPerDay));
+    return priceBid(inputs, n(form.bidRate));
   }, [form]);
 
   async function submit() {
@@ -126,6 +128,7 @@ export default function NewBidForm() {
             <Field label="Tools %"><input type="number" step="0.01" className="inp inp-need" value={form.toolsPct} onChange={(e) => set("toolsPct", e.target.value)} /></Field>
             <Field label="Contingency %"><input type="number" step="0.01" className="inp inp-need" value={form.contingencyPct} onChange={(e) => set("contingencyPct", e.target.value)} /></Field>
             <Field label="Mobilization hrs"><input type="number" className="inp inp-need" value={form.mobilizationHrs} onChange={(e) => set("mobilizationHrs", e.target.value)} /></Field>
+            <Field label="Hours per day"><input type="number" className="inp inp-need" value={form.hoursPerDay} onChange={(e) => set("hoursPerDay", e.target.value)} /></Field>
             <Field label="Target margin %"><input type="number" step="0.01" className="inp inp-need" value={form.targetMarginPct} onChange={(e) => set("targetMarginPct", e.target.value)} /></Field>
           </div>
         )}
