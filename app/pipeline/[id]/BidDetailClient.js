@@ -16,7 +16,7 @@ const money = (n) => (typeof n !== "number" ? "—" : `$${n.toLocaleString("en-U
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 
-export default function BidDetailClient({ bid }) {
+export default function BidDetailClient({ bid, lineItemCount = 0 }) {
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState({ saving: false, saved: false, error: null });
 
@@ -128,7 +128,7 @@ export default function BidDetailClient({ bid }) {
             Pipeline
           </a>
           <span className="ml-auto" />
-          <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Bid sheet</a>
+          <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">{lineItemCount > 0 ? "View bid sheet" : "Create bid sheet"}</a>
           {state.saved && !editing && <span className="text-xs text-ok">Saved ✓</span>}
           {!editing ? (
             <button onClick={() => { setEditing(true); setState({ saving: false, saved: false, error: null }); }} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>

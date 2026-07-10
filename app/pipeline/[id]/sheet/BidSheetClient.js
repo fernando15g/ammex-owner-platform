@@ -26,6 +26,7 @@ export default function BidSheetClient({ data }) {
       : [blankRow(), blankRow(), blankRow()]
   );
   const [state, setState] = useState({ saving: false, saved: false, error: null });
+  const [editing, setEditing] = useState(items.length === 0); // no sheet yet -> straight to entry
   const tableRef = useRef(null);
 
   const setCell = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v, _dirty: true } : r)));
@@ -115,10 +116,17 @@ export default function BidSheetClient({ data }) {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Bid
         </a>
-        <span className="text-xs text-rebar hidden sm:inline">· paste rows from Excel · Enter moves down</span>
+        {editing && <span className="text-xs text-rebar hidden sm:inline">· paste rows from Excel · Enter moves down</span>}
         <span className="ml-auto" />
         {state.saved && <span className="text-xs text-ok">Saved ✓</span>}
-        <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
+        {!editing ? (
+          <button onClick={() => setEditing(true)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
+        ) : (
+          <>
+            <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
+            {items.length > 0 && <button onClick={() => { setRows(items.map((li) => ({ id: li.id, itemNo: li.itemNo || "", description: li.description || "", quantity: li.quantity ?? "", unit: li.unit || "LBS", unitPrice: li.unitPrice ?? "", furnInst: li.furnInst || "", _dirty: false }))); setEditing(false); }} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>}
+          </>
+        )}
       </div>
 
       {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">Couldn&apos;t save: {state.error}</div>}
@@ -138,7 +146,19 @@ export default function BidSheetClient({ data }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => (
+            {!editing && rows.map((r, i) => (
+              <tr key={"v" + i} className="border-t border-line">
+                <td className="px-3 py-2.5 text-concrete/80">{r.itemNo || "—"}</td>
+                <td className="px-3 py-2.5 text-concrete">{r.description}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{r.quantity === "" ? "—" : Number(r.quantity).toLocaleString()}</td>
+                <td className="px-3 py-2.5 text-concrete/70">{r.unit}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-concrete/80">{r.unitPrice === "" ? "—" : `$${Number(r.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-concrete/80">{money(ext(r))}</td>
+                <td className="px-3 py-2.5 text-concrete/70">{r.furnInst || "—"}</td>
+                <td></td>
+              </tr>
+            ))}
+            {editing && rows.map((r, i) => (
               <tr key={i} className="border-t border-line">
                 <td className="px-1.5 py-1"><input data-r={i} data-c={0} onKeyDown={(e) => onKeyDown(e, i, 0)} onPaste={(e) => onPaste(e, i, 0)} className="cell" value={r.itemNo} onChange={(e) => setCell(i, "itemNo", e.target.value)} placeholder="28410" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={1} onKeyDown={(e) => onKeyDown(e, i, 1)} onPaste={(e) => onPaste(e, i, 1)} className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Bridge Deck" /></td>
@@ -168,8 +188,9 @@ export default function BidSheetClient({ data }) {
       </div>
 
       <div className="flex items-center gap-3 mt-3">
-        <button onClick={addRow} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">+ Add row</button>
-        <span className="text-xs text-rebar">{filled.length} line item{filled.length === 1 ? "" : "s"} · new lines save as <span className="text-concrete">Proposed</span> · copy rows in Excel and paste into any cell</span>
+        {!editing && <span className="text-xs text-rebar">{filled.length} line item{filled.length === 1 ? "" : "s"} · saved as the itemized proposal — becomes the billing schedule when the job is won</span>}
+        {editing && <button onClick={addRow} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">+ Add row</button>}
+        {editing && <span className="text-xs text-rebar">{filled.length} line item{filled.length === 1 ? "" : "s"} · new lines save as <span className="text-concrete">Proposed</span> · copy rows in Excel and paste into any cell</span>}
       </div>
 
       <style jsx>{`
