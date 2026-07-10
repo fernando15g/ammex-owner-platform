@@ -54,7 +54,7 @@ export default function ProjectBillingClient({ data }) {
         <Stat label="Remaining to bill" value={money(b.remainingToBill)} />
         <Stat label="Paid to date" value={money(b.paidToDate)} />
         <Stat label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
-        <Stat label="Unbilled in field" value={b.unbilledInFieldValue != null ? money(b.unbilledInFieldValue) : "—"} sub={`${lbs(b.unbilledPounds)} lbs`} accent />
+        <Stat label="Remaining to bill" value={money(b.remainingToBill)} sub={b.contractSource === "override" ? "contract overridden" : "of contract"} accent />
         <Stat label="Status" value={b.status} status />
       </div>
 
@@ -76,7 +76,7 @@ export default function ProjectBillingClient({ data }) {
       <div className="rounded-lg border border-line mb-6" style={{ background: "var(--surface)" }}>
         <button onClick={() => setSettingsOpen((s) => !s)} className="w-full flex items-center justify-between px-4 py-3 text-sm">
           <span className="text-concrete font-medium">Contract & retention settings</span>
-          <span className="text-rebar text-xs">installed: {lbs(data.installedPounds)} lbs · {settingsOpen ? "hide" : "edit"}</span>
+          <span className="text-rebar text-xs">contract {money(b.revisedContract)} · {settingsOpen ? "hide" : "edit"}</span>
         </button>
         {settingsOpen && <SettingsPanel data={data} setBusy={setBusy} setErr={setErr} onSaved={refresh} busy={busy} />}
       </div>
@@ -187,13 +187,14 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPercent: data.settings.retentionPercent ?? "",
     retentionFlatAmount: data.settings.retentionFlatAmount ?? "",
-    installedPounds: data.installedPounds ?? "",
+    contractOverride: data.settings.billingContractValue ?? "",
+    overrideReason: "",
   });
   async function save() {
     setBusy(true); setErr(null);
     try {
       const n = (v) => (v === "" ? null : Number(v));
-      const res = await fetch("/api/billing/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: data.id, settings: { billingContractValue: n(s.billingContractValue), retentionEnabled: s.retentionEnabled, retentionPercent: n(s.retentionPercent), retentionFlatAmount: n(s.retentionFlatAmount), installedPounds: n(s.installedPounds) } }) });
+      const res = await fetch("/api/billing/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: data.id, settings: { billingContractValue: n(s.contractOverride), contractOverrideReason: s.overrideReason || null, retentionEnabled: s.retentionEnabled, retentionPercent: n(s.retentionPercent), retentionFlatAmount: n(s.retentionFlatAmount) } }) });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
       onSaved();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
@@ -201,12 +202,19 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
   return (
     <div className="px-4 pb-4 border-t border-line pt-4 space-y-4">
       <div className="grid sm:grid-cols-2 gap-4">
-        <Lbl text="Contract value" info="The total contract for this job. You can pull the bid's contract value as a starting point, but it may differ if pounds changed or the price was negotiated — adjust as needed.">
-          <div className="flex gap-2">
-            <input type="number" className="inp" value={s.billingContractValue} onChange={(e) => setS({ ...s, billingContractValue: e.target.value })} />
-            {data.bidContractValue != null && <button onClick={() => setS({ ...s, billingContractValue: Math.round(data.bidContractValue) })} className="text-xs px-2 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap" title="Use the bid's contract value">use bid</button>}
-          </div>
-        </Lbl>
+        <div className="sm:col-span-2 rounded-md border border-line p-3" style={{ background: "var(--surface-2)" }}>
+          <p className="text-xs text-rebar mb-1">Contract value <span className="text-concrete/60">— {data.billing.contractSource === "override" ? "manually overridden" : "auto from line items"}</span></p>
+          <p className="text-lg font-semibold text-concrete">{data.billing.revisedContract.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}</p>
+          <p className="text-[11px] text-rebar mt-1">Line items total {data.billing.linesContract.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}{data.billing.changeOrders ? ` + ${data.billing.changeOrders.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })} change orders` : ""}. This updates automatically when line items change.</p>
+          <details className="mt-2">
+            <summary className="text-xs text-info cursor-pointer hover:underline">Override contract value</summary>
+            <div className="mt-2 grid sm:grid-cols-2 gap-2">
+              <input type="number" className="inp" value={s.contractOverride} onChange={(e) => setS({ ...s, contractOverride: e.target.value })} placeholder="Override amount" />
+              <input className="inp" value={s.overrideReason} onChange={(e) => setS({ ...s, overrideReason: e.target.value })} placeholder="Reason for override" />
+            </div>
+            <p className="text-[11px] text-rebar mt-1">Leave blank to keep the auto value from line items. A reason is recorded for the audit trail.</p>
+          </details>
+        </div>
         <Lbl text="Retention" info="Turn on if this GC holds retention on the job. Off = no retention tracked.">
           <label className="flex items-center gap-2 text-sm text-concrete pt-2"><input type="checkbox" checked={s.retentionEnabled} onChange={(e) => setS({ ...s, retentionEnabled: e.target.checked })} /> This GC holds retention</label>
         </Lbl>
@@ -221,9 +229,7 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
           </Lbl>
         </div>
       )}
-      <Lbl text="Installed pounds to date" info="Total rebar placed on this job so far. Drives the unbilled-in-field number. Update this as the field reports progress.">
-        <input type="number" className="inp" value={s.installedPounds} onChange={(e) => setS({ ...s, installedPounds: e.target.value })} placeholder="0" />
-      </Lbl>
+
       <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save settings"}</button>
       <style jsx>{inpStyle}</style>
     </div>

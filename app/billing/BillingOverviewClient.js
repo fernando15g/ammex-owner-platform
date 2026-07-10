@@ -19,29 +19,37 @@ const STATUS_TONE = {
 export default function BillingOverviewClient({ data }) {
   const { rows, totals } = data;
   const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
   const active = rows.filter((r) => r.hasBilling);
-  const matches = q.trim() === "" ? [] : rows.filter((r) => {
+  const sortById = (a, b) => String(a.projectId || "~").localeCompare(String(b.projectId || "~"), undefined, { numeric: true });
+  const searchList = [...rows].sort(sortById).filter((r) => {
+    if (q.trim() === "") return true;
     const hay = `${r.name || ""} ${r.projectId || ""} ${(r.gc || []).join(" ")}`.toLowerCase();
     return hay.includes(q.trim().toLowerCase());
-  }).slice(0, 8);
+  });
   return (
     <div>
-      {/* Find a project (incl. ones with no billing yet) */}
+      {/* Find a project — scrollable, sorted by ID, includes closed (dimmed) */}
       <div className="relative mb-4 max-w-md">
         <input
           className="inp"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Find a project to bill — name, ID, or GC…"
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="Find a project to bill — click to browse or type to search…"
         />
-        {matches.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full rounded-lg border border-line shadow-lg overflow-hidden" style={{ background: "var(--surface)" }}>
-            {matches.map((m) => (
-              <button key={m.id} onClick={() => { window.location.href = `/billing/${m.id}`; }} className="w-full text-left px-3 py-2.5 hover:bg-graphite/60 border-b border-line last:border-b-0">
-                <span className="text-sm text-concrete">{m.name || "—"}</span>
-                <span className="text-xs text-rebar ml-2">{m.projectId || ""}{m.gc?.length ? ` · ${m.gc.join(", ")}` : ""}{!m.hasBilling ? " · no billing yet" : ""}</span>
-              </button>
-            ))}
+        {open && searchList.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full rounded-lg border border-line shadow-lg overflow-y-auto" style={{ background: "var(--surface)", maxHeight: "15rem" }}>
+            {searchList.map((m) => {
+              const closed = m.status === "Closed" || m.status === "Paid" || m.status === "Complete";
+              return (
+                <button key={m.id} onMouseDown={() => { window.location.href = `/billing/${m.id}`; }} className="w-full text-left px-3 py-2.5 hover:bg-graphite/60 border-b border-line last:border-b-0 flex items-baseline gap-2">
+                  <span className={`text-sm ${closed ? "text-rebar line-through" : "text-concrete"}`}>{m.name || "—"}</span>
+                  <span className={`text-xs ${closed ? "text-rebar/60" : "text-rebar"}`}>{m.projectId || ""}{m.gc?.length ? ` · ${m.gc.join(", ")}` : ""}{closed ? " · closed" : !m.hasBilling ? " · no billing yet" : ""}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -75,7 +83,7 @@ export default function BillingOverviewClient({ data }) {
               <th className="text-right font-medium px-3 py-2.5 hidden md:table-cell">Contract</th>
               <th className="text-right font-medium px-3 py-2.5">Billed</th>
               <th className="text-right font-medium px-3 py-2.5">Outstanding</th>
-              <th className="text-right font-medium px-3 py-2.5 hidden lg:table-cell">Unbilled field</th>
+              <th className="text-right font-medium px-3 py-2.5 hidden lg:table-cell">Remaining</th>
               <th className="text-left font-medium px-4 py-2.5">Status</th>
             </tr>
           </thead>
@@ -89,7 +97,7 @@ export default function BillingOverviewClient({ data }) {
                 <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell text-concrete/80">{money(r.billing.revisedContract)}</td>
                 <td className="px-3 py-3 text-right tabular-nums text-concrete">{money(r.billing.billedToDate)}</td>
                 <td className="px-3 py-3 text-right tabular-nums font-medium text-concrete">{money(r.billing.outstanding)}</td>
-                <td className="px-3 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/70">{r.billing.unbilledInFieldValue != null ? money(r.billing.unbilledInFieldValue) : "—"}</td>
+                <td className="px-3 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/70">{money(r.billing.remainingToBill)}</td>
                 <td className="px-4 py-3"><span className={`text-xs ${STATUS_TONE[r.billing.status] || "text-concrete"}`}>{r.billing.status}</span></td>
               </tr>
             ))}
