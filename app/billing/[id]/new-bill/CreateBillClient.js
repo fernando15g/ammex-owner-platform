@@ -11,7 +11,7 @@
 // prior bill and can undo it. Retention is a TOGGLE (off unless the job has it).
 // =============================================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const qf = (n) => (typeof n !== "number" || isNaN(n) ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
@@ -63,6 +63,19 @@ export default function CreateBillClient({ data }) {
   const [pasteText, setPasteText] = useState("");
   const [showLast, setShowLast] = useState(false);
   const [state, setState] = useState({ saving: false, genning: false, error: null });
+
+  // Auto-populate the invoice number on open (still editable to override).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/billing/next-invoice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId: data.id, projectIdLabel: data.projectId }) });
+        const d = await res.json();
+        if (alive && d.ok) setHead((h) => (h.invoiceNumber ? h : { ...h, invoiceNumber: d.invoiceNumber }));
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, [data.id, data.projectId]);
 
   const setCell = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
   const addBlankRow = () => setRows((rs) => [...rs, { lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }]);
@@ -429,6 +442,12 @@ export default function CreateBillClient({ data }) {
           </tbody>
         </table>
       </div>
+
+      {calc.rows.some((r) => num(r.toDateQty) != null && num(r.toDateQty) < r.prevQty) && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm mt-3">
+          <p className="text-concrete"><span className="font-medium">Heads up:</span> a To-Date quantity is LESS than Previous, making This Estimate negative. That column wants the <span className="font-medium">running total installed to date</span> (it only grows) — not this month&apos;s amount. The system subtracts Previous for you.</p>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 mt-3">
         <button onClick={addBlankRow} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">+ Add row</button>

@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 
 const NAV = [
   { key: "home", label: "Home", href: "/", ready: false },
-  { key: "pipeline", label: "Pipeline", href: "/pipeline", ready: true },
+  { key: "pipeline", label: "Bids", href: "/pipeline", ready: true },
   { key: "active", label: "Active Work", href: "/active", ready: true },
   { key: "billing", label: "Billing", href: "/billing", ready: true },
   { key: "performance", label: "Performance", href: "/performance", ready: false },

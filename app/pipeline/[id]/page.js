@@ -14,7 +14,7 @@ export default async function BidDetailPage({ params }) {
     lineItemCount = sheet.items.length;
   } catch (e) { error = String(e.message || e); }
   return (
-    <AppShell current="pipeline" subtitle="Pipeline" title={bid?.name || "Bid"}>
+    <AppShell current="pipeline" subtitle="Bids" title={bid?.name || "Bid"}>
       {error ? (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm text-concrete/80">Couldn&apos;t load bid: {error}</div>
       ) : (

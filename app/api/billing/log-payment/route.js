@@ -64,7 +64,7 @@ export async function POST(req) {
     await updateBillingEvent(billEventId, {
       amount: Number((gross - grossCut).toFixed(2)),
       retentionWithheld: Number((retention - grossCut * r).toFixed(2)),
-      pounds: Number(((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)).toFixed(1)),
+      pounds: Math.max(Math.round((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)), 0),
       notes: `${bill.notes}\n[short pay] expected $${expectedNet.toFixed(2)}, received $${paid.toFixed(2)} — $${shortNet.toFixed(2)} rolled to next cycle`,
     });
     // 2) roll unpaid quantity forward
@@ -73,7 +73,7 @@ export async function POST(req) {
       if (red.qtyReduction <= 0) continue;
       const line = all.find((l) => l.id === red.id);
       if (!line) continue;
-      await updateLineItem(red.id, { qtyToDate: Math.max((line.qtyToDate || 0) - red.qtyReduction, 0) });
+      await updateLineItem(red.id, { qtyToDate: Math.max(Math.round((line.qtyToDate || 0) - red.qtyReduction), 0) });
     }
     // 3) log the payment received, tied to the invoice, with a structured
     //    carry-forward tag: the next bill reads this to show a quiet reminder,
@@ -82,7 +82,7 @@ export async function POST(req) {
       fromInvoice: bill.invoiceNumber || "",
       grossRolled: Number(grossCut.toFixed(2)),
       netShort: Number(shortNet.toFixed(2)),
-      lines: reductions.filter((x) => x.qtyReduction > 0).map((x) => ({ id: x.id, qty: Number(x.qtyReduction.toFixed(1)), amt: Number(x.dollarCut.toFixed(2)) })),
+      lines: reductions.filter((x) => x.qtyReduction > 0).map((x) => ({ id: x.id, qty: Math.round(x.qtyReduction), amt: Number(x.dollarCut.toFixed(2)) })),
     };
     await createBillingEvent({
       projectId: bill.projectId, type: "Payment",

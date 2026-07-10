@@ -96,7 +96,7 @@ export default async function SystemCheckPage() {
 
               <section className="mb-8">
                 <h2 className="text-xs tracking-widest uppercase text-rebar mb-3">
-                  Pipeline — raw vs. weighted (computed in code)
+                  Bids — raw vs. weighted (computed in code)
                 </h2>
                 <div className="grid grid-cols-2 gap-2">
                   <Stat label={`In flight (${fmtNum(check.computed.pipeline.count)} bids)`} value={fmtMoney(check.computed.pipeline.raw)} />

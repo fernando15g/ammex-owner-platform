@@ -46,7 +46,7 @@ export async function POST(req) {
     await updateBillingEvent(eventId, {
       amount: Number((gross - grossCut).toFixed(2)),
       retentionWithheld: Number((retention - grossCut * r).toFixed(2)),
-      pounds: Number(((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)).toFixed(1)),
+      pounds: Math.max(Math.round((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)), 0),
       notes: `${bill.notes}\n[short pay] expected $${expectedNet.toFixed(2)}, received $${paid.toFixed(2)} — $${shortNet.toFixed(2)} rolled to next cycle`,
     });
 
@@ -56,7 +56,7 @@ export async function POST(req) {
       if (red.qtyReduction <= 0) continue;
       const line = all.find((l) => l.id === red.id);
       if (!line) continue;
-      await updateLineItem(red.id, { qtyToDate: Math.max((line.qtyToDate || 0) - red.qtyReduction, 0) });
+      await updateLineItem(red.id, { qtyToDate: Math.max(Math.round((line.qtyToDate || 0) - red.qtyReduction), 0) });
     }
 
     // 3) log the payment actually received
