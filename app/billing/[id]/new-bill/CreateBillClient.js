@@ -13,6 +13,13 @@
 
 import { useState, useMemo, useEffect } from "react";
 
+// Local YYYY-MM-DD (NOT toISOString — that uses UTC and can shift the day).
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const qf = (n) => (typeof n !== "number" || isNaN(n) ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 const num = (v) => (v === "" || v == null ? null : Number(v));
@@ -21,17 +28,8 @@ export default function CreateBillClient({ data }) {
   const priorBills = data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0);
   // Short-pay carry-forwards: quiet reminder that a prior short-paid balance
   // re-bills within its line items this cycle (audit trail, not a line item).
-  const carryForwards = (() => {
-    const out = [];
-    for (const e of data.events) {
-      if (e.type !== "Payment") continue;
-      const m = (e.notes || "").match(/\[carry\](\{.*\})\s*$/s);
-      if (!m) continue;
-      try { out.push({ ...JSON.parse(m[1]), date: e.date }); } catch {}
-    }
-    return out;
-  })();
-  const totalCarry = carryForwards.reduce((a, c) => a + (c.netShort || 0), 0);
+  const carry = data.carryover || { open: 0, items: [], hasOpen: false };
+  const carryForwards = carry.items || [];
   const isFirstInvoice = priorBills.length === 0;
   const hasBidLines = data.lines.length > 0;
 
@@ -54,7 +52,7 @@ export default function CreateBillClient({ data }) {
   }));
   const [rows, setRows] = useState(() => { const base = isFirstInvoice && hasBidLines ? [] : fromLines(); return base.length === 0 && !(isFirstInvoice && hasBidLines) ? [{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }] : base; });
   const [head, setHead] = useState({
-    invoiceNumber: "", date: new Date().toISOString().slice(0, 10), dueDate: "", notes: "",
+    invoiceNumber: "", date: todayLocal(), dueDate: "", notes: "",
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPct: data.settings.retentionPercent ?? "",
   });
@@ -290,9 +288,18 @@ export default function CreateBillClient({ data }) {
 
       {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{state.error}</div>}
 
-      {carryForwards.length > 0 && (
+      {carry.hasOpen && (
         <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm mb-4">
-          <p className="text-concrete"><span className="font-medium">Carried over from short pay:</span> {carryForwards.map((c) => `$${(c.netShort || 0).toFixed(2)} from ${c.fromInvoice || "a prior invoice"}`).join(", ")}. This re-bills automatically within its line items as you advance the quantities below — no need to add it manually.</p>
+          <p className="text-concrete mb-1"><span className="font-medium">Short-pay carryover: {money(carry.open)}</span> — re-bills automatically within its line items as you advance the quantities below. No need to add it manually.</p>
+          {carryForwards.map((c, i) => (
+            <div key={i} className="text-xs text-rebar mt-1">
+              From {c.fromInvoice || "a prior invoice"} ({money(c.remaining)} open) — weight rolled back:{" "}
+              {(c.lines || []).map((l) => {
+                const line = data.lines.find((x) => x.id === l.id);
+                return `${line ? (line.itemNo || line.description) : "line"} −${qf(l.qty)} lbs`;
+              }).join(", ") || "no line detail"}
+            </div>
+          ))}
         </div>
       )}
 

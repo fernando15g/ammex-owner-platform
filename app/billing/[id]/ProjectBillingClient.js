@@ -9,12 +9,25 @@
 
 import { useState } from "react";
 
+// Local YYYY-MM-DD (NOT toISOString — that uses UTC and can shift the day).
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const money = (n) => (typeof n !== "number" ? "—" : n < 0 ? `-$${Math.abs(Math.round(n)).toLocaleString()}` : `$${Math.round(n).toLocaleString()}`);
 const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
-const dateStr = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+const dateStr = (s) => {
+  if (!s) return "—";
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(s);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
 
 export default function ProjectBillingClient({ data }) {
   const b = data.billing;
+  const carry = data.carryover || { open: 0, items: [], hasOpen: false };
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [evaOpen, setEvaOpen] = useState(false);
@@ -22,6 +35,35 @@ export default function ProjectBillingClient({ data }) {
   const [err, setErr] = useState(null);
 
   async function refresh() { window.location.reload(); }
+
+  async function deleteEvent(ev) {
+    const label = ev.type === "Bill" ? `invoice ${ev.invoiceNumber || ""}` : ev.type.toLowerCase();
+    const warn = ev.type === "Bill"
+      ? `Delete ${label}?\n\nThis REVERSES its effects: the line quantities it billed roll back, so totals stay correct. The record is archived (recoverable in Notion).\n\nType DELETE to confirm.`
+      : `Delete this ${label} (${money(ev.amount)})?\n\nThe record is archived (recoverable in Notion).\n\nType DELETE to confirm.`;
+    const typed = window.prompt(warn);
+    if (typed !== "DELETE") { if (typed != null) setErr("Delete cancelled - you must type DELETE exactly."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/billing/delete-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: ev.id }) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      refresh();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
+  async function editEvent(ev) {
+    const cur = ev.amount ?? 0;
+    const input = window.prompt(`Edit ${ev.type === "Bill" ? "invoice" : ev.type.toLowerCase()} amount\n\nCurrent: $${cur}\n\nNew amount:`, String(cur));
+    if (input == null) return;
+    const amt = Number(String(input).replace(/[$,]/g, ""));
+    if (isNaN(amt) || amt < 0) { setErr("Enter a valid amount."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/billing/event/${ev.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ changes: { amount: amt } }) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      refresh();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
 
   async function shortPay(ev) {
     const expected = (ev.amount || 0) - (ev.retentionWithheld || 0);
@@ -48,15 +90,44 @@ export default function ProjectBillingClient({ data }) {
 
       {/* The money picture */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <Stat label="Revised contract" value={money(b.revisedContract)} sub={b.changeOrders ? `incl. ${money(b.changeOrders)} change orders` : null} />
+        <Stat label="Contract value" value={money(b.revisedContract)} sub={b.changeOrders ? `incl. ${money(b.changeOrders)} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
         <Stat label="Billed to date" value={money(b.billedToDate)} />
-        <Stat label="Outstanding" value={money(b.outstanding)} accent />
-        <Stat label="Remaining to bill" value={money(b.remainingToBill)} />
         <Stat label="Paid to date" value={money(b.paidToDate)} />
         <Stat label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
-        <Stat label="Remaining to bill" value={money(b.remainingToBill)} sub={b.contractSource === "override" ? "contract overridden" : "of contract"} accent />
-        <Stat label="Status" value={b.status} status />
+
+        <Stat label="Outstanding" value={money(b.outstanding)} accent />
+        <Stat label="Remaining to bill" value={money(b.remainingToBill)} accent />
+
+        {/* Short-pay balance appears above Status when there's an open carryover;
+            otherwise Status stretches to fill the space (2 rows tall). */}
+        {carry.hasOpen ? (
+          <>
+            <Stat label="Short-pay balance" value={money(carry.open)} sub="re-bills next invoice" tone="warn" />
+            <Stat label="Status" value={b.status} status />
+          </>
+        ) : (
+          <div className="col-span-2 lg:col-span-2 rounded-lg border border-line px-4 py-3 flex flex-col justify-center" style={{ background: "var(--surface)" }}>
+            <p className="text-[11px] text-rebar mb-1 leading-tight">Status</p>
+            <p className="text-lg font-semibold text-concrete">{b.status}</p>
+          </div>
+        )}
       </div>
+
+      {/* Short-pay carryover detail — which lines were adjusted */}
+      {carry.hasOpen && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 mb-4 text-sm">
+          <p className="text-concrete mb-1"><span className="font-medium">Short-pay carryover: {money(carry.open)}</span> — re-bills automatically within its line items on the next invoice.</p>
+          {carry.items.map((it, i) => (
+            <div key={i} className="text-xs text-rebar mt-1">
+              From {it.fromInvoice || "an invoice"} ({money(it.remaining)} open):{" "}
+              {it.lines.map((l) => {
+                const line = (data.lines || []).find((x) => x.id === l.id);
+                return `${line ? (line.itemNo || line.description) : "line"} −${lbs(l.qty)} lbs`;
+              }).join(", ") || "no line detail"}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Aging */}
       {b.outstanding > 0 && (
@@ -83,7 +154,7 @@ export default function ProjectBillingClient({ data }) {
 
       {/* Log new event */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Create bill (itemized)</a>
+        <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Invoice</a>
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
       </div>
@@ -102,7 +173,7 @@ export default function ProjectBillingClient({ data }) {
         return (
           <div className="rounded-lg border border-line mb-6" style={{ background: "var(--surface)" }}>
             <button onClick={() => setEvaOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-sm">
-              <span className="text-concrete font-medium">Estimate vs actual (line items)</span>
+              <span className="text-concrete font-medium">Bid vs. billed (by line item)</span>
               <span className="text-rebar text-xs">{lbs(actualTotal)} / {lbs(estTotal)} lbs billed · {pct.toFixed(1)}% · {evaOpen ? "hide" : "show"}</span>
             </button>
             {evaOpen && (
@@ -126,7 +197,7 @@ export default function ProjectBillingClient({ data }) {
                           <td className="px-2 py-1.5 text-concrete">{l.description}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-concrete/70">{lbs(est)}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-concrete">{lbs(act)}</td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums ${diff > 0 ? "text-warn" : diff < 0 ? "text-rebar" : "text-concrete/50"}`}>{diff > 0 ? "+" : ""}{lbs(diff)}</td>
+                          <td className={`px-2 py-1.5 text-right tabular-nums text-xs ${diff > 0 ? "text-warn" : act === 0 ? "text-rebar/70" : diff < 0 ? "text-rebar" : "text-ok"}`}>{act === 0 ? "not billed" : diff > 0 ? `+${lbs(diff)} over bid` : diff < 0 ? `${lbs(Math.abs(diff))} left` : "on bid"}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-concrete/80">{lp.toFixed(0)}%</td>
                         </tr>
                       );
@@ -135,12 +206,12 @@ export default function ProjectBillingClient({ data }) {
                       <td colSpan={2} className="px-2 py-2 text-xs text-rebar">TOTAL</td>
                       <td className="px-2 py-2 text-right tabular-nums text-concrete/70">{lbs(estTotal)}</td>
                       <td className="px-2 py-2 text-right tabular-nums font-medium text-concrete">{lbs(actualTotal)}</td>
-                      <td className={`px-2 py-2 text-right tabular-nums ${actualTotal - estTotal > 0 ? "text-warn" : "text-rebar"}`}>{actualTotal - estTotal > 0 ? "+" : ""}{lbs(actualTotal - estTotal)}</td>
+                      <td className={`px-2 py-2 text-right tabular-nums text-xs ${actualTotal - estTotal > 0 ? "text-warn" : "text-rebar"}`}>{actualTotal === 0 ? "not billed" : actualTotal - estTotal > 0 ? `+${lbs(actualTotal - estTotal)} over bid` : actualTotal < estTotal ? `${lbs(estTotal - actualTotal)} left` : "on bid"}</td>
                       <td className="px-2 py-2 text-right tabular-nums font-medium text-concrete">{pct.toFixed(1)}%</td>
                     </tr>
                   </tbody>
                 </table>
-                <p className="text-[11px] text-rebar mt-2">Positive diff = billed more than the bid estimate (weights came in higher). Helps see drift from bid and how close to complete.</p>
+                <p className="text-[11px] text-rebar mt-2">Over bid = actual weights came in heavier than the bid (normal - weights are verified against the fabricator sheet). Left = still to bill on that line.</p>
               </div>
             )}
           </div>
@@ -152,28 +223,50 @@ export default function ProjectBillingClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <th className="text-left font-medium px-4 py-2.5">Event</th>
-              <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell">Date</th>
-              <th className="text-right font-medium px-3 py-2.5">Amount</th>
-              <th className="text-left font-medium px-4 py-2.5 hidden md:table-cell">Due / Notes</th>
+              <th className="text-left font-medium px-4 py-2.5 w-28">Type</th>
+              <th className="text-left font-medium px-3 py-2.5 w-36">Invoice #</th>
+              <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell w-32">Date</th>
+              <th className="text-right font-medium px-3 py-2.5 w-28">Amount</th>
+              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">Notes</th>
+              <th className="text-right font-medium px-4 py-2.5 w-40">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {data.events.map((e) => (
-              <tr key={e.id} className="border-t border-line">
-                <td className="px-4 py-2.5">
-                  <span className={`inline-block text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{e.type}</span>
-                  {e.invoiceNumber && <span className="text-xs text-rebar ml-2">#{e.invoiceNumber}</span>}
-                </td>
-                <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{money(e.amount)}</td>
-                <td className="px-4 py-2.5 hidden md:table-cell text-rebar text-xs">
-                  {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{e.notes ? ` ${String(e.notes).split("[snap]")[0].split("[carry]")[0].replace(/\[short pay\][\s\S]*/, "").trim()}` : ""}
-                  {e.type === "Bill" && <button onClick={() => shortPay(e)} disabled={busy} className="ml-2 text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40" title="They paid less than billed — adjust the record and roll the difference forward">Short pay</button>}
-                </td>
-              </tr>
-            ))}
-            {data.events.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-rebar">No events yet. Log the first bill above.</td></tr>}
+            {data.events.map((e) => {
+              const isInvoice = e.type === "Bill";
+              const label = isInvoice ? "Invoice" : e.type;
+              // per-invoice state: how much has been paid against it, was it short-paid
+              const paidAgainst = data.events.filter((p) => p.type === "Payment" && p.invoiceNumber && p.invoiceNumber === e.invoiceNumber).reduce((a, p) => a + (p.amount || 0), 0);
+              const netDue = (e.amount || 0) - (e.retentionWithheld || 0);
+              const wasShortPaid = isInvoice && /\[short pay\]/.test(e.notes || "");
+              const isPaid = isInvoice && paidAgainst >= netDue - 0.005 && netDue > 0;
+              const cleanNotes = String(e.notes || "").split("[snap]")[0].split("[carry]")[0].replace(/\[short pay\][\s\S]*/, "").replace(/\[voided\][\s\S]*/, "").trim();
+              return (
+                <tr key={e.id} className="border-t border-line">
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-block text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{label}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-rebar">
+                    {e.invoiceNumber || "—"}
+                    {wasShortPaid && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-warn/50 text-warn">short paid</span>}
+                  </td>
+                  <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{money(e.amount)}</td>
+                  <td className="px-3 py-2.5 hidden md:table-cell text-rebar text-xs">
+                    {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{cleanNotes ? ` ${cleanNotes}` : ""}
+                  </td>
+                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                    {/* Short pay: only actionable on an UNPAID invoice */}
+                    {isInvoice && !isPaid && !wasShortPaid && (
+                      <button onClick={() => shortPay(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40 mr-1.5" title="They paid less than billed — adjust the record and roll the difference forward">Short pay</button>
+                    )}
+                    <button onClick={() => editEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40 mr-1.5">Edit</button>
+                    <button onClick={() => deleteEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
+                  </td>
+                </tr>
+              );
+            })}
+            {data.events.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-rebar">No events yet. Create the first invoice above.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -249,7 +342,7 @@ function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
 
   const [billEventId, setBillEventId] = useState(options[0]?.id || "");
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(todayLocal());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -300,7 +393,7 @@ function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
 }
 
 function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
-  const [f, setF] = useState({ amount: "", date: new Date().toISOString().slice(0, 10), dueDate: "", invoiceNumber: "", pounds: "", retentionWithheld: "", notes: "" });
+  const [f, setF] = useState({ amount: "", date: todayLocal(), dueDate: "", invoiceNumber: "", pounds: "", retentionWithheld: "", notes: "" });
   const [busy, setBusy] = useState(false);
   const [genning, setGenning] = useState(false);
   const [err, setErr] = useState(null);
@@ -358,8 +451,8 @@ function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
   );
 }
 
-function Stat({ label, value, sub, accent, status }) {
-  const c = accent ? "text-safety" : "text-concrete";
+function Stat({ label, value, sub, accent, status, tone }) {
+  const c = tone === "warn" ? "text-warn" : accent ? "text-safety" : "text-concrete";
   return (<div className="rounded-lg border border-line px-3 py-3" style={{ background: "var(--surface)" }}><p className="text-[11px] text-rebar mb-1 leading-tight">{label}</p><p className={`text-base font-semibold ${c}`}>{value}</p>{sub && <p className="text-[11px] text-rebar mt-0.5">{sub}</p>}</div>);
 }
 function AddBtn({ label, onClick, primary }) {
