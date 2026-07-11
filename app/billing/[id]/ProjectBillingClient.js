@@ -119,7 +119,7 @@ export default function ProjectBillingClient({ data }) {
           <p className="text-concrete mb-1"><span className="font-medium">Short-pay carryover: {money(carry.open)}</span> — re-bills automatically within its line items on the next invoice.</p>
           {carry.items.map((it, i) => (
             <div key={i} className="text-xs text-rebar mt-1">
-              From {it.fromInvoice || "an invoice"} ({money(it.remaining)} open):{" "}
+              {it.fromInvoice || "An invoice"}: billed {money(it.billedOriginal)}, received {money(it.received)} — {money(it.remaining)} still to re-bill.{" "}Weight rolled back:{" "}
               {it.lines.map((l) => {
                 const line = (data.lines || []).find((x) => x.id === l.id);
                 return `${line ? (line.itemNo || line.description) : "line"} −${lbs(l.qty)} lbs`;
@@ -235,33 +235,40 @@ export default function ProjectBillingClient({ data }) {
             {data.events.map((e) => {
               const isInvoice = e.type === "Bill";
               const label = isInvoice ? "Invoice" : e.type;
-              // per-invoice state: how much has been paid against it, was it short-paid
+              // short-pay adjustment stamp (invoice keeps its original amount)
+              let adj = null;
+              const am = String(e.notes || "").match(/\[adjust\](\{.*?\})\s*$/s);
+              if (am) { try { adj = JSON.parse(am[1]); } catch {} }
+              const wasShortPaid = isInvoice && !!adj;
               const paidAgainst = data.events.filter((p) => p.type === "Payment" && p.invoiceNumber && p.invoiceNumber === e.invoiceNumber).reduce((a, p) => a + (p.amount || 0), 0);
               const netDue = (e.amount || 0) - (e.retentionWithheld || 0);
-              const wasShortPaid = isInvoice && /\[short pay\]/.test(e.notes || "");
-              const isPaid = isInvoice && paidAgainst >= netDue - 0.005 && netDue > 0;
-              const cleanNotes = String(e.notes || "").split("[snap]")[0].split("[carry]")[0].replace(/\[short pay\][\s\S]*/, "").replace(/\[voided\][\s\S]*/, "").trim();
+              const isPaid = isInvoice && (wasShortPaid || (paidAgainst >= netDue - 0.005 && netDue > 0));
+              const cleanNotes = String(e.notes || "").split("[snap]")[0].split("[carry]")[0].split("[adjust]")[0].replace(/\[short pay\][\s\S]*/, "").replace(/\[voided\][\s\S]*/, "").trim();
               return (
                 <tr key={e.id} className="border-t border-line">
                   <td className="px-4 py-2.5">
                     <span className={`inline-block text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{label}</span>
                   </td>
-                  <td className="px-3 py-2.5 text-xs text-rebar">
-                    {e.invoiceNumber || "—"}
-                    {wasShortPaid && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-warn/50 text-warn">short paid</span>}
-                  </td>
+                  <td className="px-3 py-2.5 text-xs text-rebar whitespace-nowrap">{e.invoiceNumber || "—"}</td>
                   <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{money(e.amount)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-concrete whitespace-nowrap">
+                    {money(e.amount)}
+                    {adj && <span className="block text-[10px] text-warn">received {money(adj.received)} · {money(adj.rolledForward)} rolled</span>}
+                  </td>
                   <td className="px-3 py-2.5 hidden md:table-cell text-rebar text-xs">
                     {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{cleanNotes ? ` ${cleanNotes}` : ""}
                   </td>
-                  <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                    {/* Short pay: only actionable on an UNPAID invoice */}
-                    {isInvoice && !isPaid && !wasShortPaid && (
-                      <button onClick={() => shortPay(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40 mr-1.5" title="They paid less than billed — adjust the record and roll the difference forward">Short pay</button>
-                    )}
-                    <button onClick={() => editEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40 mr-1.5">Edit</button>
-                    <button onClick={() => deleteEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {/* status tag (past fact) OR short-pay action (only on unpaid invoices) */}
+                      {wasShortPaid ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-warn/50 text-warn">short paid</span>
+                      ) : isInvoice && !isPaid ? (
+                        <button onClick={() => shortPay(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40" title="They paid less than billed — record it and roll the difference to the next invoice">Short pay</button>
+                      ) : null}
+                      <button onClick={() => editEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40">Edit</button>
+                      <button onClick={() => deleteEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
+                    </div>
                   </td>
                 </tr>
               );

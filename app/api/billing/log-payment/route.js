@@ -60,12 +60,20 @@ export async function POST(req) {
     const snapLines = snap.lines.map((l) => ({ id: l.id, unitPrice: l.u, thisQty: l.q }));
     const { reductions } = shortPayAdjustment(snapLines, gross, gross - grossCut);
 
-    // 1) adjust the bill to reality
+    // 1) The invoice KEEPS its original amount — an invoice is a historical record
+    //    of what was billed; we never rewrite it. Instead we stamp a short-pay
+    //    adjustment: billed vs received vs rolled-forward. The rolled amount
+    //    closes this invoice's balance (it re-bills on the NEXT invoice), so
+    //    nothing is double-counted in Outstanding.
+    const adjust = {
+      billedOriginal: Number(gross.toFixed(2)),
+      expectedNet: Number(expectedNet.toFixed(2)),
+      received: Number(paid.toFixed(2)),
+      rolledForward: Number(shortNet.toFixed(2)),
+      grossRolled: Number(grossCut.toFixed(2)),
+    };
     await updateBillingEvent(billEventId, {
-      amount: Number((gross - grossCut).toFixed(2)),
-      retentionWithheld: Number((retention - grossCut * r).toFixed(2)),
-      pounds: Math.max(Math.round((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)), 0),
-      notes: `${bill.notes}\n[short pay] expected $${expectedNet.toFixed(2)}, received $${paid.toFixed(2)} — $${shortNet.toFixed(2)} rolled to next cycle`,
+      notes: `${bill.notes}\n[short pay] billed $${gross.toFixed(2)}, received $${paid.toFixed(2)}, $${shortNet.toFixed(2)} rolled to the next invoice (balance closed here)\n[adjust]${JSON.stringify(adjust)}`,
     });
     // 2) roll unpaid quantity forward
     const all = await getAllLineItems();

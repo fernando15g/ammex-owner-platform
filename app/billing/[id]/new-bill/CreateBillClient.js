@@ -293,7 +293,7 @@ export default function CreateBillClient({ data }) {
           <p className="text-concrete mb-1"><span className="font-medium">Short-pay carryover: {money(carry.open)}</span> — re-bills automatically within its line items as you advance the quantities below. No need to add it manually.</p>
           {carryForwards.map((c, i) => (
             <div key={i} className="text-xs text-rebar mt-1">
-              From {c.fromInvoice || "a prior invoice"} ({money(c.remaining)} open) — weight rolled back:{" "}
+              {c.fromInvoice || "Prior invoice"}: billed {money(c.billedOriginal)}, received {money(c.received)} — {money(c.remaining)} re-bills here. Weight rolled back:{" "}
               {(c.lines || []).map((l) => {
                 const line = data.lines.find((x) => x.id === l.id);
                 return `${line ? (line.itemNo || line.description) : "line"} −${qf(l.qty)} lbs`;
