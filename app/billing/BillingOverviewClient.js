@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSort, SortHeader } from "@/app/components/Sortable";
 
 // Billing & Receivables overview — the A/R schedule. One row per project
 // (like the paper report), but with computed aging, outstanding, retention,
@@ -21,6 +22,7 @@ export default function BillingOverviewClient({ data }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const active = rows.filter((r) => r.hasBilling);
+  const { sorted: activeSorted, sort, toggle } = useSort(active, "name", "asc");
   const sortById = (a, b) => String(a.projectId || "~").localeCompare(String(b.projectId || "~"), undefined, { numeric: true });
   const searchList = [...rows].sort(sortById).filter((r) => {
     if (q.trim() === "") return true;
@@ -37,10 +39,10 @@ export default function BillingOverviewClient({ data }) {
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Find a project to bill — click to browse or type to search…"
+          placeholder="Find project to bill"
         />
         {open && searchList.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full rounded-lg border border-line shadow-lg overflow-y-auto" style={{ background: "var(--surface)", maxHeight: "15rem" }}>
+          <div className="absolute z-20 mt-1 w-full rounded-lg border border-line shadow-lg overflow-y-auto" style={{ background: "var(--surface)", maxHeight: "13.5rem" }}>
             {searchList.map((m) => {
               const closed = m.status === "Closed" || m.status === "Paid" || m.status === "Complete";
               return (
@@ -79,16 +81,16 @@ export default function BillingOverviewClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <th className="text-left font-medium px-4 py-2.5">Project</th>
-              <th className="text-right font-medium px-3 py-2.5 hidden md:table-cell">Contract</th>
-              <th className="text-right font-medium px-3 py-2.5">Billed</th>
-              <th className="text-right font-medium px-3 py-2.5">Outstanding</th>
-              <th className="text-right font-medium px-3 py-2.5 hidden lg:table-cell">Remaining</th>
-              <th className="text-left font-medium px-4 py-2.5">Status</th>
+              <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Contract" sortKey="billing.revisedContract" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
+              <SortHeader label="Billed" sortKey="billing.billedToDate" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Outstanding" sortKey="billing.outstanding" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Remaining" sortKey="billing.remainingToBill" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell" />
+              <SortHeader label="Status" sortKey="billing.status" sort={sort} toggle={toggle} className="px-4" />
             </tr>
           </thead>
           <tbody>
-            {active.map((r) => (
+            {activeSorted.map((r) => (
               <tr key={r.id} onClick={() => { window.location.href = `/billing/${r.id}`; }} className="border-t border-line cursor-pointer hover:bg-graphite/60">
                 <td className="px-4 py-3">
                   <div className="font-medium text-concrete truncate">{r.name || "—"}</div>

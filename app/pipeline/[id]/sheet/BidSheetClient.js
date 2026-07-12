@@ -18,7 +18,7 @@ const COLS = ["itemNo", "description", "quantity", "unit", "unitPrice", "furnIns
 
 const blankRow = () => ({ id: null, itemNo: "", description: "", quantity: "", unit: "LBS", unitPrice: "", furnInst: "", _dirty: true });
 
-export default function BidSheetClient({ data }) {
+export default function BidSheetClient({ data, linkedProject = null }) {
   const { bid, items } = data;
   const [rows, setRows] = useState(() =>
     items.length > 0
@@ -132,13 +132,18 @@ export default function BidSheetClient({ data }) {
   return (
     <div className="max-w-5xl">
       <div className="flex items-center gap-3 mb-5">
-        <a href={`/pipeline/${bid.id}`} className="inline-flex items-center gap-1.5 text-sm text-rebar hover:text-concrete">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Bid
-        </a>
         {editing && <span className="text-xs text-rebar hidden sm:inline">· paste rows from Excel · Enter moves down</span>}
         <span className="ml-auto" />
         {state.saved && <span className="text-xs text-ok">Saved ✓</span>}
+        {linkedProject ? (
+          <a href={`/billing/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
+            Go to billing →
+          </a>
+        ) : data.bid?.status === "Awarded" ? (
+          <a href={`/projects/new?fromBid=${data.bid.id}&name=${encodeURIComponent(data.bid.name || "")}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
+            Create project →
+          </a>
+        ) : null}
         {!editing ? (
           <button onClick={() => setEditing(true)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
         ) : (

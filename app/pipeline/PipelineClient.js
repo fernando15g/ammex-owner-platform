@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSort, SortHeader } from "@/app/components/Sortable";
 
 // Bids — the bid list. In-flight by default, but closed-out bids (Awarded /
 // Lost / No Bid) stay reachable: an Awarded bid is where a project is created
@@ -9,6 +10,9 @@ import { useState } from "react";
 // Original note: in-flight bids list. Procore-style scannable table. Shows raw and
 // confidence-weighted totals up top; each bid's due date, status, GC, value.
 
+const lbsOf = (tons) => (typeof tons === "number" ? tons * 2000 : null);
+const lbsStr = (lbs) => (typeof lbs === "number" ? `${Math.round(lbs).toLocaleString()} lbs` : "—");
+const tonsStr = (t) => (typeof t === "number" ? `${Math.round(t).toLocaleString()} tons` : "—");
 const money = (n) => (typeof n !== "number" ? "—" : Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `$${Math.round(n / 1e3)}k` : `$${Math.round(n)}`);
 const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
 const dateStr = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—");
@@ -30,7 +34,8 @@ export default function PipelineClient({ data }) {
   const { rows, totals } = data;
   const [filter, setFilter] = useState("flight");
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
-  const shown = rows.filter(active.test);
+  const filtered = rows.filter(active.test);
+  const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc");
   const countOf = (f) => rows.filter(f.test).length;
 
   return (
@@ -38,7 +43,7 @@ export default function PipelineClient({ data }) {
       <div className="flex flex-wrap gap-x-8 gap-y-2 mb-5">
         <Stat label={`In flight (${totals.count} bids)`} value={money(totals.raw)} />
         <Stat label="Risk-weighted" value={money(totals.weighted)} accent />
-        <Stat label="Raw tons" value={typeof totals.rawTons === "number" ? Math.round(totals.rawTons).toLocaleString() : "—"} />
+        <Stat label="Raw weight" value={lbsStr(lbsOf(totals.rawTons))} sub={tonsStr(totals.rawTons)} />
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
@@ -61,11 +66,11 @@ export default function PipelineClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <th className="text-left font-medium px-4 py-2.5">Bid</th>
-              <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell">Status</th>
-              <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">Due</th>
-              <th className="text-right font-medium px-3 py-2.5">Value</th>
-              <th className="text-right font-medium px-4 py-2.5 hidden lg:table-cell">Margin</th>
+              <SortHeader label="Bid" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
+              <SortHeader label="Due" sortKey="bidDueDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
+              <SortHeader label="Value" sortKey="contractValue" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Margin" sortKey="operatingMargin" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell px-4" />
             </tr>
           </thead>
           <tbody>
@@ -108,6 +113,14 @@ export default function PipelineClient({ data }) {
   );
 }
 
-function Stat({ label, value, accent }) {
-  return (<div><span className={`text-xl font-semibold ${accent ? "text-safety" : "text-concrete"}`}>{value}</span><span className="text-rebar text-sm ml-2">{label}</span></div>);
+function Stat({ label, value, sub, accent }) {
+  return (
+    <div>
+      <div>
+        <span className={`text-xl font-semibold ${accent ? "text-safety" : "text-concrete"}`}>{value}</span>
+        <span className="text-rebar text-sm ml-2">{label}</span>
+      </div>
+      {sub && <div className="text-xs text-rebar/70 mt-0.5">{sub}</div>}
+    </div>
+  );
 }

@@ -15,7 +15,8 @@ export default async function ActiveWorkPage() {
   }
 
   return (
-    <AppShell current="active" subtitle="Present work" title="Active Work">
+    <AppShell current="active" breadcrumbs={[{ label: "Active work" }]} title="Active Work"
+      actions={<a href="/projects/new" className="text-sm px-3.5 py-2 rounded-md bg-safety text-steel font-medium">+ New project</a>}>
       {error ? (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm text-concrete/80">
           Couldn&apos;t load projects: {error}

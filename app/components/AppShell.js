@@ -35,7 +35,36 @@ function useTheme() {
   return { theme, toggle };
 }
 
-export default function AppShell({ current, title, subtitle, actions, children }) {
+// A breadcrumb trail: [{ label, href }] — the last entry is the current page and
+// is never a link. Every page passes its own trail, so the shell renders one
+// consistent path across the whole OS.
+function Breadcrumbs({ trail }) {
+  if (!trail?.length) return null;
+  return (
+    <nav className="flex items-center gap-1 flex-wrap text-[11px] leading-none mb-1.5" aria-label="Breadcrumb">
+      {trail.map((c, i) => {
+        const last = i === trail.length - 1;
+        return (
+          <span key={i} className="inline-flex items-center gap-1">
+            {i === 0 && (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-rebar">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            )}
+            {last || !c.href ? (
+              <span className="uppercase tracking-widest text-rebar/70">{c.label}</span>
+            ) : (
+              <a href={c.href} className="uppercase tracking-widest text-rebar hover:text-concrete underline-offset-2 hover:underline">{c.label}</a>
+            )}
+            {!last && <span className="text-rebar/40">›</span>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+export default function AppShell({ current, title, subtitle, breadcrumbs, actions, children }) {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
   return (
@@ -73,7 +102,11 @@ export default function AppShell({ current, title, subtitle, actions, children }
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div className="min-w-0">
-            {subtitle && <p className="text-[11px] uppercase tracking-widest text-rebar leading-none mb-1">{subtitle}</p>}
+            {breadcrumbs?.length ? (
+              <Breadcrumbs trail={breadcrumbs} />
+            ) : subtitle ? (
+              <p className="text-[11px] uppercase tracking-widest text-rebar leading-none mb-1">{subtitle}</p>
+            ) : null}
             <h1 className="text-lg font-semibold text-concrete leading-none truncate">{title}</h1>
           </div>
           <div className="ml-auto flex items-center gap-2">

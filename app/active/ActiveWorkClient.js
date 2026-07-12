@@ -8,6 +8,8 @@
 // =============================================================================
 
 import { useState } from "react";
+import { useSort, SortHeader } from "@/app/components/Sortable";
+import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 
 // ---- formatters ----
 const money = (n) =>
@@ -28,35 +30,35 @@ const SEV = {
 export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
   const { rows, counts } = data;
+  const { sorted, sort, toggle } = useSort(rows, "name", "asc");
+  const [detailsFor, setDetailsFor] = useState(null);
 
   return (
-    <div className="lg:flex lg:gap-6">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="ml-auto" />
-        <a href="/projects/new" className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">+ New project</a>
+    <div>
+      {/* Metrics sit above BOTH columns, so the table and the detail panel
+          start on the same line. */}
+      <div className="flex flex-wrap gap-x-6 gap-y-1 mb-4 text-sm">
+        <Metric label="Running jobs" value={counts.total} />
+        <Metric label="Mobilizing" value={counts.mobilizing} />
+        <Metric label="Over pace" value={counts.atRisk} tone={counts.atRisk > 0 ? "danger" : "ok"} />
       </div>
 
-      {/* Table */}
+      <div className="lg:flex lg:gap-6">
+      {/* Table — scrolls sideways when the window is too narrow for every column */}
       <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap gap-x-6 gap-y-1 mb-4 text-sm">
-          <Metric label="Running jobs" value={counts.total} />
-          <Metric label="Mobilizing" value={counts.mobilizing} />
-          <Metric label="Over pace" value={counts.atRisk} tone={counts.atRisk > 0 ? "danger" : "ok"} />
-        </div>
-
-        <div className="rounded-lg border border-line overflow-hidden">
+        <div className="rounded-lg border border-line overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-                <th className="text-left font-medium px-4 py-2.5">Project</th>
-                <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell">Status</th>
-                <th className="text-right font-medium px-3 py-2.5">Hours</th>
-                <th className="text-right font-medium px-3 py-2.5 hidden md:table-cell">Placed</th>
-                <th className="text-right font-medium px-4 py-2.5">Forecast</th>
+                <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+                <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
+                <SortHeader label="Hours" sortKey="payrollHours" sort={sort} toggle={toggle} align="right" />
+                <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
+                <SortHeader label="Forecast" sortKey="forecastLbsPerMH" sort={sort} toggle={toggle} align="right" className="px-4" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {sorted.map((r) => {
                 const sev = SEV[r.burn.severity] || SEV.ok;
                 const isSel = selected?.id === r.id;
                 return (
@@ -113,13 +115,22 @@ export default function ActiveWorkClient({ data }) {
       {/* Detail panel */}
       <div className="lg:w-96 shrink-0 mt-6 lg:mt-0">
         {selected ? (
-          <DetailPanel row={selected} onClose={() => setSelected(null)} />
+          <DetailPanel row={selected} onClose={() => setSelected(null)} onEdit={() => setDetailsFor(selected.id)} />
         ) : (
           <div className="rounded-lg border border-dashed border-line p-6 text-sm text-rebar text-center lg:sticky lg:top-24">
             Select a job to inspect its full data.
           </div>
         )}
       </div>
+      </div>
+
+      {detailsFor && (
+        <ProjectDetailsModal
+          projectId={detailsFor}
+          onClose={() => setDetailsFor(null)}
+          onSaved={() => window.location.reload()}
+        />
+      )}
     </div>
   );
 }
@@ -143,7 +154,7 @@ function StatusPill({ status, sev }) {
   );
 }
 
-function DetailPanel({ row, onClose }) {
+function DetailPanel({ row, onClose, onEdit }) {
   const d = row.detail;
   const f = d.financials;
   return (
@@ -153,7 +164,8 @@ function DetailPanel({ row, onClose }) {
           <h2 className="font-semibold text-concrete truncate">{row.name}</h2>
           <p className="text-xs text-rebar mt-0.5">{row.projectId} · {row.status}</p>
         </div>
-        <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete text-sm">✕</button>
+        <button onClick={onEdit} className="text-xs px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete mr-1.5">Edit</button>
+      <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete text-sm">✕</button>
       </div>
 
       <div className="p-5 space-y-5 text-sm">

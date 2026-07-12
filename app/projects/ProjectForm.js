@@ -16,7 +16,7 @@ const PROJECT_STATUSES = [
   "Punchlist", "Waiting on billing", "Closed", "Paid",
 ];
 
-export default function ProjectForm({ project = null, bidOptions = [], takenBidIds = [], presetBidId = null, presetName = "" }) {
+export default function ProjectForm({ project = null, bidOptions = [], takenBidIds = [], presetBidId = null, presetName = "", modal = false, onSaved = null, onClose = null }) {
   const isNew = !project;
   const taken = new Set(takenBidIds);
 
@@ -64,6 +64,7 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
+      if (modal) { setBusy(false); onSaved?.(); return; }
       window.location.href = isNew ? `/billing/${d.id}` : `/projects/${project.id}`;
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
@@ -83,10 +84,10 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className={modal ? "" : "max-w-3xl"}>
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
-      <div className="rounded-lg border border-line p-5" style={{ background: "var(--surface)" }}>
+      <div className={modal ? "" : "rounded-lg border border-line p-5"} style={modal ? undefined : { background: "var(--surface)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="block sm:col-span-2">
             <span className="text-xs text-rebar mb-1 block">Project name</span>
@@ -137,10 +138,14 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
           <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">
             {busy ? "Saving…" : isNew ? "Create project" : "Save changes"}
           </button>
-          {!isNew && (
+          {!isNew && !modal && (
             <a href={`/billing/${project.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Billing</a>
           )}
-          <a href="/active" className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</a>
+          {modal ? (
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+          ) : (
+            <a href="/active" className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</a>
+          )}
           {!isNew && (
             <button onClick={remove} disabled={busy} className="ml-auto text-sm px-4 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">
               Delete project

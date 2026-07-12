@@ -16,7 +16,7 @@ export default async function BidDetailPage({ params }) {
     linkedProject = proj ? { id: proj.id, name: proj.name, projectId: proj.projectId } : null;
   } catch (e) { error = String(e.message || e); }
   return (
-    <AppShell current="pipeline" subtitle="Bids" title={bid?.name || "Bid"}>
+    <AppShell current="pipeline" breadcrumbs={[{ label: "All bids", href: "/pipeline" }, { label: bid?.name || "Bid" }]} title={bid?.name || "Bid"}>
       {error ? (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm text-concrete/80">Couldn&apos;t load bid: {error}</div>
       ) : (

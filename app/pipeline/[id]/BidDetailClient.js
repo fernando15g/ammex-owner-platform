@@ -8,7 +8,7 @@
 // This detail+edit pattern is the template the Billing workspace reuses.
 // =============================================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 
@@ -18,6 +18,20 @@ const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—"
 
 export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null }) {
   const [editing, setEditing] = useState(false);
+  const [w0, setW0] = useState(null);   // pristine copy, to detect real changes
+  const [options, setOptions] = useState({});   // the real Notion option lists
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/notion-options?db=bids");
+        const d = await res.json();
+        if (alive && d.ok) setOptions(d.options || {});
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, []);
   const [state, setState] = useState({ saving: false, saved: false, error: null });
 
   // Build the working copy from the bid — used at init AND to restore on Cancel.
@@ -75,6 +89,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     add("hoursPerDay", n(w.hoursPerDay));
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
   }, [w]);
+
+  // "Save" only says Update once something has actually changed.
+  const dirty = editing && JSON.stringify(w) !== JSON.stringify(w0);
 
   async function deleteBid() {
     const typed = window.prompt(
@@ -139,10 +156,6 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     <div className="lg:flex lg:gap-8 max-w-5xl">
       <div className="flex-1 min-w-0 space-y-6">
         <div className="flex items-center gap-3">
-          <a href="/pipeline" className="inline-flex items-center gap-1.5 text-sm text-rebar hover:text-concrete">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Bids
-          </a>
           <span className="ml-auto" />
           <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">{lineItemCount > 0 ? "View bid sheet" : "Create bid sheet"}</a>
           {linkedProject ? (
@@ -152,10 +165,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           ) : null}
           {state.saved && !editing && <span className="text-xs text-ok">Saved ✓</span>}
           {!editing ? (
-            <button onClick={() => { setEditing(true); setState({ saving: false, saved: false, error: null }); }} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
+            <button onClick={() => { setW0(JSON.parse(JSON.stringify(w))); setEditing(true); setState({ saving: false, saved: false, error: null }); }} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
           ) : (
             <>
-              <button onClick={save} disabled={state.saving} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save"}</button>
+              <button onClick={save} disabled={state.saving} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : dirty ? "Update" : "Save"}</button>
               <button onClick={cancelEdit} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
               <button onClick={deleteBid} disabled={state.saving} className="text-sm px-4 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete bid</button>
             </>
@@ -171,9 +184,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FDate label="Bid due date" edit={editing} value={w.bidDueDate} onChange={(v) => set("bidDueDate", v)} />
             <FDate label="Submitted" edit={editing} value={w.submissionDate} onChange={(v) => set("submissionDate", v)} />
             <F label="City / County" edit={editing} value={w.cityCounty} onChange={(v) => set("cityCounty", v)} />
-            <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} />
-            <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} />
-            <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} />
+            <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} options={options["GC"]} />
+            <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} options={options["Fabricator"]} />
+            <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} options={options["Project Type"]} />
           </Grid>
           <FArea label="Scope" edit={editing} value={w.scope} onChange={(v) => set("scope", v)} />
           <FArea label="Notes" edit={editing} value={w.notes} onChange={(v) => set("notes", v)} />
@@ -268,16 +281,69 @@ function FSelect({ label, edit, value, options, onChange }) {
 function FArea({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <textarea className="inp min-h-[56px] w-full" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}</div>);
 }
-function FChips({ label, edit, items, onChange }) {
-  const onKey = (e) => { if (e.key === "Enter" && e.target.value.trim()) { e.preventDefault(); onChange([...items, e.target.value.trim()]); e.target.value = ""; } };
+// Pick from the options that actually exist in Notion. Adding a genuinely new
+// one is still possible — but it's a deliberate act, not a typo. (Notion creates
+// the option on write, which is exactly why free text was breeding duplicates.)
+function FChips({ label, edit, items, onChange, options = [] }) {
+  const [adding, setAdding] = useState(false);
+  const available = (options || []).filter((o) => !items.includes(o));
+
+  const addNew = (e) => {
+    const v = e.target.value.trim();
+    if (e.key === "Enter" && v) {
+      e.preventDefault();
+      if (!items.includes(v)) onChange([...items, v]);
+      e.target.value = "";
+      setAdding(false);
+    }
+    if (e.key === "Escape") setAdding(false);
+  };
+
   return (
-    <div><L>{label}</L>
-      {items.length > 0 && <div className="flex flex-wrap gap-1.5 mb-1.5">{items.map((it, i) => (
-        <span key={i} className="inline-flex items-center gap-1 text-xs border border-line rounded-full px-2.5 py-0.5 text-concrete" style={{ background: "var(--surface-2)" }}>
-          {it}{edit && <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-rebar hover:text-danger">✕</button>}
-        </span>))}</div>}
-      {edit ? <input className="inp" placeholder="Type + Enter" onKeyDown={onKey} /> : items.length === 0 ? <V /> : null}
-      
+    <div>
+      <L>{label}</L>
+      {items.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-1.5">
+          {items.map((it, i) => (
+            <span key={i} className="inline-flex items-center gap-1 text-xs border border-line rounded-full px-2.5 py-0.5 text-concrete" style={{ background: "var(--surface-2)" }}>
+              {it}
+              {edit && <button onClick={() => onChange(items.filter((_, j) => j !== i))} className="text-rebar hover:text-danger">✕</button>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {edit ? (
+        adding ? (
+          <input
+            autoFocus
+            className="inp"
+            placeholder="New name + Enter (creates a new option)"
+            onKeyDown={addNew}
+            onBlur={() => setAdding(false)}
+          />
+        ) : (
+          <div className="flex gap-2">
+            <select
+              className="inp"
+              value=""
+              onChange={(e) => { if (e.target.value) onChange([...items, e.target.value]); }}
+            >
+              <option value="">{available.length ? "Add…" : "No options left"}</option>
+              {available.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap"
+              title="Create an option that doesn't exist yet"
+            >
+              + New
+            </button>
+          </div>
+        )
+      ) : items.length === 0 ? <V /> : null}
     </div>
   );
 }
+

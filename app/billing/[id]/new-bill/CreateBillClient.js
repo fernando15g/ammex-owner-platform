@@ -56,7 +56,7 @@ export default function CreateBillClient({ data }) {
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPct: data.settings.retentionPercent ?? "",
   });
-  const [adot, setAdot] = useState({ open: false, estLbs: "", toDateLbs: "", prevLbs: "", totalSqft: "", ratePerSqft: "", description: "ADOT sq ft billing" });
+  const [adot, setAdot] = useState({ open: false, lbsDone: "", lbsTotal: "", totalSqft: "", ratePerSqft: "", description: "Sq ft billing" });
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [showLast, setShowLast] = useState(false);
@@ -134,38 +134,42 @@ export default function CreateBillClient({ data }) {
     return { rows: out, gross, retention, totalDue: gross - retention, toDateAmt: out.reduce((a, r) => a + r.toDateAmt, 0), prevAmt: out.reduce((a, r) => a + r.prevAmt, 0) };
   }, [rows, pct]);
 
-  // ---- Unit-conversion calculator (ADOT-style): bid in lbs, bill in sq ft -----
-  // Self-contained: you type the two lbs figures + total sq ft + $/sq ft. It
-  // computes % complete and the sq ft to bill THIS estimate, then "Add to bill"
-  // drops a billable sq ft line into the grid below.
+  // ---- Sq ft billing calculator ---------------------------------------------
+  // Fern's method, exactly: lbs done / lbs total = % complete. Apply that % to
+  // the total sq ft to get the sq ft billed to date.
+  //   100k of 200k lbs = 50%  ->  50% of 2,400 sq ft = 1,200 sq ft
+  // The one thing we work out rather than ask for: how much sq ft has ALREADY
+  // been billed on this project's sq ft line, so invoice 2 bills the increment
+  // instead of billing the whole thing over again.
   const adotCalc = useMemo(() => {
-    const est = num(adot.estLbs) || 0;
-    const toDate = num(adot.toDateLbs) || 0;
-    const prev = num(adot.prevLbs) || 0;
+    const done = num(adot.lbsDone) || 0;
+    const total = num(adot.lbsTotal) || 0;
     const totalSqft = num(adot.totalSqft) || 0;
     const rate = num(adot.ratePerSqft) || 0;
-    const pctToDate = est > 0 ? toDate / est : 0;
-    const pctPrev = est > 0 ? prev / est : 0;
-    const sqftToDate = totalSqft * pctToDate;
-    const sqftPrev = totalSqft * pctPrev;
-    const sqftThis = sqftToDate - sqftPrev;
-    return { est, toDate, prev, totalSqft, rate, pctToDate, pctPrev, sqftToDate, sqftPrev, sqftThis, amountThis: sqftThis * rate };
-  }, [adot]);
+
+    const pctDone = total > 0 ? done / total : 0;
+    const sqftToDate = totalSqft * pctDone;
+
+    // sq ft already billed = qty-to-date on the existing SF line, if there is one
+    const sfLine = data.lines.find((l) => (l.unit || "").toUpperCase() === "SF");
+    const sqftPrev = sfLine?.qtyToDate || 0;
+    const sqftThis = Math.max(sqftToDate - sqftPrev, 0);
+
+    return { done, total, totalSqft, rate, pctDone, sqftToDate, sqftPrev, sqftThis, amountThis: sqftThis * rate, sfLine };
+  }, [adot, data.lines]);
 
   function addAdotLine() {
     const c = adotCalc;
     if (c.sqftThis <= 0 || c.rate <= 0) return;
-    // Add as a NEW billable line, already "this estimate": estimate qty = total
-    // sqft, unit price = rate, prev = sqft already billed, to-date = sqft to date.
     setRows((rs) => [...rs, {
-      lineId: null,
-      itemNo: "ADOT-SF",
-      description: adot.description || "ADOT sq ft billing",
+      lineId: c.sfLine?.id || null,
+      itemNo: c.sfLine?.itemNo || "SF",
+      description: adot.description || "Sq ft billing",
       estimateQty: String(c.totalSqft),
       unit: "SF",
       unitPrice: String(c.rate),
       prevQty: c.sqftPrev,
-      toDateQty: String(c.sqftToDate),
+      toDateQty: String(Math.round(c.sqftToDate * 100) / 100),
       furnInst: null,
     }]);
     setAdot((a) => ({ ...a, open: false }));
@@ -242,7 +246,6 @@ export default function CreateBillClient({ data }) {
   if (mode === "choose") {
     return (
       <div className="max-w-3xl">
-        <BackLink id={data.id} />
         <p className="text-sm text-rebar mb-4">First invoice for this job — how do you want to start? The bid sheet is the proposal; weights can change, so confirm it or start from the fabricator&apos;s weight sheet.</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <button onClick={() => { setRows(fromLines()); setMode("grid"); }} className="text-left rounded-lg border border-line p-5 hover:border-safety" style={{ background: "var(--surface)" }}>
@@ -279,7 +282,6 @@ export default function CreateBillClient({ data }) {
   return (
     <div className="max-w-6xl">
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <BackLink id={data.id} />
         <span className="ml-auto" />
         {lastBill && <button onClick={() => setShowLast((s) => !s)} className="text-sm px-3 py-2 rounded-md border border-line text-rebar hover:text-concrete">{showLast ? "Hide" : "Last invoice"}</button>}
         <button onClick={() => setShowPaste((s) => !s)} className="text-sm px-3 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Paste weight sheet</button>
@@ -338,10 +340,7 @@ export default function CreateBillClient({ data }) {
       <div className="grid sm:grid-cols-5 gap-3 mb-4">
         <label className="block sm:col-span-2">
           <span className="text-xs text-rebar mb-1 block">Invoice number</span>
-          <div className="flex gap-2">
-            <input className="inp" value={head.invoiceNumber} onChange={(e) => setHead({ ...head, invoiceNumber: e.target.value })} placeholder={`${data.projectId || "26-XX"}-INV-${priorBills.length + 1}`} />
-            <button onClick={generateInvoiceNumber} disabled={state.genning} className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap disabled:opacity-40">{state.genning ? "…" : "Generate"}</button>
-          </div>
+          <input className="inp" value={head.invoiceNumber} onChange={(e) => setHead({ ...head, invoiceNumber: e.target.value })} placeholder={`${data.projectId || "26-XX"}-INV-${priorBills.length + 1}`} />
         </label>
         <label className="block"><span className="text-xs text-rebar mb-1 block">Bill date</span><input type="date" className="inp" value={head.date} onChange={(e) => setHead({ ...head, date: e.target.value })} /></label>
         <label className="block"><span className="text-xs text-rebar mb-1 block">Due date</span><input type="date" className="inp" value={head.dueDate} onChange={(e) => setHead({ ...head, dueDate: e.target.value })} /></label>
@@ -355,32 +354,42 @@ export default function CreateBillClient({ data }) {
         </div>
       </div>
 
-      {/* Unit-conversion calculator (bill sq ft from lbs % complete) */}
+      {/* Sq ft billing calculator — lbs % complete -> sq ft to bill */}
       <div className="rounded-lg border border-line mb-4" style={{ background: "var(--surface)" }}>
         <button onClick={() => setAdot((a) => ({ ...a, open: !a.open }))} className="w-full flex items-center justify-between px-4 py-2.5 text-sm">
-          <span className="text-concrete font-medium">Sq ft billing calculator <span className="text-rebar font-normal text-xs">— convert lbs % complete to a sq ft line (ADOT-style)</span></span>
+          <span className="text-concrete font-medium">Sq ft billing calculator <span className="text-rebar font-normal text-xs">— bid in lbs, bill in sq ft</span></span>
           <span className="text-rebar text-xs">{adot.open ? "hide" : "open"}</span>
         </button>
         {adot.open && (
           <div className="px-4 pb-4 border-t border-line pt-3">
-            <div className="grid sm:grid-cols-5 gap-3 items-end">
-              <label className="block"><span className="text-xs text-rebar mb-1 block">Estimate lbs</span><input type="text" inputMode="decimal" className="inp" value={adot.estLbs} onChange={(e) => setAdot({ ...adot, estLbs: e.target.value })} placeholder="200000" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">To-date lbs</span><input type="text" inputMode="decimal" className="inp" value={adot.toDateLbs} onChange={(e) => setAdot({ ...adot, toDateLbs: e.target.value })} placeholder="100000" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">Previous lbs <span className="text-rebar/60">(prior bills)</span></span><input type="text" inputMode="decimal" className="inp" value={adot.prevLbs} onChange={(e) => setAdot({ ...adot, prevLbs: e.target.value })} placeholder="0" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">Total job sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.totalSqft} onChange={(e) => setAdot({ ...adot, totalSqft: e.target.value })} placeholder="2400" /></label>
+            <div className="grid sm:grid-cols-4 gap-3 items-end">
+              <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs completed</span><input type="text" inputMode="decimal" className="inp" value={adot.lbsDone} onChange={(e) => setAdot({ ...adot, lbsDone: e.target.value })} placeholder="100000" /></label>
+              <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs total (job)</span><input type="text" inputMode="decimal" className="inp" value={adot.lbsTotal} onChange={(e) => setAdot({ ...adot, lbsTotal: e.target.value })} placeholder="200000" /></label>
+              <label className="block"><span className="text-xs text-rebar mb-1 block">Total sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.totalSqft} onChange={(e) => setAdot({ ...adot, totalSqft: e.target.value })} placeholder="2400" /></label>
               <label className="block"><span className="text-xs text-rebar mb-1 block">$ / sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.ratePerSqft} onChange={(e) => setAdot({ ...adot, ratePerSqft: e.target.value })} placeholder="0.00" /></label>
             </div>
-            <div className="grid sm:grid-cols-4 gap-3 mt-3">
-              <Metric label="% complete" value={`${(adotCalc.pctToDate * 100).toFixed(1)}%`} />
-              <Metric label="Sq ft to date" value={qf(adotCalc.sqftToDate)} />
-              <Metric label="Sq ft this estimate" value={qf(adotCalc.sqftThis)} accent />
-              <Metric label="Amount this estimate" value={money(adotCalc.amountThis)} accent />
+
+            <div className="rounded-md border border-line px-3 py-2.5 mt-3" style={{ background: "var(--surface-2)" }}>
+              <p className="text-sm text-concrete">
+                {qf(adotCalc.done)} of {qf(adotCalc.total)} lbs = <span className="font-semibold text-safety">{(adotCalc.pctDone * 100).toFixed(1)}%</span>
+                {" → "}{(adotCalc.pctDone * 100).toFixed(1)}% of {qf(adotCalc.totalSqft)} sq ft = <span className="font-semibold text-concrete">{qf(adotCalc.sqftToDate)} sq ft</span>
+              </p>
+              {adotCalc.sqftPrev > 0 && (
+                <p className="text-xs text-rebar mt-1">
+                  {qf(adotCalc.sqftPrev)} sq ft already billed → this invoice bills the difference: <span className="text-safety font-medium">{qf(adotCalc.sqftThis)} sq ft</span>
+                </p>
+              )}
+              {adotCalc.rate > 0 && (
+                <p className="text-xs text-rebar mt-1">
+                  {qf(adotCalc.sqftThis)} sq ft × {money(adotCalc.rate)} = <span className="text-safety font-medium">{money(adotCalc.amountThis)}</span>
+                </p>
+              )}
             </div>
+
             <div className="flex items-center gap-3 mt-3">
               <input className="inp flex-1" value={adot.description} onChange={(e) => setAdot({ ...adot, description: e.target.value })} placeholder="Line description" />
               <button onClick={addAdotLine} disabled={adotCalc.sqftThis <= 0 || adotCalc.rate <= 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40 whitespace-nowrap">Add to bill</button>
             </div>
-            <p className="text-[11px] text-rebar mt-2">{qf(adotCalc.toDate)} of {qf(adotCalc.est)} lbs = {(adotCalc.pctToDate * 100).toFixed(1)}% → {(adotCalc.pctToDate * 100).toFixed(1)}% of {qf(adotCalc.totalSqft)} sq ft = {qf(adotCalc.sqftToDate)} to date. This estimate = {qf(adotCalc.sqftThis)} sq ft × {money(adotCalc.rate)} = {money(adotCalc.amountThis)}. &ldquo;Add to bill&rdquo; drops it as a line below.</p>
           </div>
         )}
       </div>
@@ -474,11 +483,3 @@ function Metric({ label, value, accent }) {
   return (<div className="rounded-md border border-line px-3 py-2" style={{ background: "var(--surface-2)" }}><p className="text-[11px] text-rebar">{label}</p><p className={`text-sm font-semibold tabular-nums ${accent ? "text-safety" : "text-concrete"}`}>{value}</p></div>);
 }
 
-function BackLink({ id }) {
-  return (
-    <a href={`/billing/${id}`} className="inline-flex items-center gap-1.5 text-sm text-rebar hover:text-concrete">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Project billing
-    </a>
-  );
-}

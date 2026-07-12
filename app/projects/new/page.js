@@ -8,7 +8,7 @@ export default async function NewProjectPage({ searchParams }) {
   let data = null, error = null;
   try { data = await getProjectAdmin(null); } catch (e) { error = String(e.message || e); }
   return (
-    <AppShell current="active" subtitle="Projects" title="New project">
+    <AppShell current="active" breadcrumbs={[{ label: "Active work", href: "/active" }, { label: "New project" }]} title="New project">
       {error ? (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm text-concrete/80">Couldn&apos;t load: {error}</div>
       ) : (
