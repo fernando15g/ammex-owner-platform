@@ -15,6 +15,34 @@ export async function POST(req) {
     const p = body.project || body;
     validateProjectEdit(p);
     const result = await createProject(p);
+
+    // Creating a project from a bid means the bid was won. Say so, rather than
+    // making someone remember to. This also activates the bid's line items,
+    // which is what gives the project its contract value.
+    if (p.relatedBidId) {
+      try {
+        const { updateBid } = await import("@/lib/notion/bidRepository");
+        const { activateLineItemsForBid } = await import("@/lib/notion/lineItemRepository");
+        const { getPage } = await import("@/lib/notion/client");
+        const { mapBid } = await import("@/lib/rules/money");
+        const bid = mapBid(await getPage(p.relatedBidId));   // one page, not the whole workspace
+        if (bid && bid.status !== "Awarded") {
+          await updateBid(p.relatedBidId, { status: "Awarded" });
+          await activateLineItemsForBid(p.relatedBidId);
+          await audit({
+            actor: currentActor(),
+            action: "Update",
+            entity: "Bid",
+            entityName: bid.name || "",
+            entityId: p.relatedBidId,
+            changes: `Status: ${bid.status} → Awarded (a project was created from it)`,
+          });
+        }
+      } catch (e) {
+        // Never let this take down the project creation itself.
+        console.error("[projects] couldn't auto-award the bid:", e.message || e);
+      }
+    }
     await audit({
       actor: currentActor(),
       action: "Create",

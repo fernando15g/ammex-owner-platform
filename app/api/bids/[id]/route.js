@@ -5,7 +5,8 @@ import { updateBid } from "@/lib/notion/bidRepository";
 import { closeLineItemsForBid, activateLineItemsForBid } from "@/lib/notion/lineItemRepository";
 import { audit, describeChanges } from "@/lib/notion/auditRepository";
 import { currentActor } from "@/lib/actor";
-import { getEverything } from "@/lib/data";
+import { getPage } from "@/lib/notion/client";
+import { mapBid } from "@/lib/rules/money";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,12 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
     const changes = body.changes || body;
 
-    // capture the "before" so the log can say what actually moved
-    const before = (await getEverything()).bids.find((b) => b.id === params.id) || {};
+    // The "before" snapshot, for the audit log. Read ONLY this bid — reading the
+    // whole workspace here (as this used to) is slow enough to blow the
+    // serverless timeout, and when it does, the save silently never happens.
+    let before = {};
+    try { before = mapBid(await getPage(params.id)) || {}; } catch {}
+
     const result = await updateBid(params.id, changes);
     await audit({
       actor: currentActor(),

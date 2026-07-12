@@ -29,7 +29,7 @@ const SEV = {
 
 export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
-  const { rows, counts } = data;
+  const { rows, counts, backlog = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc");
   const [detailsFor, setDetailsFor] = useState(null);
 
@@ -42,6 +42,37 @@ export default function ActiveWorkClient({ data }) {
         <Metric label="Mobilizing" value={counts.mobilizing} />
         <Metric label="Over pace" value={counts.atRisk} tone={counts.atRisk > 0 ? "danger" : "ok"} />
       </div>
+
+      {/* WON, NOT STARTED — these were invisible before, so a project could be
+          created and then simply disappear from the app. */}
+      {backlog.length > 0 && (
+        <div className="rounded-lg border border-line mb-5" style={{ background: "var(--surface)" }}>
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line">
+            <span className="text-sm text-concrete font-medium">Awarded — not started</span>
+            <span className="text-xs text-rebar">{backlog.length}</span>
+            <span className="text-xs text-rebar ml-auto">crews aren&apos;t on these yet</span>
+          </div>
+          <div className="divide-y divide-line">
+            {backlog.map((b) => (
+              <div key={b.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40">
+                <a href={`/billing/${b.id}`} className="text-sm text-concrete hover:text-safety truncate">{b.name}</a>
+                <span className="text-xs text-rebar truncate">
+                  {[b.projectId, b.gc?.length ? b.gc.join(", ") : null].filter(Boolean).join(" · ")}
+                </span>
+                {!b.hasBid && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warn/50 text-warn whitespace-nowrap">no bid — can&apos;t bill</span>
+                )}
+                <span className="ml-auto flex items-center gap-2 shrink-0">
+                  {typeof b.contractValue === "number" && (
+                    <span className="text-xs text-concrete/70 tabular-nums">${Math.round(b.contractValue).toLocaleString()}</span>
+                  )}
+                  <button onClick={() => setDetailsFor(b.id)} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete">Details</button>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="lg:flex lg:gap-6">
       {/* Table — scrolls sideways when the window is too narrow for every column */}

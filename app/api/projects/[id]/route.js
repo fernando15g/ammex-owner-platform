@@ -5,7 +5,8 @@ import { audit, describeChanges } from "@/lib/notion/auditRepository";
 import { currentActor } from "@/lib/actor";
 import { updateProject } from "@/lib/notion/projectRepository";
 import { validateProjectEdit } from "@/lib/rules/mutations";
-import { getEverything } from "@/lib/data";
+import { getPage } from "@/lib/notion/client";
+import { mapProjectLite } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,12 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
     const changes = body.changes || body;
     validateProjectEdit(changes);
-    const all = await getEverything();
-    const before = all.projects.find((p) => p.id === params.id) || {};
+
+    // Read ONLY this project for the audit "before". Reading the whole workspace
+    // on every save is slow enough to blow the serverless timeout — and when it
+    // does, the write never happens and the change silently doesn't stick.
+    let before = {};
+    try { before = mapProjectLite(await getPage(params.id)) || {}; } catch {}
 
     // GC lives on the BID, not the project — write it through, so there's one
     // source of truth. (A project with no bid has nowhere to put it, which is
@@ -26,6 +31,31 @@ export async function PATCH(req, { params }) {
       if (bidId) {
         const { updateBid } = await import("@/lib/notion/bidRepository");
         await updateBid(bidId, { gc });
+      }
+    }
+
+    // Attaching a bid to a project means that bid was won.
+    const newBidId = projectChanges.relatedBidId;
+    if (newBidId && newBidId !== before.relatedBidId) {
+      try {
+        const { updateBid } = await import("@/lib/notion/bidRepository");
+        const { activateLineItemsForBid } = await import("@/lib/notion/lineItemRepository");
+        const { mapBid } = await import("@/lib/rules/money");
+        const bid = mapBid(await getPage(newBidId));
+        if (bid && bid.status !== "Awarded") {
+          await updateBid(newBidId, { status: "Awarded" });
+          await activateLineItemsForBid(newBidId);
+          await audit({
+            actor: currentActor(),
+            action: "Update",
+            entity: "Bid",
+            entityName: bid.name || "",
+            entityId: newBidId,
+            changes: `Status: ${bid.status} → Awarded (attached to project "${before.name}")`,
+          });
+        }
+      } catch (e) {
+        console.error("[projects] couldn't auto-award the attached bid:", e.message || e);
       }
     }
 
