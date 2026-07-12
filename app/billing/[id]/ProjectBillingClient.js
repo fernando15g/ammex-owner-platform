@@ -123,7 +123,7 @@ export default function ProjectBillingClient({ data }) {
             <div key={i} className="text-xs text-rebar mt-1">
               {it.fromInvoice || "An invoice"}: billed {money(it.billedOriginal)}, received {money(it.received)} — {money(it.remaining)} still to re-bill.{" "}Weight rolled back:{" "}
               {it.lines.map((l) => {
-                const line = (data.lines || []).find((x) => x.id === l.id);
+                const line = (data.lines || []).find((x) => (l.lid && x.lineId === l.lid) || x.id === l.id);
                 return `${line ? (line.itemNo || line.description) : "line"} −${lbs(l.qty)} lbs`;
               }).join(", ") || "no line detail"}
             </div>

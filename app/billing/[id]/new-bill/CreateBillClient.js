@@ -295,7 +295,7 @@ export default function CreateBillClient({ data }) {
             <div key={i} className="text-xs text-rebar mt-1">
               {c.fromInvoice || "Prior invoice"}: billed {money(c.billedOriginal)}, received {money(c.received)} — {money(c.remaining)} re-bills here. Weight rolled back:{" "}
               {(c.lines || []).map((l) => {
-                const line = data.lines.find((x) => x.id === l.id);
+                const line = (data.lines || []).find((x) => (l.lid && x.lineId === l.lid) || x.id === l.id);
                 return `${line ? (line.itemNo || line.description) : "line"} −${qf(l.qty)} lbs`;
               }).join(", ") || "no line detail"}
             </div>
@@ -314,7 +314,7 @@ export default function CreateBillClient({ data }) {
           {lastSnap && (
             <div className="text-xs text-rebar space-y-0.5">
               {lastSnap.lines.map((l, i) => {
-                const line = data.lines.find((x) => x.id === l.id);
+                const line = (data.lines || []).find((x) => (l.lid && x.lineId === l.lid) || x.id === l.id);
                 return <div key={i} className="flex justify-between"><span>{line ? `${line.itemNo ? line.itemNo + " · " : ""}${line.description}` : "line"}</span><span className="tabular-nums">{qf(l.q)} @ {l.u} = {money(l.q * l.u)}</span></div>;
               })}
             </div>

@@ -14,6 +14,7 @@ import { getPage, archivePage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent, getAllBillingEvents } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
 import { readTag, planShortPayUnwind } from "@/lib/rules/mutations";
+import { resolveLine } from "@/lib/rules/appIds";
 import { findInvoiceFor } from "@/lib/rules/shortPayApply";
 import { withTransaction } from "@/lib/data/tx";
 
@@ -32,12 +33,12 @@ export async function POST(req) {
         if (snap) {
           const all = await getAllLineItems();
           for (const l of snap.lines || []) {
-            const line = all.find((x) => x.id === l.id);
+            const line = resolveLine(l, all);
             if (!line) continue;
             const before = line.qtyToDate || 0;
             const after = Math.max(before - (l.q || 0), 0);
-            await updateLineItem(l.id, { qtyToDate: after });
-            tx.onRollback(`line ${l.id} qty`, () => updateLineItem(l.id, { qtyToDate: before }));
+            await updateLineItem(line.id, { qtyToDate: after });
+            tx.onRollback(`line ${line.lineId || line.id} qty`, () => updateLineItem(line.id, { qtyToDate: before }));
           }
         }
       }
@@ -49,11 +50,11 @@ export async function POST(req) {
         const unwind = planShortPayUnwind(ev, invoice);
         if (unwind) {
           for (const r of unwind.lineRestores) {
-            const line = allLines.find((l) => l.id === r.id);
+            const line = resolveLine(r.ref, allLines);
             if (!line) continue;
             const before = line.qtyToDate || 0;
-            await updateLineItem(r.id, { qtyToDate: before + r.addQty });
-            tx.onRollback(`line ${r.id} qty`, () => updateLineItem(r.id, { qtyToDate: before }));
+            await updateLineItem(line.id, { qtyToDate: before + r.addQty });
+            tx.onRollback(`line ${line.lineId || line.id} qty`, () => updateLineItem(line.id, { qtyToDate: before }));
           }
           if (unwind.invoiceId) {
             const beforeNotes = invoice.notes;

@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { getPage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
+import { resolveLine } from "@/lib/rules/appIds";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,10 @@ export async function POST(req) {
     const snap = JSON.parse(m[1]);
 
     const all = await getAllLineItems();
-    for (const s of snap.lines || []) {
-      const line = all.find((l) => l.id === s.id);
+    for (const sl of snap.lines || []) {
+      const line = resolveLine(sl, all);
       if (!line) continue;
-      await updateLineItem(s.id, { qtyToDate: Math.max((line.qtyToDate || 0) - (s.q || 0), 0) });
+      await updateLineItem(line.id, { qtyToDate: Math.max((line.qtyToDate || 0) - (sl.q || 0), 0) });
     }
     await updateBillingEvent(eventId, {
       name: `VOID — ${bill.name || bill.invoiceNumber || "invoice"}`,

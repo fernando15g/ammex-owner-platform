@@ -10,6 +10,7 @@ import { NextResponse } from "next/server";
 import { getAllLineItems, createLineItem, updateLineItem } from "@/lib/notion/lineItemRepository";
 import { createBillingEvent } from "@/lib/notion/billingRepository";
 import { computeInvoice } from "@/lib/rules/invoicing";
+import { lineRef } from "@/lib/rules/appIds";
 
 export const dynamic = "force-dynamic";
 
@@ -86,16 +87,34 @@ export async function POST(req) {
     // 1) create the new lines, 2) remap temp ids -> real ids in the invoice,
     // 3) create the invoice event, 4) advance/patch lines.
     // -------------------------------------------------------------------------
-    const idMap = {};
+    const idMap = {};      // temp id -> real Notion page id
+    const appIdMap = {};    // temp id -> application-owned Line ID
     for (const p of plan) {
       if (p.kind === "new") {
         const created = await createLineItem(p.createPayload);
         idMap[p.tempId] = created.id;
+        appIdMap[p.tempId] = created.lineId || null;
       }
     }
     const realId = (id) => idMap[id] || id;
+    const appIdOf = (id) => {
+      if (appIdMap[id]) return appIdMap[id];
+      const existing = all.find((l) => l.id === id);
+      return existing?.lineId || null;
+    };
 
-    const snap = { r: pct, lines: inv.rows.filter((x) => x.thisQty !== 0).map((x) => ({ id: realId(x.id), u: x.unitPrice, q: x.thisQty })) };
+    // The snapshot references the APPLICATION-OWNED Line ID. The Notion page id
+    // rides along only as a bridge for records written before IDs existed; it can
+    // be dropped once the backfill has swept through.
+    const snap = {
+      r: pct,
+      lines: inv.rows.filter((x) => x.thisQty !== 0).map((x) => ({
+        lid: appIdOf(x.id),
+        id: realId(x.id),
+        u: x.unitPrice,
+        q: x.thisQty,
+      })),
+    };
     const event = await createBillingEvent({
       projectId,
       type: "Bill",

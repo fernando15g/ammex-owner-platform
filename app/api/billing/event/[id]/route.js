@@ -10,6 +10,7 @@ import { mapBillingEvent, updateBillingEvent } from "@/lib/notion/billingReposit
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
 import { validateEventEdit, planShortPayUnwind, readTag } from "@/lib/rules/mutations";
 import { applyShortPay, findInvoiceFor } from "@/lib/rules/shortPayApply";
+import { resolveLine } from "@/lib/rules/appIds";
 import { withTransaction } from "@/lib/data/tx";
 
 export const dynamic = "force-dynamic";
@@ -42,12 +43,12 @@ export async function PATCH(req, { params }) {
       const unwind = planShortPayUnwind(event, invoice);
       if (unwind) {
         for (const r of unwind.lineRestores) {
-          const line = allLines.find((l) => l.id === r.id);
+          const line = resolveLine(r.ref, allLines);
           if (!line) continue;
           const before = line.qtyToDate || 0;
-          await updateLineItem(r.id, { qtyToDate: before + r.addQty });
-          tx.onRollback(`line ${r.id} qty`, () => updateLineItem(r.id, { qtyToDate: before }));
-          line.qtyToDate = before + r.addQty; // keep in-memory copy current
+          await updateLineItem(line.id, { qtyToDate: before + r.addQty });
+          tx.onRollback(`line ${line.lineId || line.id} qty`, () => updateLineItem(line.id, { qtyToDate: before }));
+          line.qtyToDate = before + r.addQty; // keep the in-memory copy current
         }
         if (unwind.invoiceId) {
           const beforeNotes = invoice.notes;

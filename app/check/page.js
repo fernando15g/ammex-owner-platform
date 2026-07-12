@@ -8,6 +8,7 @@
 
 import { getSystemCheck } from "@/lib/data";
 import CheckThemeToggle from "@/app/components/CheckThemeToggle";
+import BackfillPanel from "./BackfillPanel";
 
 export const dynamic = "force-dynamic"; // always fresh — never cache a stale check
 
@@ -39,6 +40,9 @@ export default async function SystemCheckPage() {
         </a>
         <CheckThemeToggle />
       </div>
+
+      <BackfillPanel />
+
       <header className="mb-8">
         <p className="text-xs tracking-widest uppercase text-rebar mb-1">Ammex OS</p>
         <h1 className="text-2xl font-semibold">Data layer check</h1>
