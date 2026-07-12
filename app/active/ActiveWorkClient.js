@@ -31,6 +31,11 @@ export default function ActiveWorkClient({ data }) {
 
   return (
     <div className="lg:flex lg:gap-6">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="ml-auto" />
+        <a href="/projects/new" className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">+ New project</a>
+      </div>
+
       {/* Table */}
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap gap-x-6 gap-y-1 mb-4 text-sm">

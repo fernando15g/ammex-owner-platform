@@ -1,14 +1,15 @@
-// POST /api/billing/log-payment — log a payment AGAINST a specific invoice.
+// POST /api/billing/log-payment — log a payment against a specific invoice.
 // Body: { projectId, billEventId, paidAmount, paymentDate }.
-// The payment ties to the invoice (+ project). If paidAmount < the invoice's
-// expected net (gross − retention), it's a SHORT PAY: adjust the bill to match,
-// roll the unpaid quantity forward, and log the payment for what was received.
-// Otherwise it's a normal payment logged against that invoice.
+// Full payment -> logged and tied to the invoice. Short payment -> the shared
+// short-pay logic runs (lib/rules/shortPayApply): the invoice KEEPS its amount,
+// gets an [adjust] stamp, the unpaid quantity rolls back onto its lines to
+// re-bill next cycle, and the payment carries the line-level audit trail.
 import { NextResponse } from "next/server";
 import { getPage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent, createBillingEvent } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
-import { shortPayAdjustment } from "@/lib/rules/invoicing";
+import { applyShortPay, isShort } from "@/lib/rules/shortPayApply";
+import { withTransaction } from "@/lib/data/tx";
 
 export const dynamic = "force-dynamic";
 
@@ -17,90 +18,62 @@ export async function POST(req) {
     const { projectId, billEventId, paidAmount, paymentDate } = await req.json();
     if (paidAmount == null || isNaN(Number(paidAmount))) throw new Error("A valid payment amount is required.");
     const paid = Number(paidAmount);
-    const date = paymentDate || new Date().toISOString().slice(0, 10);
+    const date = paymentDate || todayLocal();
 
-    // No invoice selected -> generic payment on the project (allowed, but tie is preferred)
+    // No invoice selected -> a plain payment on the project.
     if (!billEventId) {
-      if (!projectId) throw new Error("Select an invoice or provide a project.");
+      if (!projectId) throw new Error("Select an invoice, or provide a project.");
       await createBillingEvent({ projectId, type: "Payment", name: "Payment", amount: paid, date, notes: "Payment (no invoice specified)" });
       return NextResponse.json({ ok: true, mode: "generic" });
     }
 
-    const bill = mapBillingEvent(await getPage(billEventId));
-    if (bill.type !== "Bill") throw new Error("Payments must be applied to a Bill.");
-    const gross = bill.amount || 0;
-    const retention = bill.retentionWithheld || 0;
-    const expectedNet = gross - retention;
+    const invoice = mapBillingEvent(await getPage(billEventId));
+    if (invoice.type !== "Bill") throw new Error("Payments must be applied to an invoice.");
 
-    // FULL (or over) payment -> just log it, tied to the invoice
-    if (paid >= expectedNet - 0.005) {
+    // FULL payment — nothing to reconcile.
+    if (!isShort(invoice, paid)) {
       await createBillingEvent({
-        projectId: bill.projectId, type: "Payment",
-        name: `Payment — ${bill.invoiceNumber || "invoice"}`,
-        invoiceNumber: bill.invoiceNumber || "",
+        projectId: invoice.projectId, type: "Payment",
+        name: `Payment — ${invoice.invoiceNumber || "invoice"}`,
+        invoiceNumber: invoice.invoiceNumber || "",
         amount: paid, date,
-        notes: `Payment against ${bill.invoiceNumber || "invoice"}`,
+        notes: `Payment against ${invoice.invoiceNumber || "invoice"}`,
       });
       return NextResponse.json({ ok: true, mode: "full" });
     }
 
-    // SHORT PAY -> needs the line snapshot to roll forward
-    const m = (bill.notes || "").match(/\[snap\](\{.*\})\s*$/s);
-    if (!m) {
-      // No snapshot (older/non-itemized bill): still log payment + note the short,
-      // but we can't roll specific line quantities. Adjust the bill amount to match.
-      await createBillingEvent({ projectId: bill.projectId, type: "Payment", name: `Payment — ${bill.invoiceNumber || "invoice"}`, invoiceNumber: bill.invoiceNumber || "", amount: paid, date, notes: `Short pay against ${bill.invoiceNumber || "invoice"} — no line snapshot; balance not auto-rolled` });
-      return NextResponse.json({ ok: true, mode: "short-no-snapshot", shortfall: Number((expectedNet - paid).toFixed(2)) });
-    }
-    const snap = JSON.parse(m[1]);
-    const r = (snap.r || 0) / 100;
-    const shortNet = expectedNet - paid;
-    const grossCut = r < 1 ? shortNet / (1 - r) : shortNet;
+    // SHORT payment — invoice stamp + line rollback + payment, all or nothing.
+    const lines = await getAllLineItems();
+    const result = await withTransaction(async (tx) => {
+      const payment = await createBillingEvent({
+        projectId: invoice.projectId, type: "Payment",
+        name: `Payment — ${invoice.invoiceNumber || "short pay"}`,
+        invoiceNumber: invoice.invoiceNumber || "",
+        amount: paid, date,
+        notes: `Short pay against ${invoice.invoiceNumber || "invoice"}`,
+      });
+      tx.onRollback("payment", () => archiveSafely(payment.id));
 
-    const snapLines = snap.lines.map((l) => ({ id: l.id, unitPrice: l.u, thisQty: l.q }));
-    const { reductions } = shortPayAdjustment(snapLines, gross, gross - grossCut);
+      const applied = await applyShortPay({
+        invoice, lines, paidAmount: paid, paymentId: payment.id,
+        tx, updateLineItem, updateBillingEvent,
+      });
+      return { mode: "short", rolledForward: applied?.rolledForward || 0 };
+    });
 
-    // 1) The invoice KEEPS its original amount — an invoice is a historical record
-    //    of what was billed; we never rewrite it. Instead we stamp a short-pay
-    //    adjustment: billed vs received vs rolled-forward. The rolled amount
-    //    closes this invoice's balance (it re-bills on the NEXT invoice), so
-    //    nothing is double-counted in Outstanding.
-    const adjust = {
-      billedOriginal: Number(gross.toFixed(2)),
-      expectedNet: Number(expectedNet.toFixed(2)),
-      received: Number(paid.toFixed(2)),
-      rolledForward: Number(shortNet.toFixed(2)),
-      grossRolled: Number(grossCut.toFixed(2)),
-    };
-    await updateBillingEvent(billEventId, {
-      notes: `${bill.notes}\n[short pay] billed $${gross.toFixed(2)}, received $${paid.toFixed(2)}, $${shortNet.toFixed(2)} rolled to the next invoice (balance closed here)\n[adjust]${JSON.stringify(adjust)}`,
-    });
-    // 2) roll unpaid quantity forward
-    const all = await getAllLineItems();
-    for (const red of reductions) {
-      if (red.qtyReduction <= 0) continue;
-      const line = all.find((l) => l.id === red.id);
-      if (!line) continue;
-      await updateLineItem(red.id, { qtyToDate: Math.max(Math.round((line.qtyToDate || 0) - red.qtyReduction), 0) });
-    }
-    // 3) log the payment received, tied to the invoice, with a structured
-    //    carry-forward tag: the next bill reads this to show a quiet reminder,
-    //    and it's the audit trail of what rolled back to which lines.
-    const carry = {
-      fromInvoice: bill.invoiceNumber || "",
-      grossRolled: Number(grossCut.toFixed(2)),
-      netShort: Number(shortNet.toFixed(2)),
-      lines: reductions.filter((x) => x.qtyReduction > 0).map((x) => ({ id: x.id, qty: Math.round(x.qtyReduction), amt: Number(x.dollarCut.toFixed(2)) })),
-    };
-    await createBillingEvent({
-      projectId: bill.projectId, type: "Payment",
-      name: `Payment — ${bill.invoiceNumber || "short pay"}`,
-      invoiceNumber: bill.invoiceNumber || "",
-      amount: paid, date,
-      notes: `Short pay against ${bill.invoiceNumber || "invoice"} — $${shortNet.toFixed(2)} re-bills next cycle within its line items\n[carry]${JSON.stringify(carry)}`,
-    });
-    return NextResponse.json({ ok: true, mode: "short", rolledForward: Number(shortNet.toFixed(2)) });
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });
+    return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });
   }
+}
+
+async function archiveSafely(id) {
+  const { archivePage } = await import("@/lib/notion/client");
+  return archivePage(id);
+}
+
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

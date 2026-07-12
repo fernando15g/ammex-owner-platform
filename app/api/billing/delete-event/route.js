@@ -1,13 +1,21 @@
-// POST /api/billing/delete-event — delete a billing event, REVERSING its effects.
-// Body: { eventId }.
-// An invoice (Bill) carries a line snapshot: deleting it rolls each line's
-// qty-to-date back by what that invoice billed, so quantities and contract math
-// stay in sync. Payments and change orders just remove cleanly (their effect is
-// the amount itself). Notion pages are ARCHIVED (recoverable), not hard-purged.
+// POST /api/billing/delete-event — delete a billing event, reversing EVERYTHING
+// it caused. Body: { eventId }.
+//
+// Invoice: roll back the line quantities it billed (from its [snap]).
+// Payment:  if it was a short pay, undo the whole short pay — restore the line
+//           quantities it rolled back AND strip the [adjust] stamp from the
+//           invoice. (This was previously missed, which left invoices marked
+//           short-paid with no payment to justify it.)
+// Change order: no side effects; its value was the amount itself.
+//
+// Records are ARCHIVED (Notion trash / a deleted_at column later), never purged.
 import { NextResponse } from "next/server";
 import { getPage, archivePage } from "@/lib/notion/client";
-import { mapBillingEvent } from "@/lib/notion/billingRepository";
+import { mapBillingEvent, updateBillingEvent, getAllBillingEvents } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
+import { readTag, planShortPayUnwind } from "@/lib/rules/mutations";
+import { findInvoiceFor } from "@/lib/rules/shortPayApply";
+import { withTransaction } from "@/lib/data/tx";
 
 export const dynamic = "force-dynamic";
 
@@ -17,23 +25,50 @@ export async function POST(req) {
     if (!eventId) throw new Error("eventId required");
     const ev = mapBillingEvent(await getPage(eventId));
 
-    // Reverse an invoice's line-quantity effect before removing it
-    if (ev.type === "Bill") {
-      const m = (ev.notes || "").match(/\[snap\](\{.*\})\s*$/s);
-      if (m) {
-        const snap = JSON.parse(m[1]);
-        const all = await getAllLineItems();
-        for (const l of snap.lines || []) {
-          const line = all.find((x) => x.id === l.id);
-          if (!line) continue;
-          await updateLineItem(l.id, { qtyToDate: Math.max((line.qtyToDate || 0) - (l.q || 0), 0) });
+    const result = await withTransaction(async (tx) => {
+      // --- INVOICE: reverse the quantities it billed ---------------------------
+      if (ev.type === "Bill") {
+        const snap = readTag(ev.notes, "snap");
+        if (snap) {
+          const all = await getAllLineItems();
+          for (const l of snap.lines || []) {
+            const line = all.find((x) => x.id === l.id);
+            if (!line) continue;
+            const before = line.qtyToDate || 0;
+            const after = Math.max(before - (l.q || 0), 0);
+            await updateLineItem(l.id, { qtyToDate: after });
+            tx.onRollback(`line ${l.id} qty`, () => updateLineItem(l.id, { qtyToDate: before }));
+          }
         }
       }
-    }
 
-    await archivePage(eventId);
-    return NextResponse.json({ ok: true });
+      // --- PAYMENT: if it was a short pay, unwind the whole thing --------------
+      if (ev.type === "Payment" && readTag(ev.notes, "carry")) {
+        const [allEvents, allLines] = await Promise.all([getAllBillingEvents(), getAllLineItems()]);
+        const invoice = findInvoiceFor(ev, allEvents);
+        const unwind = planShortPayUnwind(ev, invoice);
+        if (unwind) {
+          for (const r of unwind.lineRestores) {
+            const line = allLines.find((l) => l.id === r.id);
+            if (!line) continue;
+            const before = line.qtyToDate || 0;
+            await updateLineItem(r.id, { qtyToDate: before + r.addQty });
+            tx.onRollback(`line ${r.id} qty`, () => updateLineItem(r.id, { qtyToDate: before }));
+          }
+          if (unwind.invoiceId) {
+            const beforeNotes = invoice.notes;
+            await updateBillingEvent(unwind.invoiceId, { notes: unwind.invoiceNotes });
+            tx.onRollback("invoice adjust stamp", () => updateBillingEvent(unwind.invoiceId, { notes: beforeNotes }));
+          }
+        }
+      }
+
+      await archivePage(eventId);
+      return { deleted: true, type: ev.type };
+    });
+
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });
+    return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });
   }
 }

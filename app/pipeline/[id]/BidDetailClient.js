@@ -16,7 +16,7 @@ const money = (n) => (typeof n !== "number" ? "—" : `$${n.toLocaleString("en-U
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 
-export default function BidDetailClient({ bid, lineItemCount = 0 }) {
+export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null }) {
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState({ saving: false, saved: false, error: null });
 
@@ -43,6 +43,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
     mobilizationHrs: bid.mobilizationHrs ?? "",
     targetMarginPct: bid.targetMarginPct ?? "",
     hoursPerDay: "",
+    submissionDate: bid.submissionDate ?? "",
   });
   const [w, setW] = useState(initialW);
   const set = (k, v) => setW((s) => ({ ...s, [k]: v }));
@@ -75,6 +76,20 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
   }, [w]);
 
+  async function deleteBid() {
+    const typed = window.prompt(
+      `Delete "${bid.projectName}"?\n\nIts unbilled line items go with it. Blocked if it became a project or its lines have been billed — mark it Lost / No Bid instead.\n\nType DELETE to confirm.`
+    );
+    if (typed !== "DELETE") return;
+    setState({ saving: true, saved: false, error: null });
+    try {
+      const res = await fetch(`/api/bids/${bid.id}/delete`, { method: "POST" });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
+      window.location.href = "/pipeline";
+    } catch (e) { setState({ saving: false, saved: false, error: String(e.message || e) }); }
+  }
+
   async function save() {
     setState({ saving: true, saved: false, error: null });
     try {
@@ -83,6 +98,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
         projectName: w.projectName,
         status: w.status,
         bidDueDate: w.bidDueDate || null,
+        submissionDate: w.submissionDate || null,
         cityCounty: w.cityCounty,
         gc: w.gc, fabricator: w.fabricator, projectType: w.projectType,
         scope: w.scope, notes: w.notes,
@@ -129,6 +145,11 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
           </a>
           <span className="ml-auto" />
           <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">{lineItemCount > 0 ? "View bid sheet" : "Create bid sheet"}</a>
+          {linkedProject ? (
+            <a href={`/projects/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Project: {linkedProject.projectId || linkedProject.name}</a>
+          ) : bid.status === "Awarded" ? (
+            <a href={`/projects/new?fromBid=${bid.id}&name=${encodeURIComponent(bid.projectName || "")}`} className="text-sm px-4 py-2 rounded-md bg-ok/20 border border-ok/50 text-ok font-medium">Create project</a>
+          ) : null}
           {state.saved && !editing && <span className="text-xs text-ok">Saved ✓</span>}
           {!editing ? (
             <button onClick={() => { setEditing(true); setState({ saving: false, saved: false, error: null }); }} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
@@ -136,6 +157,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
             <>
               <button onClick={save} disabled={state.saving} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save"}</button>
               <button onClick={cancelEdit} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+              <button onClick={deleteBid} disabled={state.saving} className="text-sm px-4 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete bid</button>
             </>
           )}
         </div>
@@ -147,6 +169,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0 }) {
             <F label="Project name" edit={editing} value={w.projectName} onChange={(v) => set("projectName", v)} />
             <FSelect label="Status" edit={editing} value={w.status} options={BID_STATUSES} onChange={(v) => set("status", v)} />
             <FDate label="Bid due date" edit={editing} value={w.bidDueDate} onChange={(v) => set("bidDueDate", v)} />
+            <FDate label="Submitted" edit={editing} value={w.submissionDate} onChange={(v) => set("submissionDate", v)} />
             <F label="City / County" edit={editing} value={w.cityCounty} onChange={(v) => set("cityCounty", v)} />
             <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} />
             <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} />

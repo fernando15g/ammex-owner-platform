@@ -1,76 +1,60 @@
-// POST /api/billing/short-pay — billed X, received Y (< expected). Per the
-// admin's real process: adjust the record so it matches what was actually paid,
-// and roll the unpaid quantity forward (it re-bills next cycle automatically).
-// Body: { eventId, paidAmount, paymentDate }.
-// Mechanics: read the bill's snapshot -> convert the net shortfall to a gross
-// quantity cut -> reduce the bill (amount + retention) to match the payment ->
-// reduce lines' qty-to-date by the cut (so next invoice's "previous" is lower
-// and the difference re-bills) -> log the Payment for what was received.
+// POST /api/billing/short-pay — the standalone Short pay button on an unpaid
+// invoice. Body: { eventId, paidAmount, paymentDate }.
+// Thin wrapper: it creates the payment and defers to the SAME shared logic as
+// "Log a payment", so the two paths can never drift apart.
 import { NextResponse } from "next/server";
 import { getPage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent, createBillingEvent } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
-import { shortPayAdjustment } from "@/lib/rules/invoicing";
+import { applyShortPay, isShort } from "@/lib/rules/shortPayApply";
+import { withTransaction } from "@/lib/data/tx";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
     const { eventId, paidAmount, paymentDate } = await req.json();
-    if (!eventId || paidAmount == null) throw new Error("eventId and paidAmount required");
-
-    const page = await getPage(eventId);
-    const bill = mapBillingEvent(page);
-    if (bill.type !== "Bill") throw new Error("Short pay applies to Bill events only");
-
-    // parse snapshot
-    const m = (bill.notes || "").match(/\[snap\](\{.*\})\s*$/s);
-    if (!m) throw new Error("This bill has no line snapshot (created before itemized billing) — adjust manually.");
-    const snap = JSON.parse(m[1]);
-    const r = (snap.r || 0) / 100;
-
-    const gross = bill.amount || 0;
-    const retention = bill.retentionWithheld || 0;
-    const expectedNet = gross - retention;
+    if (!eventId || paidAmount == null) throw new Error("eventId and paidAmount are required.");
     const paid = Number(paidAmount);
-    if (paid >= expectedNet) throw new Error(`Paid ($${paid}) covers the expected net ($${expectedNet.toFixed(2)}) — log a normal payment instead.`);
 
-    // net shortfall -> gross cut (retention scales with gross)
-    const shortNet = expectedNet - paid;
-    const grossCut = r < 1 ? shortNet / (1 - r) : shortNet;
-
-    const snapLines = snap.lines.map((l) => ({ id: l.id, unitPrice: l.u, thisQty: l.q }));
-    const { reductions } = shortPayAdjustment(snapLines, gross, gross - grossCut);
-
-    // 1) adjust the bill to match reality
-    await updateBillingEvent(eventId, {
-      amount: Number((gross - grossCut).toFixed(2)),
-      retentionWithheld: Number((retention - grossCut * r).toFixed(2)),
-      pounds: Math.max(Math.round((bill.pounds || 0) - reductions.reduce((a, x) => a + x.qtyReduction, 0)), 0),
-      notes: `${bill.notes}\n[short pay] expected $${expectedNet.toFixed(2)}, received $${paid.toFixed(2)} — $${shortNet.toFixed(2)} rolled to next cycle`,
-    });
-
-    // 2) roll unpaid quantity forward: lower each line's qty-to-date
-    const all = await getAllLineItems();
-    for (const red of reductions) {
-      if (red.qtyReduction <= 0) continue;
-      const line = all.find((l) => l.id === red.id);
-      if (!line) continue;
-      await updateLineItem(red.id, { qtyToDate: Math.max(Math.round((line.qtyToDate || 0) - red.qtyReduction), 0) });
+    const invoice = mapBillingEvent(await getPage(eventId));
+    if (invoice.type !== "Bill") throw new Error("Short pay applies to invoices only.");
+    if (!isShort(invoice, paid)) {
+      const net = (invoice.amount || 0) - (invoice.retentionWithheld || 0);
+      throw new Error(`$${paid.toFixed(2)} covers the expected net of $${net.toFixed(2)} — log it as a normal payment instead.`);
     }
 
-    // 3) log the payment actually received
-    await createBillingEvent({
-      projectId: bill.projectId,
-      type: "Payment",
-      name: `Payment — ${bill.invoiceNumber || "short pay"}`,
-      amount: paid,
-      date: paymentDate || new Date().toISOString().slice(0, 10),
-      notes: `Short pay against ${bill.invoiceNumber || "bill"} — unpaid balance rolls to next invoice`,
+    const date = paymentDate || todayLocal();
+    const lines = await getAllLineItems();
+
+    const result = await withTransaction(async (tx) => {
+      const payment = await createBillingEvent({
+        projectId: invoice.projectId, type: "Payment",
+        name: `Payment — ${invoice.invoiceNumber || "short pay"}`,
+        invoiceNumber: invoice.invoiceNumber || "",
+        amount: paid, date,
+        notes: `Short pay against ${invoice.invoiceNumber || "invoice"}`,
+      });
+      tx.onRollback("payment", async () => {
+        const { archivePage } = await import("@/lib/notion/client");
+        return archivePage(payment.id);
+      });
+
+      const applied = await applyShortPay({
+        invoice, lines, paidAmount: paid, paymentId: payment.id,
+        tx, updateLineItem, updateBillingEvent,
+      });
+      return { rolledForward: applied?.rolledForward || 0 };
     });
 
-    return NextResponse.json({ ok: true, rolledForward: Number(shortNet.toFixed(2)) });
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });
+    return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });
   }
+}
+
+function todayLocal() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }

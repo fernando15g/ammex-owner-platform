@@ -31,6 +31,7 @@ export default function ProjectBillingClient({ data }) {
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [evaOpen, setEvaOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
@@ -51,16 +52,17 @@ export default function ProjectBillingClient({ data }) {
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
-  async function editEvent(ev) {
-    const cur = ev.amount ?? 0;
-    const input = window.prompt(`Edit ${ev.type === "Bill" ? "invoice" : ev.type.toLowerCase()} amount\n\nCurrent: $${cur}\n\nNew amount:`, String(cur));
-    if (input == null) return;
-    const amt = Number(String(input).replace(/[$,]/g, ""));
-    if (isNaN(amt) || amt < 0) { setErr("Enter a valid amount."); return; }
+  function editEvent(ev) { setEditing(ev); }
+
+  async function saveEdit(ev, changes) {
     setBusy(true); setErr(null);
     try {
-      const res = await fetch(`/api/billing/event/${ev.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ changes: { amount: amt } }) });
-      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      const res = await fetch(`/api/billing/event/${ev.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
       refresh();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
@@ -155,6 +157,7 @@ export default function ProjectBillingClient({ data }) {
       {/* Log new event */}
       <div className="flex flex-wrap gap-2 mb-4">
         <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Invoice</a>
+        <a href={`/projects/${data.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete ml-auto">Project settings</a>
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("CO")} />
       </div>
@@ -219,6 +222,15 @@ export default function ProjectBillingClient({ data }) {
           </div>
         );
       })()}
+
+      {editing && (
+        <EditEventForm
+          event={editing}
+          busy={busy}
+          onCancel={() => setEditing(null)}
+          onSave={(changes) => saveEdit(editing, changes)}
+        />
+      )}
 
       {/* Event history */}
       <div className="rounded-lg border border-line overflow-hidden">
@@ -334,6 +346,89 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
 
       <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save settings"}</button>
       <style jsx>{inpStyle}</style>
+    </div>
+  );
+}
+
+function EditEventForm({ event, busy, onCancel, onSave }) {
+  const isInvoice = event.type === "Bill";
+  const clean = String(event.notes || "")
+    .split("[snap]")[0].split("[carry]")[0].split("[adjust]")[0]
+    .replace(/\[short pay\][^\n]*/g, "").replace(/\[voided\][\s\S]*/, "").trim();
+
+  const [f, setF] = useState({
+    amount: event.amount ?? "",
+    invoiceNumber: event.invoiceNumber || "",
+    date: (event.date || "").slice(0, 10),
+    dueDate: (event.dueDate || "").slice(0, 10),
+    notes: clean,
+  });
+
+  function submit() {
+    const changes = { date: f.date || null, notes: f.notes };
+    if (isInvoice) {
+      changes.invoiceNumber = f.invoiceNumber;
+      changes.dueDate = f.dueDate || null;
+    } else {
+      changes.amount = Number(String(f.amount).replace(/[$,]/g, ""));
+      if (event.type === "Payment") changes.invoiceNumber = f.invoiceNumber;
+    }
+    onSave(changes);
+  }
+
+  return (
+    <div className="rounded-lg border border-line p-4 mb-4" style={{ background: "var(--surface)" }}>
+      <p className="text-sm font-medium text-concrete mb-1">
+        Edit {isInvoice ? `invoice ${event.invoiceNumber || ""}` : event.type.toLowerCase()}
+      </p>
+      {isInvoice ? (
+        <p className="text-xs text-rebar mb-3">
+          An invoice&apos;s amount comes from the quantities it billed, so it isn&apos;t edited here — that would
+          leave it disagreeing with its line items. To change the money, undo the invoice and re-create it
+          from the grid. Details below can be corrected freely.
+        </p>
+      ) : (
+        <p className="text-xs text-rebar mb-3">
+          Changing a payment&apos;s amount re-runs the short-pay check: any previous rollforward is undone first,
+          then re-applied against the new amount.
+        </p>
+      )}
+
+      <div className="grid sm:grid-cols-4 gap-3">
+        {!isInvoice && (
+          <label className="block">
+            <span className="text-xs text-rebar mb-1 block">Amount</span>
+            <input type="text" inputMode="decimal" className="inp" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+          </label>
+        )}
+        {(isInvoice || event.type === "Payment") && (
+          <label className="block">
+            <span className="text-xs text-rebar mb-1 block">Invoice #</span>
+            <input className="inp" value={f.invoiceNumber} onChange={(e) => setF({ ...f, invoiceNumber: e.target.value })} />
+          </label>
+        )}
+        <label className="block">
+          <span className="text-xs text-rebar mb-1 block">Date</span>
+          <input type="date" className="inp" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+        </label>
+        {isInvoice && (
+          <label className="block">
+            <span className="text-xs text-rebar mb-1 block">Due date</span>
+            <input type="date" className="inp" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} />
+          </label>
+        )}
+        <label className="block sm:col-span-2">
+          <span className="text-xs text-rebar mb-1 block">Notes</span>
+          <input className="inp" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} />
+        </label>
+      </div>
+
+      <div className="flex gap-2 mt-4">
+        <button onClick={submit} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">
+          {busy ? "Saving…" : "Save changes"}
+        </button>
+        <button onClick={onCancel} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+      </div>
     </div>
   );
 }
