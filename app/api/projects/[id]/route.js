@@ -14,8 +14,22 @@ export async function PATCH(req, { params }) {
     const body = await req.json();
     const changes = body.changes || body;
     validateProjectEdit(changes);
-    const before = (await getEverything()).projects.find((p) => p.id === params.id) || {};
-    const result = await updateProject(params.id, changes);
+    const all = await getEverything();
+    const before = all.projects.find((p) => p.id === params.id) || {};
+
+    // GC lives on the BID, not the project — write it through, so there's one
+    // source of truth. (A project with no bid has nowhere to put it, which is
+    // consistent with "no bid attached = the project isn't finished yet".)
+    const { gc, ...projectChanges } = changes;
+    if (gc !== undefined) {
+      const bidId = projectChanges.relatedBidId ?? before.relatedBidId;
+      if (bidId) {
+        const { updateBid } = await import("@/lib/notion/bidRepository");
+        await updateBid(bidId, { gc });
+      }
+    }
+
+    const result = await updateProject(params.id, projectChanges);
     await audit({
       actor: currentActor(),
       action: "Update",

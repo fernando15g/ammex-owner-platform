@@ -231,7 +231,7 @@ export default function ProjectBillingClient({ data }) {
       )}
 
       {detailsOpen && (
-        <ProjectDetailsModal projectId={data.id} onClose={() => setDetailsOpen(false)} onSaved={refresh} />
+        <ProjectDetailsModal projectId={data.id} onClose={() => setDetailsOpen(false)} />
       )}
 
       {/* Event history */}

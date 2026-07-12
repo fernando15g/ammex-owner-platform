@@ -14,7 +14,6 @@ export default async function NewProjectPage({ searchParams }) {
       ) : (
         <ProjectForm
           bidOptions={data.bidOptions}
-          takenBidIds={data.takenBidIds}
           presetBidId={searchParams?.fromBid || null}
           presetName={searchParams?.name || ""}
         />

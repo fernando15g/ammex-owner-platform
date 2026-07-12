@@ -14,7 +14,7 @@ export default async function ProjectDetailPage({ params }) {
       ) : !data?.project ? (
         <div className="text-rebar">Project not found.</div>
       ) : (
-        <ProjectForm project={data.project} bidOptions={data.bidOptions} takenBidIds={data.takenBidIds} />
+        <ProjectForm project={data.project} bidOptions={data.bidOptions} />
       )}
     </AppShell>
   );

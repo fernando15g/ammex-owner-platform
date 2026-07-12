@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 const FIELDS = {
   bids: { db: DB.BID_TRACKER, props: ["GC", "Fabricator", "Project Type"] },
+  projects: { db: DB.PROJECTS, props: ["Foreman"] },
 };
 
 export async function GET(req) {

@@ -125,11 +125,7 @@ export default function ActiveWorkClient({ data }) {
       </div>
 
       {detailsFor && (
-        <ProjectDetailsModal
-          projectId={detailsFor}
-          onClose={() => setDetailsFor(null)}
-          onSaved={() => window.location.reload()}
-        />
+        <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />
       )}
     </div>
   );

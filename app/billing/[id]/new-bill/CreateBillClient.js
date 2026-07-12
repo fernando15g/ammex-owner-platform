@@ -57,6 +57,27 @@ export default function CreateBillClient({ data }) {
     retentionPct: data.settings.retentionPercent ?? "",
   });
   const [adot, setAdot] = useState({ open: false, lbsDone: "", lbsTotal: "", totalSqft: "", ratePerSqft: "", description: "Sq ft billing" });
+
+  // Total lbs and the sq ft rate are already known — they're on the bid sheet.
+  // Pull them in rather than making her retype numbers the system has. Still
+  // fully editable: the weight sheet can differ from what was bid.
+  useEffect(() => {
+    if (!adot.open) return;
+    setAdot((a) => {
+      const next = { ...a };
+      if (!a.lbsTotal) {
+        const totalLbs = data.lines
+          .filter((l) => (l.unit || "LBS").toUpperCase() !== "SF")
+          .reduce((sum, l) => sum + (l.quantity || 0), 0);
+        if (totalLbs > 0) next.lbsTotal = String(totalLbs);
+      }
+      if (!a.ratePerSqft) {
+        const sf = data.lines.find((l) => (l.unit || "").toUpperCase() === "SF");
+        if (sf?.unitPrice) next.ratePerSqft = String(sf.unitPrice);
+      }
+      return next;
+    });
+  }, [adot.open, data.lines]);
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [showLast, setShowLast] = useState(false);
@@ -364,9 +385,9 @@ export default function CreateBillClient({ data }) {
           <div className="px-4 pb-4 border-t border-line pt-3">
             <div className="grid sm:grid-cols-4 gap-3 items-end">
               <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs completed</span><input type="text" inputMode="decimal" className="inp" value={adot.lbsDone} onChange={(e) => setAdot({ ...adot, lbsDone: e.target.value })} placeholder="100000" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs total (job)</span><input type="text" inputMode="decimal" className="inp" value={adot.lbsTotal} onChange={(e) => setAdot({ ...adot, lbsTotal: e.target.value })} placeholder="200000" /></label>
+              <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs total (job) <span className="text-rebar/60">· from the bid sheet</span></span><input type="text" inputMode="decimal" className="inp" value={adot.lbsTotal} onChange={(e) => setAdot({ ...adot, lbsTotal: e.target.value })} placeholder="200000" /></label>
               <label className="block"><span className="text-xs text-rebar mb-1 block">Total sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.totalSqft} onChange={(e) => setAdot({ ...adot, totalSqft: e.target.value })} placeholder="2400" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">$ / sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.ratePerSqft} onChange={(e) => setAdot({ ...adot, ratePerSqft: e.target.value })} placeholder="0.00" /></label>
+              <label className="block"><span className="text-xs text-rebar mb-1 block">$ / sq ft <span className="text-rebar/60">· from the bid sheet</span></span><input type="text" inputMode="decimal" className="inp" value={adot.ratePerSqft} onChange={(e) => setAdot({ ...adot, ratePerSqft: e.target.value })} placeholder="0.00" /></label>
             </div>
 
             <div className="rounded-md border border-line px-3 py-2.5 mt-3" style={{ background: "var(--surface-2)" }}>

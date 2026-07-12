@@ -105,11 +105,7 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div className="min-w-0">
-            {breadcrumbs?.length ? (
-              <Breadcrumbs trail={breadcrumbs} />
-            ) : subtitle ? (
-              <p className="text-[11px] uppercase tracking-widest text-rebar leading-none mb-1">{subtitle}</p>
-            ) : null}
+            {subtitle && <p className="text-[11px] uppercase tracking-widest text-rebar leading-none mb-1">{subtitle}</p>}
             <h1 className="text-lg font-semibold text-concrete leading-none truncate">{title}</h1>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -128,7 +124,10 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
             </button>
           </div>
         </header>
-        <div className="px-4 lg:px-8 py-6">{children}</div>
+        <div className="px-4 lg:px-8 py-6">
+          {breadcrumbs?.length > 0 && <div className="mb-4"><Breadcrumbs trail={breadcrumbs} /></div>}
+          {children}
+        </div>
       </div>
     </div>
   );

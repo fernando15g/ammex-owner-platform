@@ -1,44 +1,91 @@
 "use client";
 
 // =============================================================================
-// PROJECT FORM — create or edit a project, including the bid it's attached to.
+// CREATE / EDIT A PROJECT
 //
-// The bid link matters more than it looks: a project resolves its line items
-// through its related bid, so a project with no bid attached has no line items,
-// no contract value, and every downstream number reads zero. That link could
-// previously only be made in Notion.
+// The organizing idea: every field on a project is one of three kinds.
+//   1. TYPED      — name, Project ID, status, attached bid, GC
+//   2. INHERITED  — from the bid: contract, lbs, LBS/MH, projected hours, crew,
+//                   duration. Shown, never retyped.
+//   3. DERIVED    — from real work: pounds billed, labour hours, actual LBS/MH.
+//                   Nobody types these; they appear as work happens.
+//
+// Because only group 1 is typed, creating a project from a won bid asks for
+// almost nothing. It's a CONFIRMATION, not a form: here's the job, here's what
+// the bid brings, does that look right? The payoff isn't fewer keystrokes — it's
+// that a wrong contract value gets caught NOW, not three weeks into billing.
+//
+// Start date and foreman are deliberately absent at creation: you don't know
+// either the day you win a bid. They belong to mobilisation, so they appear once
+// the project exists.
+//
+// A handshake deal is NOT a project without a bid — it's a project whose bid
+// isn't written down yet. So it's created, then plainly flagged as unbillable
+// until the bid exists.
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import BidPicker from "@/app/projects/BidPicker";
+import ChipSelect from "@/app/components/ChipSelect";
 
 const PROJECT_STATUSES = [
   "Bidding", "Awarded", "Mobilizing", "Active",
   "Punchlist", "Waiting on billing", "Closed", "Paid",
 ];
 
-export default function ProjectForm({ project = null, bidOptions = [], takenBidIds = [], presetBidId = null, presetName = "", modal = false, onSaved = null, onClose = null }) {
+const money = (n) => (typeof n === "number" ? `$${Math.round(n).toLocaleString()}` : "—");
+const num = (n, suffix = "") => (typeof n === "number" ? `${Math.round(n).toLocaleString()}${suffix}` : "—");
+const cents = (n) => (typeof n === "number" ? `${(n * 100).toFixed(2)}¢/lb` : "—");
+
+export default function ProjectForm({
+  project = null, bidOptions = [], presetBidId = null, presetName = "",
+  modal = false, onSaved = null, onClose = null,
+}) {
   const isNew = !project;
-  const taken = new Set(takenBidIds);
 
   const [f, setF] = useState({
     name: project?.name || presetName || "",
     projectId: project?.projectId || "",
     status: project?.status || "Awarded",
     actualStartDate: (project?.actualStartDate || "").slice(0, 10),
-    foreman: (project?.foreman || []).join(", "),
+    foreman: project?.foreman || [],
+    gc: project?.gc || [],
     relatedBidId: project?.relatedBidId || presetBidId || "",
   });
+  const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  // Suggest the next Project ID by following whatever pattern is already in use.
+  const bid = bidOptions.find((b) => b.id === f.relatedBidId) || null;
+
+  // real Notion option lists (no more typo-duplicates)
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [p, b] = await Promise.all([
+          fetch("/api/notion-options?db=projects").then((r) => r.json()),
+          fetch("/api/notion-options?db=bids").then((r) => r.json()),
+        ]);
+        if (!alive) return;
+        setOptions({ Foreman: p?.options?.Foreman || [], GC: b?.options?.GC || [] });
+      } catch {}
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  // GC follows the bid unless it's already been set
+  useEffect(() => {
+    if (isNew && bid?.gc?.length && f.gc.length === 0) setF((s) => ({ ...s, gc: bid.gc }));
+  }, [bid?.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // suggest the next Project ID (year-aware)
   useEffect(() => {
     if (!isNew || f.projectId) return;
     let alive = true;
     (async () => {
       try {
-        const res = await fetch("/api/projects/suggest-id", { method: "POST" });
-        const d = await res.json();
+        const d = await fetch("/api/projects/suggest-id", { method: "POST" }).then((r) => r.json());
         if (alive && d.ok && d.projectId) setF((s) => (s.projectId ? s : { ...s, projectId: d.projectId }));
       } catch {}
     })();
@@ -53,7 +100,8 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
       projectId: f.projectId.trim(),
       status: f.status,
       actualStartDate: f.actualStartDate || null,
-      foreman: f.foreman ? f.foreman.split(",").map((x) => x.trim()).filter(Boolean) : [],
+      foreman: f.foreman,
+      gc: f.gc,
       relatedBidId: f.relatedBidId || null,
     };
     try {
@@ -87,6 +135,39 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
     <div className={modal ? "" : "max-w-3xl"}>
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
+      {/* ---- WHAT THE BID BRINGS (this is the confirmation) -------------------- */}
+      {bid ? (
+        <div className="rounded-lg border border-ok/40 bg-ok/5 p-4 mb-4">
+          <div className="flex items-baseline gap-2 mb-2.5 flex-wrap">
+            <span className="text-[11px] uppercase tracking-widest text-rebar">From the bid</span>
+            <span className="text-sm text-concrete font-medium">{bid.name}</span>
+            {bid.status === "Awarded" && <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-ok/40 text-ok">Awarded</span>}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2.5">
+            <Inherited label="Contract" value={money(bid.contractValue)} lead />
+            <Inherited label="Bid rate" value={cents(bid.bidRate)} />
+            <Inherited label="Estimated" value={num(bid.estimatedLbs, " lbs")} />
+            <Inherited label="Productivity" value={num(bid.productivity, " lbs/MH")} />
+            <Inherited label="Projected hours" value={num(bid.projectedHours)} />
+            <Inherited label="Crew · duration" value={`${bid.crewSize ?? "—"} · ${num(bid.durationDays, " days")}`} />
+          </div>
+
+          <p className="text-[11px] text-rebar mt-2.5">
+            These come from the bid — they aren&apos;t typed here. If a number looks wrong, fix it on the bid.
+            Better to catch it now than three weeks into billing.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-warn/50 bg-warn/10 p-4 mb-4">
+          <p className="text-sm text-concrete font-medium mb-1">No bid attached — this project can&apos;t be billed yet.</p>
+          <p className="text-xs text-rebar">
+            A project gets its line items — and so its contract value — from its bid. Attach one below, or create a
+            bid for it. A handshake deal is just a bid you haven&apos;t written down yet.
+          </p>
+        </div>
+      )}
+
       <div className={modal ? "" : "rounded-lg border border-line p-5"} style={modal ? undefined : { background: "var(--surface)" }}>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="block sm:col-span-2">
@@ -96,8 +177,7 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
 
           <label className="block">
             <span className="text-xs text-rebar mb-1 block">Project ID</span>
-            <input className="inp" value={f.projectId} onChange={(e) => setF({ ...f, projectId: e.target.value })} placeholder="26-05" />
-            <span className="text-[11px] text-rebar mt-1 block">Suggested from your existing numbering. Change it if you like.</span>
+            <input className="inp" value={f.projectId} onChange={(e) => setF({ ...f, projectId: e.target.value })} placeholder="26-13" />
           </label>
 
           <label className="block">
@@ -107,34 +187,35 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
             </select>
           </label>
 
-          <label className="block sm:col-span-2">
+          <div className="sm:col-span-2">
             <span className="text-xs text-rebar mb-1 block">Attached bid</span>
-            <select className="inp" value={f.relatedBidId} onChange={(e) => setF({ ...f, relatedBidId: e.target.value })}>
-              <option value="">— none —</option>
-              {bidOptions.map((b) => (
-                <option key={b.id} value={b.id} disabled={taken.has(b.id) && b.id !== project?.relatedBidId}>
-                  {b.name}{b.gc?.length ? ` · ${b.gc.join(", ")}` : ""}{b.status ? ` · ${b.status}` : ""}
-                  {taken.has(b.id) && b.id !== project?.relatedBidId ? " (already on another project)" : ""}
-                </option>
-              ))}
-            </select>
-            <span className="text-[11px] text-rebar mt-1 block">
-              The project gets its line items — and therefore its contract value — through this bid. With no bid attached, its contract reads $0.
-            </span>
-          </label>
+            <BidPicker bids={bidOptions} value={f.relatedBidId} onChange={(id) => setF({ ...f, relatedBidId: id })} />
+          </div>
 
-          <label className="block">
-            <span className="text-xs text-rebar mb-1 block">Start date</span>
-            <input type="date" className="inp" value={f.actualStartDate} onChange={(e) => setF({ ...f, actualStartDate: e.target.value })} />
-          </label>
+          <div className="sm:col-span-2">
+            <ChipSelect
+              label="GC"
+              items={f.gc}
+              options={options.GC || []}
+              onChange={(v) => setF({ ...f, gc: v })}
+              hint={f.relatedBidId ? "Recorded on the bid, so the job's GC lives in one place." : "Attach a bid first — the GC is stored on it."}
+            />
+          </div>
 
-          <label className="block">
-            <span className="text-xs text-rebar mb-1 block">Foreman</span>
-            <input className="inp" value={f.foreman} onChange={(e) => setF({ ...f, foreman: e.target.value })} placeholder="comma separated" />
-          </label>
+          {/* Start date and foreman aren't known the day a bid is won — they
+              belong to mobilisation, so they only appear once the project exists. */}
+          {!isNew && (
+            <>
+              <label className="block">
+                <span className="text-xs text-rebar mb-1 block">Start date</span>
+                <input type="date" className="inp inp-date" value={f.actualStartDate} onChange={(e) => setF({ ...f, actualStartDate: e.target.value })} />
+              </label>
+              <ChipSelect label="Foreman" items={f.foreman} options={options.Foreman || []} onChange={(v) => setF({ ...f, foreman: v })} />
+            </>
+          )}
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-5">
+        <div className="flex flex-wrap items-center gap-2 mt-5">
           <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">
             {busy ? "Saving…" : isNew ? "Create project" : "Save changes"}
           </button>
@@ -153,6 +234,15 @@ export default function ProjectForm({ project = null, bidOptions = [], takenBidI
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Inherited({ label, value, lead }) {
+  return (
+    <div>
+      <p className="text-[11px] text-rebar">{label}</p>
+      <p className={`tabular-nums ${lead ? "text-base font-semibold text-concrete" : "text-sm text-concrete/80"}`}>{value}</p>
     </div>
   );
 }
