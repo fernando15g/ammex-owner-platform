@@ -33,6 +33,26 @@ export default function BidSheetClient({ data }) {
   const addRow = () => setRows((rs) => [...rs, blankRow()]);
   const removeRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i));
 
+  async function deleteSavedRow(i) {
+    const r = rows[i];
+    if (!r.id) { removeRow(i); return; }
+    if (!window.confirm(`Delete "${r.description || r.itemNo || "this line"}" from the bid sheet?\n\nUnbilled lines delete cleanly. Billed lines will be blocked (close them instead).`)) return;
+    setState((st) => ({ ...st, saving: true, error: null }));
+    try {
+      let res = await fetch(`/api/line-items/${r.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      let d = await res.json();
+      if (!d.ok && d.blocked) {
+        if (window.confirm(`${d.error}\n\nClose this line instead?`)) {
+          res = await fetch(`/api/line-items/${r.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "close" }) });
+          d = await res.json();
+          if (!d.ok) throw new Error(d.error);
+        } else { setState((st) => ({ ...st, saving: false })); return; }
+      } else if (!d.ok) throw new Error(d.error);
+      removeRow(i);
+      setState((st) => ({ ...st, saving: false }));
+    } catch (e) { setState((st) => ({ ...st, saving: false, error: String(e.message || e) })); }
+  }
+
   const ext = (r) => (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0);
   const filled = rows.filter((r) => r.description.trim() !== "" || r.itemNo.trim() !== "");
   const total = filled.reduce((a, r) => a + ext(r), 0);
@@ -172,7 +192,7 @@ export default function BidSheetClient({ data }) {
                   </select>
                 </td>
                 <td className="px-1 py-1 text-center">
-                  {!r.id && <button onClick={() => removeRow(i)} className="text-rebar hover:text-danger text-xs" title="Remove row">✕</button>}
+                  <button onClick={() => deleteSavedRow(i)} className="text-rebar hover:text-danger text-xs" title={r.id ? "Delete line item" : "Remove row"}>✕</button>
                 </td>
               </tr>
             ))}

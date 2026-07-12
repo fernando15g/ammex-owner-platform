@@ -90,7 +90,7 @@ export default function ProjectBillingClient({ data }) {
 
       {/* The money picture */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <Stat label="Contract value" value={money(b.revisedContract)} sub={b.changeOrders ? `incl. ${money(b.changeOrders)} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
+        <Stat label="Contract value" value={money(b.revisedContract)} sub={(b.changeOrders || 0) + (b.coLinesValue || 0) > 0 ? `incl. ${money((b.changeOrders || 0) + (b.coLinesValue || 0))} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
         <Stat label="Billed to date" value={money(b.billedToDate)} />
         <Stat label="Paid to date" value={money(b.paidToDate)} />
         <Stat label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
@@ -156,10 +156,12 @@ export default function ProjectBillingClient({ data }) {
       <div className="flex flex-wrap gap-2 mb-4">
         <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Invoice</a>
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
-        <AddBtn label="+ Change order" onClick={() => setShowAdd("Change Order")} />
+        <AddBtn label="+ Change order" onClick={() => setShowAdd("CO")} />
       </div>
       {showAdd === "Payment" ? (
         <PaymentForm projectId={data.id} bills={data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0)} events={data.events} onClose={() => setShowAdd(null)} onSaved={refresh} />
+      ) : showAdd === "CO" ? (
+        <ChangeOrderForm projectId={data.id} relatedBidId={data.relatedBidId} onClose={() => setShowAdd(null)} onSaved={refresh} />
       ) : showAdd ? (
         <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />
       ) : null}
@@ -223,7 +225,7 @@ export default function ProjectBillingClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <th className="text-left font-medium px-4 py-2.5 w-28">Type</th>
+              <th className="text-left font-medium px-4 py-2.5 w-32">Type</th>
               <th className="text-left font-medium px-3 py-2.5 w-36">Invoice #</th>
               <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell w-32">Date</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Amount</th>
@@ -247,10 +249,10 @@ export default function ProjectBillingClient({ data }) {
               return (
                 <tr key={e.id} className="border-t border-line">
                   <td className="px-4 py-2.5">
-                    <span className={`inline-block text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{label}</span>
+                    <span className={`inline-block whitespace-nowrap text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{label}</span>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-rebar whitespace-nowrap">{e.invoiceNumber || "—"}</td>
-                  <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80">{dateStr(e.date)}</td>
+                  <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80 whitespace-nowrap">{dateStr(e.date)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-concrete whitespace-nowrap">
                     {money(e.amount)}
                     {adj && <span className="block text-[10px] text-warn">received {money(adj.received)} · {money(adj.rolledForward)} rolled</span>}
@@ -332,6 +334,52 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
 
       <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save settings"}</button>
       <style jsx>{inpStyle}</style>
+    </div>
+  );
+}
+
+function ChangeOrderForm({ projectId, relatedBidId, onClose, onSaved }) {
+  const [f, setF] = useState({ itemNo: "CO", description: "", qty: "", unit: "LBS", unitPrice: "" });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const n = (v) => (v === "" || v == null ? null : Number(v));
+  const amount = (n(f.qty) || 0) * (n(f.unitPrice) || 0);
+
+  async function save() {
+    if (!f.description) { setErr("Give the change order a description."); return; }
+    if (!n(f.qty) || !n(f.unitPrice)) { setErr("Quantity and unit price are required — they set the CO's value."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch("/api/line-items", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item: {
+          description: f.description, itemNo: f.itemNo || "CO",
+          projectId, bidId: relatedBidId || null,
+          quantity: n(f.qty), unit: f.unit || "LBS", unitPrice: n(f.unitPrice),
+          lineType: "CO", status: "Active", qtyToDate: 0,
+        }}),
+      });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      onSaved();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
+  return (
+    <div className="rounded-lg border border-line p-4 mb-4" style={{ background: "var(--surface)" }}>
+      <p className="text-sm font-medium text-concrete mb-1">Add change order</p>
+      <p className="text-xs text-rebar mb-3">A change order is extra contracted work — it&apos;s added as a line item at the bottom of the schedule. The contract value goes up now; it bills when you enter its quantity on an invoice (fully, partially, or on its own invoice).</p>
+      {err && <div className="text-sm text-danger mb-3">{err}</div>}
+      <div className="grid sm:grid-cols-5 gap-3">
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Item no.</span><input className="inp" value={f.itemNo} onChange={(e) => setF({ ...f, itemNo: e.target.value })} /></label>
+        <label className="block sm:col-span-2"><span className="text-xs text-rebar mb-1 block">Description</span><input className="inp" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. 93RD/AMKOR HDWALL" /></label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Quantity (lbs)</span><input type="text" inputMode="decimal" className="inp" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} /></label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Unit price</span><input type="text" inputMode="decimal" className="inp" value={f.unitPrice} onChange={(e) => setF({ ...f, unitPrice: e.target.value })} placeholder="0.30" /></label>
+      </div>
+      <p className="text-xs text-rebar mt-2">Adds <span className="text-concrete tabular-nums">{money(amount)}</span> to the contract value.</p>
+      <div className="flex gap-2 mt-4">
+        <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Add change order"}</button>
+        <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+      </div>
     </div>
   );
 }
