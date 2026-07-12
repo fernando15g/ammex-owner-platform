@@ -2,6 +2,8 @@
 // A project carrying billing history can't be deleted: its invoices and payments
 // would be orphaned. The API says so and offers Closed instead.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { archiveProject } from "@/lib/notion/projectRepository";
 import { getAllBillingEvents, groupEventsByProject } from "@/lib/notion/billingRepository";
 import { getAllLineItems } from "@/lib/notion/lineItemRepository";
@@ -27,6 +29,14 @@ export async function POST(req, { params }) {
     }
 
     await archiveProject(params.id);
+    await audit({
+      actor: currentActor(),
+      action: "Delete",
+      entity: "Project",
+      entityName: project.name || "",
+      entityId: project.projectId || params.id,
+      changes: "deleted (no billing history)",
+    });
     return NextResponse.json({ ok: true, deleted: true });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });

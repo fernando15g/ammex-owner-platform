@@ -4,6 +4,8 @@
 // billed. In both cases: mark it Lost / No Bid instead.
 // Its unbilled line items are archived with it, so no orphans are left behind.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { getPage, archivePage } from "@/lib/notion/client";
 import { getAllLineItems } from "@/lib/notion/lineItemRepository";
 import { getEverything } from "@/lib/data";
@@ -28,6 +30,14 @@ export async function POST(req, { params }) {
       await archivePage(params.id);
     });
 
+    await audit({
+      actor: currentActor(),
+      action: "Delete",
+      entity: "Bid",
+      entityName: bid.name || bid.projectName || "",
+      entityId: params.id,
+      changes: `deleted, with ${plan.lineItemsToArchive.length} unbilled line item(s)`,
+    });
     return NextResponse.json({ ok: true, deleted: true, linesArchived: plan.lineItemsToArchive.length });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });

@@ -7,6 +7,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import IdentityGate from "@/app/components/IdentityGate";
 
 const NAV = [
   { key: "home", label: "Home", href: "/", ready: false },
@@ -15,6 +16,7 @@ const NAV = [
   { key: "billing", label: "Billing", href: "/billing", ready: true },
   { key: "performance", label: "Performance", href: "/performance", ready: false },
   { key: "book", label: "The Book", href: "/book", ready: false },
+  { key: "history", label: "History", href: "/history", ready: true },
   { key: "check", label: "System Check", href: "/check", ready: true, minor: true },
 ];
 
@@ -69,6 +71,7 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
   const { theme, toggle } = useTheme();
   return (
     <div className="min-h-screen lg:flex">
+      <IdentityGate />
       {/* Left rail (desktop) / drawer (mobile) */}
       <aside
         className={`${open ? "block" : "hidden"} lg:block fixed lg:static inset-0 z-40 lg:z-auto lg:w-60 shrink-0 border-r border-line bg-graphite`}

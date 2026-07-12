@@ -3,6 +3,9 @@
 import { NextResponse } from "next/server";
 import { updateBid } from "@/lib/notion/bidRepository";
 import { closeLineItemsForBid, activateLineItemsForBid } from "@/lib/notion/lineItemRepository";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
+import { getEverything } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +13,18 @@ export async function PATCH(req, { params }) {
   try {
     const body = await req.json();
     const changes = body.changes || body;
+
+    // capture the "before" so the log can say what actually moved
+    const before = (await getEverything()).bids.find((b) => b.id === params.id) || {};
     const result = await updateBid(params.id, changes);
+    await audit({
+      actor: currentActor(),
+      action: "Update",
+      entity: "Bid",
+      entityName: before.name || before.projectName || "",
+      entityId: params.id,
+      changes: describeChanges(before, changes),
+    });
 
     let lineItemCascade = null;
     if (changes.status === "Lost" || changes.status === "No Bid") {

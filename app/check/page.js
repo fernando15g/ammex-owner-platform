@@ -9,6 +9,8 @@
 import { getSystemCheck } from "@/lib/data";
 import CheckThemeToggle from "@/app/components/CheckThemeToggle";
 import BackfillPanel from "./BackfillPanel";
+import AuditSetupPanel from "./AuditSetupPanel";
+import { isAuditConfigured } from "@/lib/notion/auditRepository";
 
 export const dynamic = "force-dynamic"; // always fresh — never cache a stale check
 
@@ -41,6 +43,7 @@ export default async function SystemCheckPage() {
         <CheckThemeToggle />
       </div>
 
+      <AuditSetupPanel configured={isAuditConfigured()} />
       <BackfillPanel />
 
       <header className="mb-8">

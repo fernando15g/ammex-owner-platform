@@ -5,6 +5,8 @@
 // gets an [adjust] stamp, the unpaid quantity rolls back onto its lines to
 // re-bill next cycle, and the payment carries the line-level audit trail.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { getPage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent, createBillingEvent } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
@@ -39,6 +41,14 @@ export async function POST(req) {
         amount: paid, date,
         notes: `Payment against ${invoice.invoiceNumber || "invoice"}`,
       });
+      await audit({
+        actor: currentActor(),
+        action: "Create",
+        entity: "Payment",
+        entityName: invoice.invoiceNumber || "payment",
+        entityId: billEventId,
+        changes: `payment $${paid.toFixed(2)} (full)`,
+      });
       return NextResponse.json({ ok: true, mode: "full" });
     }
 
@@ -61,6 +71,14 @@ export async function POST(req) {
       return { mode: "short", rolledForward: applied?.rolledForward || 0 };
     });
 
+    await audit({
+      actor: currentActor(),
+      action: "Create",
+      entity: "Payment",
+      entityName: invoice.invoiceNumber || "payment",
+      entityId: billEventId,
+      changes: `SHORT PAY — received $${paid.toFixed(2)}, $${(result.rolledForward || 0).toFixed(2)} rolled to the next invoice`,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });

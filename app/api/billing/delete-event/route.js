@@ -10,6 +10,8 @@
 //
 // Records are ARCHIVED (Notion trash / a deleted_at column later), never purged.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { getPage, archivePage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent, getAllBillingEvents } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
@@ -68,6 +70,14 @@ export async function POST(req) {
       return { deleted: true, type: ev.type };
     });
 
+    await audit({
+      actor: currentActor(),
+      action: "Delete",
+      entity: ev.type === "Bill" ? "Invoice" : ev.type,
+      entityName: ev.invoiceNumber || ev.name || "",
+      entityId: ev.eventId || eventId,
+      changes: `deleted ($${(ev.amount || 0).toFixed(2)}), effects reversed`,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });

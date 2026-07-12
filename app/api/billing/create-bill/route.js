@@ -7,6 +7,8 @@
 // to Notion. If the bill is invalid ("nothing to bill", etc.) we throw before
 // any create/update — so a rejected bill leaves ZERO records behind.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { getAllLineItems, createLineItem, updateLineItem } from "@/lib/notion/lineItemRepository";
 import { createBillingEvent } from "@/lib/notion/billingRepository";
 import { computeInvoice } from "@/lib/rules/invoicing";
@@ -146,6 +148,14 @@ export async function POST(req) {
       }
     }
 
+    await audit({
+      actor: currentActor(),
+      action: "Create",
+      entity: "Invoice",
+      entityName: invoiceNumber || "invoice",
+      entityId: event.id,
+      changes: `billed $${inv.grossThisEstimate.toFixed(2)}${inv.retention ? `, retention $${inv.retention.toFixed(2)}` : ""}, ${inv.rows.filter((r) => r.thisQty !== 0).length} line(s)`,
+    });
     return NextResponse.json({ ok: true, eventId: event.id, totalDue: inv.totalDue });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });

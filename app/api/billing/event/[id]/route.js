@@ -5,6 +5,8 @@
 // Editing a payment's amount re-runs the short-pay logic, unwinding the old
 // effect before applying the new one — all of it inside a transaction seam.
 import { NextResponse } from "next/server";
+import { audit, describeChanges } from "@/lib/notion/auditRepository";
+import { currentActor } from "@/lib/actor";
 import { getPage } from "@/lib/notion/client";
 import { mapBillingEvent, updateBillingEvent } from "@/lib/notion/billingRepository";
 import { getAllLineItems, updateLineItem } from "@/lib/notion/lineItemRepository";
@@ -28,6 +30,14 @@ export async function PATCH(req, { params }) {
     const isShortPay = event.type === "Payment" && !!readTag(event.notes, "carry");
     if (!amountChanged || (event.type === "Payment" && !isShortPay && !event.invoiceNumber)) {
       await updateBillingEvent(params.id, changes);
+      await audit({
+        actor: currentActor(),
+        action: "Update",
+        entity: event.type === "Bill" ? "Invoice" : event.type,
+        entityName: event.invoiceNumber || event.name || "",
+        entityId: event.eventId || params.id,
+        changes: describeChanges(event, changes),
+      });
       return NextResponse.json({ ok: true, mode: "simple" });
     }
 
@@ -74,6 +84,14 @@ export async function PATCH(req, { params }) {
       return { mode: "amount-updated" };
     });
 
+    await audit({
+      actor: currentActor(),
+      action: "Update",
+      entity: event.type === "Bill" ? "Invoice" : event.type,
+      entityName: event.invoiceNumber || event.name || "",
+      entityId: event.eventId || params.id,
+      changes: `${describeChanges(event, changes)} (${result.mode})`,
+    });
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e), rollbackFailed: !!e.rollbackFailed }, { status: 400 });
