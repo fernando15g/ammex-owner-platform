@@ -18,7 +18,7 @@ const STATUS_TONE = {
 };
 
 export default function BillingOverviewClient({ data }) {
-  const { rows, totals } = data;
+  const { rows, totals, health } = data;
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const active = rows.filter((r) => r.hasBilling);
@@ -31,6 +31,21 @@ export default function BillingOverviewClient({ data }) {
   });
   return (
     <div>
+      {health && !health.ok && (
+        <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 mb-4">
+          <p className="text-sm text-concrete">
+            <span className="font-medium">The books don&apos;t add up.</span>{" "}
+            {health.counts.errors} problem{health.counts.errors === 1 ? "" : "s"} found — an invoice and its line
+            items disagree somewhere, so a number on this page may be wrong.
+          </p>
+          <ul className="text-xs text-rebar mt-1.5 list-disc pl-4 space-y-0.5">
+            {health.errors.slice(0, 3).map((e, i) => <li key={i}>{e.message}</li>)}
+            {health.errors.length > 3 && <li>…and {health.errors.length - 3} more.</li>}
+          </ul>
+          <a href="/check" className="text-xs text-info hover:underline mt-1.5 inline-block">See the full reconciliation →</a>
+        </div>
+      )}
+
       {/* Find a project — scrollable, sorted by ID, includes closed (dimmed) */}
       <div className="relative mb-4 max-w-md">
         <input
