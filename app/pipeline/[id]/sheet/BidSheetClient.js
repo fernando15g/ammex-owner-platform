@@ -1,5 +1,7 @@
 "use client";
 
+import ProposalButton from "@/app/pipeline/ProposalButton";
+
 // =============================================================================
 // BID SHEET — mimics the admin's Excel proposal template TO THE T:
 //   Item No | Description | Quantity | Unit | Unit Price | Extended | Furn/Inst
@@ -157,16 +159,15 @@ export default function BidSheetClient({ data, linkedProject = null }) {
         ) : (
           <>
             <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
-            {/* The proposal IS this sheet. It downloads as the real Excel
-                template — same logo, terms and formats the GC has always seen. */}
+            {/* The proposal IS this sheet — the real Excel template, so it lands
+                at the GC looking the way it always has. */}
             {savedLineCount > 0 && (
-              <a
-                href={`/api/bids/${data.bid.id}/proposal`}
-                className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite"
-                title="Downloads the proposal as the Ammex Excel template — send it, or export a PDF from Excel"
-              >
-                Download proposal
-              </a>
+              <ProposalButton
+                bidId={data.bid.id}
+                bidName={data.bid.name}
+                status={data.bid.status}
+                submissionDate={data.bid.submissionDate}
+              />
             )}
             {items.length > 0 && <button onClick={() => { setRows(items.map((li) => ({ id: li.id, itemNo: li.itemNo || "", description: li.description || "", quantity: li.quantity ?? "", unit: li.unit || "LBS", unitPrice: li.unitPrice ?? "", furnInst: li.furnInst || "", _dirty: false }))); setEditing(false); }} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>}
           </>

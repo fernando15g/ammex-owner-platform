@@ -10,6 +10,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
+import ProposalButton from "@/app/pipeline/ProposalButton";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 
 const money = (n) => (typeof n !== "number" ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`);
@@ -159,13 +160,12 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           <span className="ml-auto" />
           <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">{lineItemCount > 0 ? "View bid sheet" : "Create bid sheet"}</a>
           {lineItemCount > 0 && (
-            <a
-              href={`/api/bids/${bid.id}/proposal`}
-              className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite"
-              title="Downloads the proposal as the Ammex Excel template"
-            >
-              Download proposal
-            </a>
+            <ProposalButton
+              bidId={bid.id}
+              bidName={bid.name}
+              status={bid.status}
+              submissionDate={bid.submissionDate}
+            />
           )}
           {linkedProject ? (
             <a href={`/projects/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Project: {linkedProject.projectId || linkedProject.name}</a>
