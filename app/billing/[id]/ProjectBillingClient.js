@@ -209,6 +209,7 @@ export default function ProjectBillingClient({ data }) {
               <div className="px-4 pb-4 border-t border-line pt-3 overflow-x-auto">
                 <table className="w-full text-sm" style={{ minWidth: 620 }}>
                   <thead><tr className="text-rebar text-[11px] uppercase tracking-wider">
+                    {data.multiPhase && <th className="text-left font-medium px-2 py-1.5">Phase</th>}
                     <th className="text-left font-medium px-2 py-1.5">Item</th>
                     <th className="text-left font-medium px-2 py-1.5">Description</th>
                     <th className="text-right font-medium px-2 py-1.5">Bid est. (lbs)</th>
@@ -222,6 +223,7 @@ export default function ProjectBillingClient({ data }) {
                       const lp = est > 0 ? (act / est) * 100 : 0;
                       return (
                         <tr key={l.id} className="border-t border-line">
+                          {data.multiPhase && <td className="px-2 py-1.5 text-rebar text-xs whitespace-nowrap">{l.phaseLabel || "—"}</td>}
                           <td className="px-2 py-1.5 text-concrete/70">{l.itemNo || "—"}</td>
                           <td className="px-2 py-1.5 text-concrete">{l.description}</td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-concrete/70">{lbs(est)}</td>
@@ -232,7 +234,7 @@ export default function ProjectBillingClient({ data }) {
                       );
                     })}
                     <tr className="border-t-2 border-line bg-graphite/40">
-                      <td colSpan={2} className="px-2 py-2 text-xs text-rebar">TOTAL</td>
+                      <td colSpan={data.multiPhase ? 3 : 2} className="px-2 py-2 text-xs text-rebar">TOTAL</td>
                       <td className="px-2 py-2 text-right tabular-nums text-concrete/70">{lbs(estTotal)}</td>
                       <td className="px-2 py-2 text-right tabular-nums font-medium text-concrete">{lbs(actualTotal)}</td>
                       <td className={`px-2 py-2 text-right tabular-nums text-xs ${actualTotal - estTotal > 0 ? "text-warn" : "text-rebar"}`}>{actualTotal === 0 ? "not billed" : actualTotal - estTotal > 0 ? `+${lbs(actualTotal - estTotal)} over bid` : actualTotal < estTotal ? `${lbs(estTotal - actualTotal)} left` : "on bid"}</td>

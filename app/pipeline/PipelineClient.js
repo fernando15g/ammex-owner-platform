@@ -35,7 +35,7 @@ export default function PipelineClient({ data }) {
   const [filter, setFilter] = useState("flight");
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
   const filtered = rows.filter(active.test);
-  const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc");
+  const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc", "bids");
   const countOf = (f) => rows.filter(f.test).length;
 
   return (

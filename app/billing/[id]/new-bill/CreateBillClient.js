@@ -49,6 +49,7 @@ export default function CreateBillClient({ data }) {
     lineId: li.id, itemNo: li.itemNo || "", description: li.description || "",
     estimateQty: li.quantity ?? "", unit: li.unit || "LBS", unitPrice: li.unitPrice ?? "",
     prevQty: li.qtyToDate || 0, toDateQty: "", furnInst: li.furnInst || null,
+    phaseLabel: li.phaseLabel || null,
   }));
   const [rows, setRows] = useState(() => { const base = isFirstInvoice && hasBidLines ? [] : fromLines(); return base.length === 0 && !(isFirstInvoice && hasBidLines) ? [{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }] : base; });
   const [head, setHead] = useState({
@@ -420,6 +421,7 @@ export default function CreateBillClient({ data }) {
         <table className="w-full text-sm" style={{ minWidth: 1020 }}>
           <thead>
             <tr className="bg-graphite text-rebar text-[10px] uppercase tracking-wider">
+              {data.multiPhase && <th className="text-left font-medium px-2 py-2 w-28" rowSpan={2}>Phase</th>}
               <th className="text-left font-medium px-2 py-2 w-24" rowSpan={2}>Bid No.</th>
               <th className="text-left font-medium px-2 py-2" rowSpan={2}>Description</th>
               <th className="text-right font-medium px-2 py-2 w-24" rowSpan={2}>Estimate Qty</th>
@@ -441,6 +443,7 @@ export default function CreateBillClient({ data }) {
           <tbody>
             {calc.rows.map((r, i) => (
               <tr key={i} className="border-t border-line">
+                {data.multiPhase && <td className="px-1.5 py-1 text-[11px] text-rebar whitespace-nowrap">{r.phaseLabel || "—"}</td>}
                 <td className="px-1.5 py-1"><input data-r={i} data-c={0} onKeyDown={(e) => onKeyDown(e, i, 0)} onPaste={(e) => onCellPaste(e, i, 0)} className="cell" value={r.itemNo} onChange={(e) => setCell(i, "itemNo", e.target.value)} placeholder="28410" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={1} onKeyDown={(e) => onKeyDown(e, i, 1)} onPaste={(e) => onCellPaste(e, i, 1)} className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Description" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={2} onKeyDown={(e) => onKeyDown(e, i, 2)} onPaste={(e) => onCellPaste(e, i, 2)} type="text" inputMode="decimal" className="cell text-right" value={r.estimateQty} onChange={(e) => setCell(i, "estimateQty", e.target.value)} /></td>
@@ -455,7 +458,7 @@ export default function CreateBillClient({ data }) {
               </tr>
             ))}
             <tr className="border-t-2 border-line bg-graphite/40">
-              <td colSpan={4} className="px-3 py-2 text-xs text-rebar text-right">TOTALS</td>
+              <td colSpan={data.multiPhase ? 5 : 4} className="px-3 py-2 text-xs text-rebar text-right">TOTALS</td>
               <td className="border-l border-line"></td>
               <td className="px-2 py-2 text-right tabular-nums text-concrete/80">{money(calc.toDateAmt)}</td>
               <td className="border-l border-line"></td>
@@ -466,13 +469,13 @@ export default function CreateBillClient({ data }) {
             </tr>
             {head.retentionEnabled && (
               <tr className="bg-graphite/40">
-                <td colSpan={9} className="px-3 py-1.5 text-xs text-rebar text-right">Retention ({pct}% labor only)</td>
+                <td colSpan={data.multiPhase ? 10 : 9} className="px-3 py-1.5 text-xs text-rebar text-right">Retention ({pct}% labor only)</td>
                 <td className="px-2 py-1.5 text-right tabular-nums text-warn">−{money(calc.retention)}</td>
                 <td></td>
               </tr>
             )}
             <tr className="bg-graphite/40 border-t border-line">
-              <td colSpan={9} className="px-3 py-2.5 text-xs text-concrete font-semibold text-right">TOTAL DUE</td>
+              <td colSpan={data.multiPhase ? 10 : 9} className="px-3 py-2.5 text-xs text-concrete font-semibold text-right">TOTAL DUE</td>
               <td className="px-2 py-2.5 text-right tabular-nums font-bold text-safety text-base">{money(calc.totalDue)}</td>
               <td></td>
             </tr>

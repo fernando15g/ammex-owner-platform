@@ -32,7 +32,7 @@ const SEV = {
 export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
   const { rows, counts, backlog = [] } = data;
-  const { sorted, sort, toggle } = useSort(rows, "name", "asc");
+  const { sorted, sort, toggle } = useSort(rows, "name", "asc", "active");
   const [detailsFor, setDetailsFor] = useState(null);
 
   // Keep your place. Going to look at something and coming back shouldn't cost

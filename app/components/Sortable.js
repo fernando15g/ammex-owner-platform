@@ -8,13 +8,29 @@
 // bottom regardless of direction — a job with no due date is not "the soonest".
 // =============================================================================
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
-export function useSort(rows, defaultKey = null, defaultDir = "asc") {
+// `name` gives the table an identity so its sort can be remembered. Session-
+// scoped: sorting by Outstanding, going to look at something, and coming back to
+// find it reset is a small friction that repeats all day. A fresh visit tomorrow
+// starts clean rather than inheriting a choice you've forgotten making.
+export function useSort(rows, defaultKey = null, defaultDir = "asc", name = null) {
   const [sort, setSort] = useState({ key: defaultKey, dir: defaultDir });
 
+  useEffect(() => {
+    if (!name) return;
+    try {
+      const saved = sessionStorage.getItem(`ammex-sort-${name}`);
+      if (saved) setSort(JSON.parse(saved));
+    } catch {}
+  }, [name]);
+
   const toggle = (key) =>
-    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+    setSort((s) => {
+      const next = s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
+      if (name) { try { sessionStorage.setItem(`ammex-sort-${name}`, JSON.stringify(next)); } catch {} }
+      return next;
+    });
 
   const sorted = useMemo(() => {
     if (!sort.key) return rows;

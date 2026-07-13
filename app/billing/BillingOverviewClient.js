@@ -22,7 +22,7 @@ export default function BillingOverviewClient({ data }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const active = rows.filter((r) => r.hasBilling);
-  const { sorted: activeSorted, sort, toggle } = useSort(active, "name", "asc");
+  const { sorted: activeSorted, sort, toggle } = useSort(active, "name", "asc", "billing");
   const sortById = (a, b) => String(a.projectId || "~").localeCompare(String(b.projectId || "~"), undefined, { numeric: true });
   const searchList = [...rows].sort(sortById).filter((r) => {
     if (q.trim() === "") return true;
