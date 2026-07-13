@@ -158,6 +158,15 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         <div className="flex items-center gap-3">
           <span className="ml-auto" />
           <a href={`/pipeline/${bid.id}/sheet`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">{lineItemCount > 0 ? "View bid sheet" : "Create bid sheet"}</a>
+          {lineItemCount > 0 && (
+            <a
+              href={`/api/bids/${bid.id}/proposal`}
+              className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite"
+              title="Downloads the proposal as the Ammex Excel template"
+            >
+              Download proposal
+            </a>
+          )}
           {linkedProject ? (
             <a href={`/projects/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Project: {linkedProject.projectId || linkedProject.name}</a>
           ) : bid.status === "Awarded" ? (

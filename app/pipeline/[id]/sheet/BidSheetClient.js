@@ -55,6 +55,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
 
   const ext = (r) => (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0);
   const filled = rows.filter((r) => r.description.trim() !== "" || r.itemNo.trim() !== "");
+  const savedLineCount = rows.filter((r) => r.id).length;
   const total = filled.reduce((a, r) => a + ext(r), 0);
   const totalQty = filled.reduce((a, r) => a + (Number(r.quantity) || 0), 0);
 
@@ -156,6 +157,17 @@ export default function BidSheetClient({ data, linkedProject = null }) {
         ) : (
           <>
             <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
+            {/* The proposal IS this sheet. It downloads as the real Excel
+                template — same logo, terms and formats the GC has always seen. */}
+            {savedLineCount > 0 && (
+              <a
+                href={`/api/bids/${data.bid.id}/proposal`}
+                className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite"
+                title="Downloads the proposal as the Ammex Excel template — send it, or export a PDF from Excel"
+              >
+                Download proposal
+              </a>
+            )}
             {items.length > 0 && <button onClick={() => { setRows(items.map((li) => ({ id: li.id, itemNo: li.itemNo || "", description: li.description || "", quantity: li.quantity ?? "", unit: li.unit || "LBS", unitPrice: li.unitPrice ?? "", furnInst: li.furnInst || "", _dirty: false }))); setEditing(false); }} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>}
           </>
         )}
