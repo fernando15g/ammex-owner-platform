@@ -34,9 +34,38 @@ export async function PATCH(req, { params }) {
       }
     }
 
-    // Attaching a bid to a project means that bid was won.
-    const newBidId = projectChanges.relatedBidId;
-    if (newBidId && newBidId !== before.relatedBidId) {
+    // A bid attached to a project that has PROGRESSED was, by definition, won.
+    // Attaching used to be the only trigger — so moving a project along the stage
+    // path left its bid sitting in "Reviewing", which is the system lying to
+    // itself. Any bid on a project past Awarded must say Awarded.
+    const progressed = ["Awarded", "Mobilizing", "Active", "Punchlist", "Waiting on billing", "Closed", "Paid"];
+    const nowStatus = projectChanges.status ?? before.status;
+    const bidIds = projectChanges.relatedBidIds ?? before.relatedBidIds ?? (before.relatedBidId ? [before.relatedBidId] : []);
+
+    if (progressed.includes(nowStatus) && bidIds.length) {
+      const { updateBid } = await import("@/lib/notion/bidRepository");
+      const { activateLineItemsForBid } = await import("@/lib/notion/lineItemRepository");
+      const { mapBid } = await import("@/lib/rules/money");
+      for (const bidId of bidIds) {
+        try {
+          const b = mapBid(await getPage(bidId));
+          if (b && b.status !== "Awarded") {
+            await updateBid(bidId, { status: "Awarded" });
+            await activateLineItemsForBid(bidId);
+            await audit({
+              actor: currentActor(), action: "Update", entity: "Bid",
+              entityName: b.name || "", entityId: bidId,
+              changes: `Status: ${b.status} → Awarded (its project is ${nowStatus})`,
+            });
+          }
+        } catch (e) {
+          console.error("[projects] couldn't align bid status:", e.message || e);
+        }
+      }
+    }
+
+    const newBidId = null;   // handled above
+    if (newBidId) {
       try {
         const { updateBid } = await import("@/lib/notion/bidRepository");
         const { activateLineItemsForBid } = await import("@/lib/notion/lineItemRepository");

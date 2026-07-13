@@ -50,13 +50,17 @@ export default function ProjectForm({
     actualStartDate: (project?.actualStartDate || "").slice(0, 10),
     foreman: project?.foreman || [],
     gc: project?.gc || [],
-    relatedBidId: project?.relatedBidId || presetBidId || "",
+    relatedBidIds: project?.relatedBidIds?.length
+      ? project.relatedBidIds
+      : project?.relatedBidId ? [project.relatedBidId]
+      : presetBidId ? [presetBidId] : [],
   });
   const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  const bid = bidOptions.find((b) => b.id === f.relatedBidId) || null;
+  const attachedBids = f.relatedBidIds.map((id) => bidOptions.find((b) => b.id === id)).filter(Boolean);
+  const bid = attachedBids[0] || null;   // the confirmation screen leads with the first
 
   // real Notion option lists (no more typo-duplicates)
   useEffect(() => {
@@ -102,7 +106,8 @@ export default function ProjectForm({
       actualStartDate: f.actualStartDate || null,
       foreman: f.foreman,
       gc: f.gc,
-      relatedBidId: f.relatedBidId || null,
+      relatedBidIds: f.relatedBidIds,
+      relatedBidId: f.relatedBidIds[0] || null,   // kept for callers that still read one
     };
     try {
       const res = await fetch(isNew ? "/api/projects" : `/api/projects/${project.id}`, {
@@ -136,29 +141,43 @@ export default function ProjectForm({
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
       {/* ---- WHAT THE BID BRINGS (this is the confirmation) -------------------- */}
-      {bid ? (
-        <div className="rounded-lg border border-ok/40 bg-ok/5 p-4 mb-4">
-          <div className="flex items-baseline gap-2 mb-2.5 flex-wrap">
-            <span className="text-[11px] uppercase tracking-widest text-rebar">From the bid</span>
-            <span className="text-sm text-concrete font-medium">{bid.name}</span>
-            {bid.status === "Awarded" && <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-ok/40 text-ok">Awarded</span>}
-          </div>
+      {attachedBids.length > 0 ? (() => {
+        // Multi-phase jobs sum. A second bid that quietly failed to count would
+        // show up as a contract that's too low — the worst kind of bug, because
+        // it looks plausible.
+        const sum = (k) => attachedBids.reduce((a, b) => a + (b[k] || 0), 0) || null;
+        const multi = attachedBids.length > 1;
+        return (
+          <div className="rounded-lg border border-ok/40 bg-ok/5 p-4 mb-4">
+            <div className="flex items-baseline gap-2 mb-2.5 flex-wrap">
+              <span className="text-[11px] uppercase tracking-widest text-rebar">
+                {multi ? `From ${attachedBids.length} bids` : "From the bid"}
+              </span>
+              {attachedBids.map((b) => (
+                <span key={b.id} className="text-sm text-concrete font-medium">
+                  {b.name}
+                  {b.status === "Awarded" && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full border border-ok/40 text-ok">Awarded</span>}
+                </span>
+              ))}
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2.5">
-            <Inherited label="Contract" value={money(bid.contractValue)} lead />
-            <Inherited label="Bid rate" value={cents(bid.bidRate)} />
-            <Inherited label="Estimated" value={num(bid.estimatedLbs, " lbs")} />
-            <Inherited label="Productivity" value={num(bid.productivity, " lbs/MH")} />
-            <Inherited label="Projected hours" value={num(bid.projectedHours)} />
-            <Inherited label="Crew · duration" value={`${bid.crewSize ?? "—"} · ${num(bid.durationDays, " days")}`} />
-          </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2.5">
+              <Inherited label={multi ? "Contract (combined)" : "Contract"} value={money(sum("contractValue"))} lead />
+              <Inherited label="Bid rate" value={multi ? "per phase" : cents(bid.bidRate)} />
+              <Inherited label="Estimated" value={num(sum("estimatedLbs"), " lbs")} />
+              <Inherited label="Productivity" value={multi ? "per phase" : num(bid.productivity, " lbs/MH")} />
+              <Inherited label="Projected hours" value={num(sum("projectedHours"))} />
+              <Inherited label="Crew · duration" value={multi ? "per phase" : `${bid.crewSize ?? "—"} · ${num(bid.durationDays, " days")}`} />
+            </div>
 
-          <p className="text-[11px] text-rebar mt-2.5">
-            These come from the bid — they aren&apos;t typed here. If a number looks wrong, fix it on the bid.
-            Better to catch it now than three weeks into billing.
-          </p>
-        </div>
-      ) : (
+            <p className="text-[11px] text-rebar mt-2.5">
+              {multi
+                ? "Each phase keeps its own estimating numbers — you can still tell whether that bid made money. They share one contract, one GC and one invoice stream."
+                : "These come from the bid — they aren't typed here. If a number looks wrong, fix it on the bid. Better to catch it now than three weeks into billing."}
+            </p>
+          </div>
+        );
+      })() : (
         <div className="rounded-lg border border-warn/50 bg-warn/10 p-4 mb-4">
           <p className="text-sm text-concrete font-medium mb-1">No bid attached — this project can&apos;t be billed yet.</p>
           <p className="text-xs text-rebar">
@@ -188,8 +207,32 @@ export default function ProjectForm({
           </label>
 
           <div className="sm:col-span-2">
-            <span className="text-xs text-rebar mb-1 block">Attached bid</span>
-            <BidPicker bids={bidOptions} value={f.relatedBidId} onChange={(id) => setF({ ...f, relatedBidId: id })} />
+            <span className="text-xs text-rebar mb-1 block">
+              Attached bid{f.relatedBidIds.length > 1 ? "s" : ""}
+              <span className="text-rebar/60"> · a later phase attaches here too</span>
+            </span>
+
+            {attachedBids.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {attachedBids.map((b) => (
+                  <span key={b.id} className="inline-flex items-center gap-1.5 text-xs border border-line rounded-full px-2.5 py-1 text-concrete" style={{ background: "var(--surface-2)" }}>
+                    {b.name}
+                    <button
+                      type="button"
+                      onClick={() => setF({ ...f, relatedBidIds: f.relatedBidIds.filter((x) => x !== b.id) })}
+                      className="text-rebar hover:text-danger"
+                      title="Detach — this project loses that bid's line items and contract value"
+                    >✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <BidPicker
+              bids={bidOptions.filter((b) => !f.relatedBidIds.includes(b.id))}
+              value=""
+              onChange={(id) => { if (id) setF({ ...f, relatedBidIds: [...f.relatedBidIds, id] }); }}
+            />
           </div>
 
           <div className="sm:col-span-2">

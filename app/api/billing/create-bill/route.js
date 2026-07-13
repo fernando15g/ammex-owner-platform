@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    const { projectId, relatedBidId, invoiceNumber, date, dueDate, notes, retentionEnabled = false, retentionPct = 0, rows = [] } = await req.json();
+    const { projectId, relatedBidId, relatedBidIds, invoiceNumber, date, dueDate, notes, retentionEnabled = false, retentionPct = 0, rows = [] } = await req.json();
     if (!projectId) throw new Error("projectId required");
     if (!rows.length) throw new Error("No rows to bill.");
     const pct = retentionEnabled ? Number(retentionPct) || 0 : 0;
@@ -54,7 +54,8 @@ export async function POST(req) {
         const createPayload = {
           description: r.description || r.itemNo,
           itemNo: r.itemNo || "",
-          bidId: relatedBidId || null,
+          // a new line born on the invoice belongs to the first bid (or none)
+          bidId: (relatedBidIds && relatedBidIds[0]) || relatedBidId || null,
           projectId,
           quantity: n(r.estimateQty) ?? toDate ?? 0,
           unit: r.unit || "LBS",

@@ -241,7 +241,7 @@ export default function CreateBillClient({ data }) {
       const res = await fetch("/api/billing/create-bill", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          projectId: data.id, relatedBidId: data.relatedBidId,
+          projectId: data.id, relatedBidId: data.relatedBidId, relatedBidIds: data.relatedBidIds || [],
           invoiceNumber: head.invoiceNumber, date: head.date, dueDate: head.dueDate || null, notes: head.notes,
           retentionEnabled: head.retentionEnabled, retentionPct: num(head.retentionPct) || 0,
           rows: rows.map((r) => ({ lineId: r.lineId, itemNo: r.itemNo, description: r.description, unit: r.unit, unitPrice: num(r.unitPrice), estimateQty: num(r.estimateQty), toDateQty: num(r.toDateQty) })),

@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
+import { useEffect } from "react";
 import StagePath from "@/app/components/StagePath";
 
 // ---- formatters ----
@@ -33,6 +34,26 @@ export default function ActiveWorkClient({ data }) {
   const { rows, counts, backlog = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc");
   const [detailsFor, setDetailsFor] = useState(null);
+
+  // Keep your place. Going to look at something and coming back shouldn't cost
+  // you the project you were already reading. Session-scoped on purpose: a fresh
+  // visit tomorrow starts clean rather than shoving a project at you.
+  useEffect(() => {
+    try {
+      const id = sessionStorage.getItem("ammex-active-selected");
+      if (id) {
+        const row = rows.find((r) => r.id === id);
+        if (row) setSelected(row);
+      }
+    } catch {}
+  }, [rows]);
+
+  useEffect(() => {
+    try {
+      if (selected?.id) sessionStorage.setItem("ammex-active-selected", selected.id);
+      else sessionStorage.removeItem("ammex-active-selected");
+    } catch {}
+  }, [selected]);
   const [backlogOpen, setBacklogOpen] = useState(false);
 
   return (
@@ -68,9 +89,9 @@ export default function ActiveWorkClient({ data }) {
             </button>
 
             {backlogOpen && (
-              <div className="border-t border-line divide-y divide-line">
+              <div className="border-t border-line divide-y divide-line" style={{ background: "var(--surface-2)" }}>
                 {backlog.map((b) => (
-                  <div key={b.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40">
+                  <div key={b.id} className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/40">
                     {/* the project, not billing — there's nothing to bill on a job
                         that hasn't started */}
                     <a href={`/projects/${b.id}`} className="text-sm text-concrete hover:text-safety truncate">{b.name}</a>
@@ -164,7 +185,7 @@ export default function ActiveWorkClient({ data }) {
       </div>
 
       {/* Detail panel */}
-      <div className="lg:w-96 shrink-0 mt-6 lg:mt-0">
+      <div className="lg:w-[30rem] xl:w-[34rem] shrink-0 mt-6 lg:mt-0">
         {selected ? (
           <DetailPanel row={selected} onClose={() => setSelected(null)} onEdit={() => setDetailsFor(selected.id)} />
         ) : (
@@ -206,16 +227,18 @@ function DetailPanel({ row, onClose, onEdit }) {
   const f = d.financials;
   return (
     <div className="rounded-lg border border-line bg-graphite lg:sticky lg:top-24 overflow-hidden">
-      <div className="px-5 py-4 border-b border-line flex items-start gap-3">
+      <div className="px-6 py-5 border-b border-line flex items-start gap-3">
         <div className="min-w-0">
-          <h2 className="font-semibold text-concrete truncate">{row.name}</h2>
-          <p className="text-xs text-rebar mt-0.5">{row.projectId} · {row.status}</p>
+          <h2 className="text-lg font-semibold text-concrete truncate">{row.name}</h2>
+          <p className="text-sm text-rebar mt-1">{row.projectId} · {row.status}</p>
         </div>
-        <button onClick={onEdit} className="text-xs px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete ml-auto mr-1.5">Edit</button>
-        <button onClick={onClose} className="text-rebar hover:text-concrete text-sm">✕</button>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
+          <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
+        </div>
       </div>
 
-      <div className="px-5 py-3 border-b border-line">
+      <div className="px-6 py-4 border-b border-line">
         <StagePath
           status={row.status}
           projectId={row.id}
@@ -224,7 +247,7 @@ function DetailPanel({ row, onClose, onEdit }) {
         />
       </div>
 
-      <div className="p-5 space-y-5 text-sm">
+      <div className="p-6 space-y-6 text-sm">
         <Section title="Burn">
           <Row label="Bid hours" value={num(row.burn.projectedHours)} />
           <Row label="Logged hours" value={num(row.burn.actualHours)} sub={d.hoursEra === "payroll" ? "payroll-era" : d.hoursEra === "timesheet" ? "from timecards" : null} />

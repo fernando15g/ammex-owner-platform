@@ -21,6 +21,26 @@ export async function PATCH(req, { params }) {
     let before = {};
     try { before = mapBid(await getPage(params.id)) || {}; } catch {}
 
+    // A bid can't be Lost while a project is built on it. Marking it Lost closes
+    // its line items — which would silently strip that project's contract value
+    // and leave a live job with nothing to bill. Block it; don't cascade it.
+    if (changes.status === "Lost" || changes.status === "No Bid") {
+      const { getEverything } = await import("@/lib/data");
+      const all = await getEverything();
+      const owner = all.projects.find((p) =>
+        (p.relatedBidIds || []).includes(params.id) || p.relatedBidId === params.id
+      );
+      if (owner) {
+        return NextResponse.json({
+          ok: false,
+          blocked: true,
+          error:
+            `This bid is attached to project "${owner.name}". Marking it ${changes.status} would close its ` +
+            `line items and strip that project's contract value. Detach it from the project first.`,
+        }, { status: 409 });
+      }
+    }
+
     const result = await updateBid(params.id, changes);
     await audit({
       actor: currentActor(),

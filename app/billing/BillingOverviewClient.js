@@ -31,6 +31,20 @@ export default function BillingOverviewClient({ data }) {
   });
   return (
     <div>
+      {health?.ok && health.counts.warnings > 0 && (
+        <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 mb-4">
+          <p className="text-sm text-concrete">
+            <span className="font-medium">{health.counts.warnings} thing{health.counts.warnings === 1 ? "" : "s"} worth a look.</span>{" "}
+            <span className="text-rebar">Nothing is broken — but something doesn&apos;t add up the way you&apos;d expect.</span>
+          </p>
+          <ul className="text-xs text-rebar mt-1.5 list-disc pl-4 space-y-0.5">
+            {health.warnings.slice(0, 3).map((w, i) => <li key={i}>{w.message}</li>)}
+            {health.warnings.length > 3 && <li>…and {health.warnings.length - 3} more.</li>}
+          </ul>
+          <a href="/check" className="text-xs text-info hover:underline mt-1.5 inline-block">See the full reconciliation →</a>
+        </div>
+      )}
+
       {health && !health.ok && (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 mb-4">
           <p className="text-sm text-concrete">

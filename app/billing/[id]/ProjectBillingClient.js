@@ -96,8 +96,8 @@ export default function ProjectBillingClient({ data }) {
         <Stat tip="Payments received against those invoices." label="Paid to date" value={money(b.paidToDate)} />
         <Stat tip="Withheld until closeout. Earned, not yet collectable." label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
 
-        <Stat tip="Invoiced but not yet collected. Your current receivable." label="Outstanding" value={money(b.outstanding)} accent />
-        <Stat tip="Contracted work not yet invoiced." label="Remaining to bill" value={money(b.remainingToBill)} accent />
+        <Stat tip="Invoiced but not yet collected. Your current receivable." label="Outstanding" value={money(b.outstanding)} tone="attention" />
+        <Stat tip="Contracted work not yet invoiced." label="Remaining to bill" value={money(b.remainingToBill)} tone="info" />
 
         {/* Short-pay balance appears above Status when there's an open carryover;
             otherwise Status stretches to fill the space (2 rows tall). */}
@@ -193,7 +193,17 @@ export default function ProjectBillingClient({ data }) {
           <div className="rounded-lg border border-line mb-6" style={{ background: "var(--surface)" }}>
             <button onClick={() => setEvaOpen((o) => !o)} className="w-full flex items-center justify-between px-4 py-3 text-sm">
               <span className="text-concrete font-medium">Bid vs. billed (by line item)</span>
-              <span className="text-rebar text-xs">{lbs(actualTotal)} / {lbs(estTotal)} lbs billed · {pct.toFixed(1)}% · {evaOpen ? "hide" : "show"}</span>
+              <span className="text-rebar text-xs flex items-center gap-2">
+                <span>{lbs(actualTotal)} of {lbs(estTotal)} lbs billed · {pct.toFixed(1)}%</span>
+                {data.relatedBidId && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `/pipeline/${data.relatedBidId}/sheet`; }}
+                    className="text-rebar/60 hover:text-concrete underline underline-offset-2 cursor-pointer"
+                    title="These line items live on the bid sheet"
+                  >edit</span>
+                )}
+                <span>{evaOpen ? "hide" : "show"}</span>
+              </span>
             </button>
             {evaOpen && (
               <div className="px-4 pb-4 border-t border-line pt-3 overflow-x-auto">
@@ -201,9 +211,9 @@ export default function ProjectBillingClient({ data }) {
                   <thead><tr className="text-rebar text-[11px] uppercase tracking-wider">
                     <th className="text-left font-medium px-2 py-1.5">Item</th>
                     <th className="text-left font-medium px-2 py-1.5">Description</th>
-                    <th className="text-right font-medium px-2 py-1.5">Bid est.</th>
-                    <th className="text-right font-medium px-2 py-1.5">Billed to date</th>
-                    <th className="text-right font-medium px-2 py-1.5">Diff</th>
+                    <th className="text-right font-medium px-2 py-1.5">Bid est. (lbs)</th>
+                    <th className="text-right font-medium px-2 py-1.5">Billed to date (lbs)</th>
+                    <th className="text-right font-medium px-2 py-1.5">Diff (lbs)</th>
                     <th className="text-right font-medium px-2 py-1.5">% done</th>
                   </tr></thead>
                   <tbody>
@@ -620,8 +630,25 @@ function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
 }
 
 function Stat({ label, value, sub, accent, status, tone, tip }) {
-  const c = tone === "warn" ? "text-warn" : accent ? "text-safety" : "text-concrete";
-  return (<div className="rounded-lg border border-line px-3 py-3" style={{ background: "var(--surface)" }}><p className="text-[11px] text-rebar mb-1 leading-tight">{label}</p><p className={`text-base font-semibold ${c}`}>{value}</p>{sub && <p className="text-[11px] text-rebar mt-0.5">{sub}</p>}</div>);
+  // #7: colour encodes URGENCY, not size. Outstanding is money someone owes you
+  // (chase it). Remaining to bill is revenue still ahead (good news). They mean
+  // opposite things — they shouldn't look alike.
+  const c =
+    tone === "warn" ? "text-warn"
+    : tone === "attention" ? "text-warn"
+    : tone === "info" ? "text-info"
+    : accent ? "text-safety"
+    : "text-concrete";
+  return (
+    <div className="rounded-lg border border-line px-3 py-3" style={{ background: "var(--surface)" }}>
+      <p className="text-[11px] text-rebar mb-1 leading-tight flex items-center gap-1">
+        {label}
+        {tip && <InfoTip text={tip} />}
+      </p>
+      <p className={`text-base font-semibold ${c}`}>{value}</p>
+      {sub && <p className="text-[11px] text-rebar mt-0.5">{sub}</p>}
+    </div>
+  );
 }
 function AddBtn({ label, onClick, primary }) {
   return <button onClick={onClick} className={`text-sm px-4 py-2 rounded-md font-medium ${primary ? "bg-safety text-steel" : "border border-line text-concrete hover:bg-graphite"}`}>{label}</button>;

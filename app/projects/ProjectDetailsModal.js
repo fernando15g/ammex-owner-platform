@@ -58,7 +58,7 @@ export default function ProjectDetailsModal({ projectId, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-10 overflow-y-auto" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-3xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
         <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
           <p className="text-sm font-medium text-concrete">Project details</p>
           <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>

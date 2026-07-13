@@ -79,12 +79,15 @@ export default function StagePath({ status, projectId, onChanged, compact = fals
               title={busy ? "Saving…" : `Move to ${stage}`}
               className={[
                 "relative flex-1 min-w-0 whitespace-nowrap transition-colors disabled:opacity-60",
-                compact ? "text-[10px] px-2 py-1" : "text-xs px-3 py-1.5",
+                compact ? "text-[11px] px-2.5 py-1.5" : "text-xs px-3 py-2",
                 i === 0 ? "rounded-l-md" : "",
                 i === STAGES.length - 1 ? "rounded-r-md" : "",
-                done ? "bg-ok/25 text-ok hover:bg-ok/35"
-                  : isNow ? "bg-safety text-steel font-semibold"
-                  : "bg-graphite text-rebar hover:text-concrete hover:bg-graphite/70",
+                // every segment carries a border, so an un-selected stage reads
+                // as a clickable section rather than floating words
+                "border",
+                done ? "bg-ok/25 border-ok/40 text-ok hover:bg-ok/35"
+                  : isNow ? "bg-safety border-safety text-steel font-semibold"
+                  : "bg-graphite/40 border-line text-rebar hover:text-concrete hover:bg-graphite/70 hover:border-rebar/50",
               ].join(" ")}
               style={{
                 // chevron: point into the next segment, notch out of the previous
