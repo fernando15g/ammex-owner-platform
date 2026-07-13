@@ -37,26 +37,50 @@ function useTheme() {
   return { theme, toggle };
 }
 
-// A breadcrumb trail: [{ label, href }] — the last entry is the current page and
-// is never a link. Every page passes its own trail, so the shell renders one
-// consistent path across the whole OS.
+// BREADCRUMBS — where you ARE, not how you got here.
+//
+// Deliberately structural, the way every serious CRM does it (Salesforce, Jira,
+// Procore). History-based trails make the same page look different depending on
+// the route in, so you can never learn the interface — the signpost keeps moving.
+//
+// The BACK ARROW is the exception, and it's a different job: it returns you to
+// wherever you actually came from. Two controls, two purposes. That's what stops
+// you getting stranded when you reach a project from Active Work and the only
+// link out goes to Billing, a page you were never on.
 function Breadcrumbs({ trail }) {
   if (!trail?.length) return null;
+
+  const goBack = () => {
+    // real back where there IS a history entry; the parent crumb otherwise (a
+    // fresh tab, a shared link) so the arrow is never a dead end.
+    const parent = trail.length > 1 ? trail[trail.length - 2]?.href : trail[0]?.href;
+    if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
+    else if (parent) window.location.href = parent;
+  };
+
   return (
-    <nav className="flex items-center gap-1 flex-wrap text-[11px] leading-none mb-1.5" aria-label="Breadcrumb">
+    <nav className="flex items-center gap-1.5 flex-wrap text-xs leading-none" aria-label="Breadcrumb">
+      <button
+        onClick={goBack}
+        className="text-rebar hover:text-concrete inline-flex items-center"
+        title="Back to where you came from"
+        aria-label="Back"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7" />
+        </svg>
+      </button>
+
       {trail.map((c, i) => {
         const last = i === trail.length - 1;
         return (
-          <span key={i} className="inline-flex items-center gap-1">
-            {i === 0 && (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-rebar">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-            )}
+          <span key={i} className="inline-flex items-center gap-1.5">
             {last || !c.href ? (
-              <span className="uppercase tracking-widest text-rebar/70">{c.label}</span>
+              <span className="font-semibold uppercase tracking-widest text-rebar/80">{c.label}</span>
             ) : (
-              <a href={c.href} className="uppercase tracking-widest text-rebar hover:text-concrete underline-offset-2 hover:underline">{c.label}</a>
+              <a href={c.href} className="font-semibold uppercase tracking-widest text-rebar hover:text-concrete underline-offset-2 hover:underline">
+                {c.label}
+              </a>
             )}
             {!last && <span className="text-rebar/40">›</span>}
           </span>

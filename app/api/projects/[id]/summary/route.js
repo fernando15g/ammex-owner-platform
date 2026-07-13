@@ -36,6 +36,7 @@ export async function GET(req, { params }) {
         actualStartDate: d.actualStartDate ?? null,
 
         contractValue: b.revisedContract,
+        bidRate: d.bid?.bidRate ?? null,
         billedToDate: b.billedToDate,
         remainingToBill: b.remainingToBill,
         outstanding: b.outstanding,

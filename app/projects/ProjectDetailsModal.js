@@ -16,6 +16,7 @@
 // =============================================================================
 
 import { useEffect, useState } from "react";
+import StagePath from "@/app/components/StagePath";
 
 const money = (n) => (typeof n === "number" ? `$${Math.round(n).toLocaleString()}` : "—");
 const lbs = (n) => (typeof n === "number" ? `${Math.round(n).toLocaleString()} lbs` : "—");
@@ -60,11 +61,6 @@ export default function ProjectDetailsModal({ projectId, onClose }) {
       <div onClick={(e) => e.stopPropagation()} className="w-full max-w-2xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
         <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
           <p className="text-sm font-medium text-concrete">Project details</p>
-          {data && (
-            <a href={`/projects/${projectId}`} className="text-xs px-2.5 py-1 rounded border border-line text-rebar hover:text-concrete">
-              Edit on the project page →
-            </a>
-          )}
           <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>
         </div>
 
@@ -74,7 +70,13 @@ export default function ProjectDetailsModal({ projectId, onClose }) {
           ) : !data ? (
             <p className="text-sm text-rebar">Loading…</p>
           ) : (
-            <Body d={data} />
+            <>
+              <Body d={data} projectId={projectId} />
+              <div className="flex gap-2 mt-5 pt-4 border-t border-line">
+                <a href={`/projects/${projectId}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit project</a>
+                <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -82,7 +84,7 @@ export default function ProjectDetailsModal({ projectId, onClose }) {
   );
 }
 
-function Body({ d }) {
+function Body({ d, projectId }) {
   const running = daysSince(d.actualStartDate);
 
   return (
@@ -97,6 +99,8 @@ function Body({ d }) {
           <p className="text-xs text-warn mt-1.5">No bid attached — this project can&apos;t be billed.</p>
         )}
       </div>
+
+      <StagePath status={d.status} projectId={projectId} onChanged={() => window.location.reload()} />
 
       {/* THE number: is the job beating the bid? */}
       {d.actualLbsPerMH != null && d.estimatedLbsPerMH != null && (
@@ -116,6 +120,7 @@ function Body({ d }) {
       {/* money */}
       <Section title="Contract">
         <Row label="Contract value" value={money(d.contractValue)} lead />
+        <Row label="Bid rate" value={typeof d.bidRate === "number" ? `${(d.bidRate * 100).toFixed(2)}¢/lb` : "—"} />
         <Row label="Billed to date" value={money(d.billedToDate)} />
         <Row label="Remaining to bill" value={money(d.remainingToBill)} />
         <Row label="Outstanding" value={money(d.outstanding)} tone={d.outstanding > 0 ? "warn" : null} />

@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
+import StagePath from "@/app/components/StagePath";
 
 // ---- formatters ----
 const money = (n) =>
@@ -32,6 +33,7 @@ export default function ActiveWorkClient({ data }) {
   const { rows, counts, backlog = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc");
   const [detailsFor, setDetailsFor] = useState(null);
+  const [backlogOpen, setBacklogOpen] = useState(false);
 
   return (
     <div>
@@ -43,36 +45,54 @@ export default function ActiveWorkClient({ data }) {
         <Metric label="Over pace" value={counts.atRisk} tone={counts.atRisk > 0 ? "danger" : "ok"} />
       </div>
 
-      {/* WON, NOT STARTED — these were invisible before, so a project could be
-          created and then simply disappear from the app. */}
-      {backlog.length > 0 && (
-        <div className="rounded-lg border border-line mb-5" style={{ background: "var(--surface)" }}>
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-line">
-            <span className="text-sm text-concrete font-medium">Awarded — not started</span>
-            <span className="text-xs text-rebar">{backlog.length}</span>
-            <span className="text-xs text-rebar ml-auto">crews aren&apos;t on these yet</span>
-          </div>
-          <div className="divide-y divide-line">
-            {backlog.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40">
-                <a href={`/billing/${b.id}`} className="text-sm text-concrete hover:text-safety truncate">{b.name}</a>
-                <span className="text-xs text-rebar truncate">
-                  {[b.projectId, b.gc?.length ? b.gc.join(", ") : null].filter(Boolean).join(" · ")}
-                </span>
-                {!b.hasBid && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warn/50 text-warn whitespace-nowrap">no bid — can&apos;t bill</span>
-                )}
-                <span className="ml-auto flex items-center gap-2 shrink-0">
-                  {typeof b.contractValue === "number" && (
-                    <span className="text-xs text-concrete/70 tabular-nums">${Math.round(b.contractValue).toLocaleString()}</span>
-                  )}
-                  <button onClick={() => setDetailsFor(b.id)} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete">Details</button>
-                </span>
+      {/* BACKLOG — contracted work not yet performed. The industry term, and a
+          real business metric (it's your booked future revenue), so the header
+          carries the value, not just a count. Collapsed by default: it's context,
+          not the main event — but the count and value stay visible so a job can't
+          quietly rot here unnoticed. */}
+      {backlog.length > 0 && (() => {
+        const value = backlog.reduce((a, b) => a + (b.contractValue || 0), 0);
+        return (
+          <div className="rounded-lg border border-line mb-5 overflow-hidden" style={{ background: "var(--surface)" }}>
+            <button
+              onClick={() => setBacklogOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-graphite/30"
+            >
+              <span className={`text-rebar text-xs transition-transform ${backlogOpen ? "rotate-90" : ""}`}>▸</span>
+              <span className="text-sm text-concrete font-medium">Backlog</span>
+              <span className="text-xs text-rebar">awarded, not yet started</span>
+              <span className="ml-auto flex items-center gap-3 text-xs">
+                <span className="text-rebar">{backlog.length} job{backlog.length === 1 ? "" : "s"}</span>
+                {value > 0 && <span className="text-concrete tabular-nums font-medium">${Math.round(value).toLocaleString()}</span>}
+              </span>
+            </button>
+
+            {backlogOpen && (
+              <div className="border-t border-line divide-y divide-line">
+                {backlog.map((b) => (
+                  <div key={b.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40">
+                    {/* the project, not billing — there's nothing to bill on a job
+                        that hasn't started */}
+                    <a href={`/projects/${b.id}`} className="text-sm text-concrete hover:text-safety truncate">{b.name}</a>
+                    <span className="text-xs text-rebar truncate">
+                      {[b.projectId, b.gc?.length ? b.gc.join(", ") : null].filter(Boolean).join(" · ")}
+                    </span>
+                    {!b.hasBid && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-warn/50 text-warn whitespace-nowrap">no bid</span>
+                    )}
+                    <span className="ml-auto flex items-center gap-2 shrink-0">
+                      {typeof b.contractValue === "number" && (
+                        <span className="text-xs text-concrete/70 tabular-nums">${Math.round(b.contractValue).toLocaleString()}</span>
+                      )}
+                      <button onClick={() => setDetailsFor(b.id)} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete">Details</button>
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="lg:flex lg:gap-6">
       {/* Table — scrolls sideways when the window is too narrow for every column */}
@@ -191,8 +211,17 @@ function DetailPanel({ row, onClose, onEdit }) {
           <h2 className="font-semibold text-concrete truncate">{row.name}</h2>
           <p className="text-xs text-rebar mt-0.5">{row.projectId} · {row.status}</p>
         </div>
-        <button onClick={onEdit} className="text-xs px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete mr-1.5">Edit</button>
-      <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete text-sm">✕</button>
+        <button onClick={onEdit} className="text-xs px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete ml-auto mr-1.5">Edit</button>
+        <button onClick={onClose} className="text-rebar hover:text-concrete text-sm">✕</button>
+      </div>
+
+      <div className="px-5 py-3 border-b border-line">
+        <StagePath
+          status={row.status}
+          projectId={row.id}
+          compact
+          onChanged={() => window.location.reload()}
+        />
       </div>
 
       <div className="p-5 space-y-5 text-sm">

@@ -134,16 +134,23 @@ export default function BidSheetClient({ data, linkedProject = null }) {
       <div className="flex items-center gap-3 mb-5">
         {editing && <span className="text-xs text-rebar hidden sm:inline">· paste rows from Excel · Enter moves down</span>}
         <span className="ml-auto" />
-        {state.saved && <span className="text-xs text-ok">Saved ✓</span>}
-        {linkedProject ? (
-          <a href={`/billing/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
-            Go to billing →
-          </a>
-        ) : data.bid?.status === "Awarded" ? (
-          <a href={`/projects/new?fromBid=${data.bid.id}&name=${encodeURIComponent(data.bid.name || "")}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
-            Create project →
-          </a>
-        ) : null}
+        {/* The next step only appears once there IS a next step — i.e. after a
+            successful save. Offering it beside Save, on an unsaved sheet, made it
+            look like an alternative action and let you leave work behind. */}
+        {state.saved && (
+          <>
+            <span className="text-xs text-ok">Saved ✓</span>
+            {linkedProject ? (
+              <a href={`/billing/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
+                Go to billing →
+              </a>
+            ) : data.bid?.status === "Awarded" ? (
+              <a href={`/projects/new?fromBid=${data.bid.id}&name=${encodeURIComponent(data.bid.name || "")}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
+                Create project →
+              </a>
+            ) : null}
+          </>
+        )}
         {!editing ? (
           <button onClick={() => setEditing(true)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
         ) : (

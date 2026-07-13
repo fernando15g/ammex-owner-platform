@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
+import InfoTip from "@/app/components/InfoTip";
 
 // Local YYYY-MM-DD (NOT toISOString — that uses UTC and can shift the day).
 function todayLocal() {
@@ -31,7 +32,7 @@ export default function ProjectBillingClient({ data }) {
   const carry = data.carryover || { open: 0, items: [], hasOpen: false };
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [evaOpen, setEvaOpen] = useState(false);
+  const [evaOpen, setEvaOpen] = useState(true);
   const [editing, setEditing] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -90,24 +91,24 @@ export default function ProjectBillingClient({ data }) {
 
       {/* The money picture */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <Stat label="Contract value" value={money(b.revisedContract)} sub={(b.changeOrders || 0) + (b.coLinesValue || 0) > 0 ? `incl. ${money((b.changeOrders || 0) + (b.coLinesValue || 0))} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
-        <Stat label="Billed to date" value={money(b.billedToDate)} />
-        <Stat label="Paid to date" value={money(b.paidToDate)} />
-        <Stat label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
+        <Stat tip="Total value of the job, including approved change orders." label="Contract value" value={money(b.revisedContract)} sub={(b.changeOrders || 0) + (b.coLinesValue || 0) > 0 ? `incl. ${money((b.changeOrders || 0) + (b.coLinesValue || 0))} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
+        <Stat tip="Sum of all invoices issued on this project." label="Billed to date" value={money(b.billedToDate)} />
+        <Stat tip="Payments received against those invoices." label="Paid to date" value={money(b.paidToDate)} />
+        <Stat tip="Withheld until closeout. Earned, not yet collectable." label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
 
-        <Stat label="Outstanding" value={money(b.outstanding)} accent />
-        <Stat label="Remaining to bill" value={money(b.remainingToBill)} accent />
+        <Stat tip="Invoiced but not yet collected. Your current receivable." label="Outstanding" value={money(b.outstanding)} accent />
+        <Stat tip="Contracted work not yet invoiced." label="Remaining to bill" value={money(b.remainingToBill)} accent />
 
         {/* Short-pay balance appears above Status when there's an open carryover;
             otherwise Status stretches to fill the space (2 rows tall). */}
         {carry.hasOpen ? (
           <>
-            <Stat label="Short-pay balance" value={money(carry.open)} sub="re-bills next invoice" tone="warn" />
-            <Stat label="Status" value={b.status} status />
+            <Stat tip="Underpaid work carried forward to the next invoice." label="Short-pay balance" value={money(carry.open)} sub="re-bills next invoice" tone="warn" />
+            <Stat tip="Derived from contract, billing, and payment activity." label="Status" value={b.status} status />
           </>
         ) : (
           <div className="col-span-2 lg:col-span-2 rounded-lg border border-line px-4 py-3 flex flex-col justify-center" style={{ background: "var(--surface)" }}>
-            <p className="text-[11px] text-rebar mb-1 leading-tight">Status</p>
+            <p className="text-[11px] text-rebar mb-1 leading-tight flex items-center gap-1">Status<InfoTip text="Derived from contract, billing, and payment activity." /></p>
             <p className="text-lg font-semibold text-concrete">{b.status}</p>
           </div>
         )}
@@ -167,7 +168,22 @@ export default function ProjectBillingClient({ data }) {
         <AddEventForm type={showAdd} projectId={data.id} projectIdLabel={data.projectId} onClose={() => setShowAdd(null)} onSaved={refresh} />
       ) : null}
 
-      {/* Estimate vs actual — line-item progress vs the bid */}
+      {/* A $0 contract with no explanation is worse than an error. Say what's
+          missing and offer the fix. */}
+      {(!data.lines || data.lines.length === 0) && (
+        <div className="rounded-lg border border-warn/50 bg-warn/10 p-4 mb-6">
+          <p className="text-sm text-concrete font-medium mb-1">No bid sheet.</p>
+          <p className="text-xs text-rebar mb-3">Line items define this project&apos;s contract value and are required to invoice.</p>
+          <a
+            href={data.relatedBidId ? `/pipeline/${data.relatedBidId}/sheet` : `/projects/${data.id}`}
+            className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium inline-block"
+          >
+            {data.relatedBidId ? "Create bid sheet" : "Attach a bid first"}
+          </a>
+        </div>
+      )}
+
+      {/* Bid vs. billed — line-item progress against the bid */}
       {data.lines && data.lines.length > 0 && (() => {
         const rows = data.lines;
         const estTotal = rows.reduce((a, l) => a + (l.quantity || 0), 0);
@@ -603,7 +619,7 @@ function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
   );
 }
 
-function Stat({ label, value, sub, accent, status, tone }) {
+function Stat({ label, value, sub, accent, status, tone, tip }) {
   const c = tone === "warn" ? "text-warn" : accent ? "text-safety" : "text-concrete";
   return (<div className="rounded-lg border border-line px-3 py-3" style={{ background: "var(--surface)" }}><p className="text-[11px] text-rebar mb-1 leading-tight">{label}</p><p className={`text-base font-semibold ${c}`}>{value}</p>{sub && <p className="text-[11px] text-rebar mt-0.5">{sub}</p>}</div>);
 }
