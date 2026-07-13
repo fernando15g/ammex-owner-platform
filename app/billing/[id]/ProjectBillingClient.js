@@ -92,7 +92,7 @@ export default function ProjectBillingClient({ data }) {
       {/* The money picture */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <Stat tip="Total value of the job, including approved change orders." label="Contract value" value={money(b.revisedContract)} sub={(b.changeOrders || 0) + (b.coLinesValue || 0) > 0 ? `incl. ${money((b.changeOrders || 0) + (b.coLinesValue || 0))} change orders` : b.contractSource === "override" ? "overridden" : "from line items"} />
-        <Stat tip="Sum of all invoices issued on this project." label="Billed to date" value={money(b.billedToDate)} />
+        <Stat tip="Work billed against the contract. Excludes any short-paid amount that rolled forward and was re-billed, so the same work isn't counted twice." label="Billed to date" value={money(b.billedToDate)} sub={b.rolledForward > 0 ? `${money(b.grossBilled)} invoiced · ${money(b.rolledForward)} rolled` : null} />
         <Stat tip="Payments received against those invoices." label="Paid to date" value={money(b.paidToDate)} />
         <Stat tip="Withheld until closeout. Earned, not yet collectable." label="Retention held" value={b.retentionEnabled ? money(b.retention) : "—"} sub={b.retentionEnabled ? null : "off"} />
 
