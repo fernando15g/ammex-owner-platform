@@ -214,3 +214,29 @@ The A/R module the owner said matters most. Grounded in the associate's real pap
 **Interconnection:** all computed live from events at the Project hub on each load — log a payment → outstanding/aging update; update installed pounds → unbilled-in-field updates; add change order → revised contract/remaining update. Migration-safe (connections live in code, not Notion relations).
 
 **Deferred (event model supports adding later):** short-pay reasons, lien waivers, pay-when-paid, billing-deadline reminders, cash forecast, retention release events.
+
+---
+
+## 24. Performance zone — BUILT (realized vs. bid productivity, trust states)
+
+The strategic feedback loop (§ dashboard plan "Realized vs. bid productivity"): what crews ACTUALLY produce vs. what bids price. If crews really place at 100 when bids assume 140, every future bid is underwater — this is the number that eventually tunes the calculator.
+
+**Trust states baked in from day one (owner: "data isn't 100% right now" — a confidently wrong number is worse than no number):**
+- **Trusted** — completed (phase Billing/Complete), hours + tonnage hang together → ONLY these feed the averages and the $ sensitivity.
+- **Needs review** — completed but contradictory (implied lbs/MH outside 40–500 sane band, hours missing, tonnage missing, all timecards voided, or < 8 hrs sample). Shown WITH the discrepancy spelled out (and which side looks wrong — "hours look too low for the tonnage (missing timecards?)"), excluded from every average until fixed. Fix the data → joins the averages automatically.
+- **In progress** — running jobs get a pace PROJECTION (needs ≥10% placed, same gate as burn), labeled as such, never a verdict. Mobilizing labeled "staging — too early to read."
+- Complete jobs with zero hours AND zero pounds = pre-data-era → off the page entirely. Bidding/backlog skipped.
+
+**Engine (`lib/rules/performance.js`) — all in code, migration-safe:**
+- realized lbs/MH = placed lbs ÷ counted hours (rides on hours.js guards: voided/under-review excluded, era detection; payroll-era hours used but labeled).
+- Fleet blended realized = Σ placed ÷ Σ hours over trusted jobs (POUNDS-WEIGHTED, never an average of ratios).
+- "Bids assume" = avg stored bid productivity across the same trusted jobs (fallback 140) — apples-to-apples.
+- Gap → hours and burdened-$ per 100,000 lbs bid (burdened = avg base wage × 1.20, fallback $32).
+- Per-job $ impact = (actual hours − placed÷bid-productivity) × burdened wage. Portfolio total shown.
+- Tunable dials exported in `PERF` (sane band, min hours, min placed %, defaults).
+
+**UI (`/performance`, nav flipped live):** headline strip (crews produce X vs bids assume Y, gap %, what it means per 100k lbs), trusted table (sortable, worst variance first, $ impact per job), amber needs-review list with per-job discrepancy text, in-progress pace list. Row click → ProjectDetailsModal. Verified against a hand-checked 9-job scenario (blend 145.45, gap −3.0%, +20.8 hrs/$800 per 100k, slip $1,783, 806-lbs/MH row flagged).
+
+**Data:** `getPerformance()` in lib/data.js — rides on getEverything(), zero new Notion reads, no new DB fields.
+
+**Visibility:** parked per owner — everyone with the password sees it; gate when a third person joins.
