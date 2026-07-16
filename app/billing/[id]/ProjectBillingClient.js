@@ -463,26 +463,44 @@ function EditEventForm({ event, busy, onCancel, onSave }) {
   );
 }
 
+const CO_UNITS = ["LBS", "SF", "LF", "EA", "LS"];
+
 function ChangeOrderForm({ projectId, relatedBidId, onClose, onSaved }) {
-  const [f, setF] = useState({ itemNo: "CO", description: "", qty: "", unit: "LBS", unitPrice: "" });
+  // basis: "Quantity" (qty x unit price) or "Hours" (hours x rate). Most COs are
+  // by quantity; hourly COs (T&M work) bill by the hour and carry NO weight.
+  const [f, setF] = useState({ basis: "Quantity", itemNo: "CO", description: "", qty: "", unit: "LBS", unitPrice: "", hours: "", rate: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const n = (v) => (v === "" || v == null ? null : Number(v));
-  const amount = (n(f.qty) || 0) * (n(f.unitPrice) || 0);
+  const isHours = f.basis === "Hours";
+  const amount = isHours ? (n(f.hours) || 0) * (n(f.rate) || 0) : (n(f.qty) || 0) * (n(f.unitPrice) || 0);
 
   async function save() {
     if (!f.description) { setErr("Give the change order a description."); return; }
-    if (!n(f.qty) || !n(f.unitPrice)) { setErr("Quantity and unit price are required — they set the CO's value."); return; }
+    if (isHours) {
+      if (!n(f.hours) || !n(f.rate)) { setErr("Hours and rate are required — they set the CO's value."); return; }
+    } else {
+      if (!n(f.qty) || !n(f.unitPrice)) { setErr("Quantity and unit price are required — they set the CO's value."); return; }
+    }
     setBusy(true); setErr(null);
     try {
+      const item = isHours
+        ? {
+            description: f.description, itemNo: f.itemNo || "CO",
+            projectId, bidId: relatedBidId || null,
+            billingBasis: "Hours", hoursWorked: n(f.hours), rate: n(f.rate),
+            unit: "HR", lineType: "CO", status: "Active", qtyToDate: 0,
+          }
+        : {
+            description: f.description, itemNo: f.itemNo || "CO",
+            projectId, bidId: relatedBidId || null,
+            billingBasis: "Quantity",
+            quantity: n(f.qty), unit: f.unit || "LBS", unitPrice: n(f.unitPrice),
+            lineType: "CO", status: "Active", qtyToDate: 0,
+          };
       const res = await fetch("/api/line-items", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ item: {
-          description: f.description, itemNo: f.itemNo || "CO",
-          projectId, bidId: relatedBidId || null,
-          quantity: n(f.qty), unit: f.unit || "LBS", unitPrice: n(f.unitPrice),
-          lineType: "CO", status: "Active", qtyToDate: 0,
-        }}),
+        body: JSON.stringify({ item }),
       });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
       onSaved();
@@ -494,13 +512,42 @@ function ChangeOrderForm({ projectId, relatedBidId, onClose, onSaved }) {
       <p className="text-sm font-medium text-concrete mb-1">Add change order</p>
       <p className="text-xs text-rebar mb-3">A change order is extra contracted work — it&apos;s added as a line item at the bottom of the schedule. The contract value goes up now; it bills when you enter its quantity on an invoice (fully, partially, or on its own invoice).</p>
       {err && <div className="text-sm text-danger mb-3">{err}</div>}
-      <div className="grid sm:grid-cols-5 gap-3">
-        <label className="block"><span className="text-xs text-rebar mb-1 block">Item no.</span><input className="inp" value={f.itemNo} onChange={(e) => setF({ ...f, itemNo: e.target.value })} /></label>
-        <label className="block sm:col-span-2"><span className="text-xs text-rebar mb-1 block">Description</span><input className="inp" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. 93RD/AMKOR HDWALL" /></label>
-        <label className="block"><span className="text-xs text-rebar mb-1 block">Quantity (lbs)</span><input type="text" inputMode="decimal" className="inp" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} /></label>
-        <label className="block"><span className="text-xs text-rebar mb-1 block">Unit price</span><input type="text" inputMode="decimal" className="inp" value={f.unitPrice} onChange={(e) => setF({ ...f, unitPrice: e.target.value })} placeholder="0.30" /></label>
+
+      {/* billing basis toggle */}
+      <div className="flex gap-1 mb-3 p-1 rounded-md border border-line w-fit" style={{ background: "var(--graphite)" }}>
+        {["Quantity", "Hours"].map((b) => (
+          <button key={b} onClick={() => setF({ ...f, basis: b })}
+            className={`text-xs px-3 py-1.5 rounded ${f.basis === b ? "bg-safety text-steel font-medium" : "text-rebar hover:text-concrete"}`}>
+            {b === "Quantity" ? "By quantity" : "By hours (T&M)"}
+          </button>
+        ))}
       </div>
-      <p className="text-xs text-rebar mt-2">Adds <span className="text-concrete tabular-nums">{money(amount)}</span> to the contract value.</p>
+
+      {isHours ? (
+        <div className="grid sm:grid-cols-5 gap-3">
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Item no.</span><input className="inp" value={f.itemNo} onChange={(e) => setF({ ...f, itemNo: e.target.value })} /></label>
+          <label className="block sm:col-span-2"><span className="text-xs text-rebar mb-1 block">Description</span><input className="inp" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. T&M crew — extra dowels" /></label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Hours worked</span><input type="text" inputMode="decimal" className="inp" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} placeholder="40" /></label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Rate ($/hr)</span><input type="text" inputMode="decimal" className="inp" value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} placeholder="95" /></label>
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-6 gap-3">
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Item no.</span><input className="inp" value={f.itemNo} onChange={(e) => setF({ ...f, itemNo: e.target.value })} /></label>
+          <label className="block sm:col-span-2"><span className="text-xs text-rebar mb-1 block">Description</span><input className="inp" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="e.g. 93RD/AMKOR HDWALL" /></label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Quantity</span><input type="text" inputMode="decimal" className="inp" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} /></label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Unit</span>
+            <select className="inp" value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}>
+              {CO_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Unit price</span><input type="text" inputMode="decimal" className="inp" value={f.unitPrice} onChange={(e) => setF({ ...f, unitPrice: e.target.value })} placeholder="0.30" /></label>
+        </div>
+      )}
+
+      <p className="text-xs text-rebar mt-2">
+        Adds <span className="text-concrete tabular-nums">{money(amount)}</span> to the contract value.
+        {isHours && <span className="text-rebar"> · billed by the hour — carries no weight toward productivity.</span>}
+      </p>
       <div className="flex gap-2 mt-4">
         <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Add change order"}</button>
         <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>

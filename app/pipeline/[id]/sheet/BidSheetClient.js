@@ -15,6 +15,7 @@ import { useState, useRef } from "react";
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
 const FURN_OPTIONS = ["", "Furnish", "Install", "Furnish+Install"];
+const UNIT_OPTIONS = ["LBS", "SF", "LF", "EA", "LS"];
 // column order for keyboard nav + Excel paste (matches her template order)
 const COLS = ["itemNo", "description", "quantity", "unit", "unitPrice", "furnInst"];
 
@@ -208,7 +209,11 @@ export default function BidSheetClient({ data, linkedProject = null }) {
                 <td className="px-1.5 py-1"><input data-r={i} data-c={0} onKeyDown={(e) => onKeyDown(e, i, 0)} onPaste={(e) => onPaste(e, i, 0)} className="cell" value={r.itemNo} onChange={(e) => setCell(i, "itemNo", e.target.value)} placeholder="28410" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={1} onKeyDown={(e) => onKeyDown(e, i, 1)} onPaste={(e) => onPaste(e, i, 1)} className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Bridge Deck" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={2} onKeyDown={(e) => onKeyDown(e, i, 2)} onPaste={(e) => onPaste(e, i, 2)} type="text" inputMode="decimal" className="cell text-right" value={r.quantity} onChange={(e) => setCell(i, "quantity", e.target.value)} placeholder="0" /></td>
-                <td className="px-1.5 py-1"><input data-r={i} data-c={3} onKeyDown={(e) => onKeyDown(e, i, 3)} onPaste={(e) => onPaste(e, i, 3)} className="cell" value={r.unit} onChange={(e) => setCell(i, "unit", e.target.value)} /></td>
+                <td className="px-1.5 py-1">
+                  <select data-r={i} data-c={3} onKeyDown={(e) => onKeyDown(e, i, 3)} className="cell" value={UNIT_OPTIONS.includes((r.unit || "").toUpperCase()) ? (r.unit || "").toUpperCase() : "LBS"} onChange={(e) => setCell(i, "unit", e.target.value)}>
+                    {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={4} onKeyDown={(e) => onKeyDown(e, i, 4)} onPaste={(e) => onPaste(e, i, 4)} type="text" inputMode="decimal" className="cell text-right" value={r.unitPrice} onChange={(e) => setCell(i, "unitPrice", e.target.value)} placeholder="0.30" /></td>
                 <td className="px-3 py-1 text-right tabular-nums text-concrete/80">{money(ext(r))}</td>
                 <td className="px-1.5 py-1">

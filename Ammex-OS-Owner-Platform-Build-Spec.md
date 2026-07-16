@@ -240,3 +240,27 @@ The strategic feedback loop (§ dashboard plan "Realized vs. bid productivity"):
 **Data:** `getPerformance()` in lib/data.js — rides on getEverything(), zero new Notion reads, no new DB fields.
 
 **Visibility:** parked per owner — everyone with the password sees it; gate when a third person joins.
+
+---
+
+## 25. Line-item units + hourly change orders — BUILT (weight foundation)
+
+Structured line items so billed weight is trustworthy and hourly COs are handled. Prep for billed-weight → productivity.
+
+**Notion (Line Items DB) — added by owner:**
+- **Unit** → Select (LBS, SF, LF, EA, LS). Was rich_text. Repo now reads via getSelect (text fallback for legacy) and writes as select.
+- **Billing Basis** → Select (Quantity, Hours). Blank == Quantity (normal weight/price path).
+- **Hours Worked** (number), **Rate** (number) — hourly-CO inputs.
+- Line Type unchanged (Standard/CO/PA/SE/PC); codes still typed in Item No per owner's workflow.
+
+**Engine (lib/rules/lineItems.js):**
+- `extended()` / `billedToDate()` now honor Hours basis (hoursWorked × rate) vs Quantity (qty × price).
+- `isWeightLine()` = LBS unit AND not hours-basis. `lineWeightLbs` / `lineWeightToDateLbs` / `estimatedWeight` / `billedWeightToDate` — pounds come ONLY from LBS quantity lines. SF/LF/EA/LS/HR contribute zero weight. This is the byproduct-of-billing installed-pounds number (feeds productivity later).
+
+**UI:**
+- **Change Order form** (ProjectBillingClient): "By quantity / By hours (T&M)" toggle. Hours path shows Hours Worked + Rate, writes billingBasis=Hours, unit=HR, counts toward contract $ but never weight. Quantity path adds a Unit dropdown.
+- **Bid sheet** (BidSheetClient): Unit cell is now a dropdown (LBS/SF/LF/EA/LS), keyboard-nav preserved.
+
+**Verified:** full production build passes; line-item math unit-tested (hours×rate, blank=Quantity, LBS-only weight — SF/HR/LS excluded).
+
+**Parked:** codes-drive-math (SE credit? PA/PC weight?) — deferred, owner said fine for now. Unit dropdown not yet added to the weight-sheet paste grid (pasted rows still default LBS; matched item-numbers inherit the bid line's unit).
