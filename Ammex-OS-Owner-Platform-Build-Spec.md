@@ -327,3 +327,21 @@ Productivity's weight source now flips AUTOMATICALLY per job — no switch, no n
 **Column tooltips (ⓘ) on both Performance tables** — hoverable, click doesn't sort. Completed: Placed, Hours, Realized, Bid, Variance, $ impact. In-progress: Placed, Hours, Pace, Bid, Forecast. Forecast explained: "Projected total hours at the current pace vs. the hours the bid budgeted. Over 100% = trending over the hour budget." SortHeader gained an optional `info` prop (shared component — available to Bids/Active Work/Billing too).
 
 **Verified:** build passes; sensitivity math exact (pace 170 vs bid 200 → profit 20k→16.6k, margin 20%→16.6%, −3.4 pts) and the too-early gate nulls sensitivity at 5% placed.
+
+---
+
+## 30. Payroll hours override (historical jobs) — BUILT
+
+Transition-overlap fix: an old job whose real hours live in the manual Labor Hours To-Date field can get flipped to an UNDERCOUNTED timesheet total by a few stray timecards. Owner can now override per job — "trust the payroll number here" — and edit that number from the OS.
+
+**Notion:** new `Manual Hours Override` (checkbox) on Projects. Read in mapProject; written via updateProject (repo maps it; PROJECT_EDITABLE + validateProjectEdit allow `manualHoursOverride` and `payrollHours`).
+
+**Engine (hours.js):** actualHoursForProject(entry, payrollHours, manualOverride). Override honored ONLY when a payroll number > 0 exists (else ignored — a stray checkbox can't blank a job's hours). Returns era "payroll" + overridden:true, and always exposes timesheetHours + payrollHours so the UI can offer/compare. Everything downstream (productivity, burn, sensitivity) recomputes off the chosen hours automatically.
+
+**Popup Hours box — self-hiding control (label "payroll", not "manual"):**
+- Timesheet-era job with a DIFFERING payroll number → "timesheet — payroll shows N · Use" (one tap sets the override).
+- On payroll → "payroll · Edit" (writes corrected hours to Labor Hours To-Date + keeps override on).
+- No payroll number, or the two match → nothing renders. Once the payroll era ends the control retires itself entirely.
+- One number shown at a time; the alternative offered only when they conflict.
+
+**Verified:** build passes; 4-case hours test exact (timesheet keeps 40 while exposing payroll 400; override→400; override ignored when no payroll; no-timecards→payroll).

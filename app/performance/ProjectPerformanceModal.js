@@ -16,7 +16,7 @@
 //   action     — "Go to project" (not "Edit project" — admin lives elsewhere)
 // =============================================================================
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const money = (n) =>
   typeof n !== "number" || isNaN(n) ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n)).toLocaleString()}`;
@@ -99,6 +99,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Hours</p>
               <p className="text-xl font-semibold text-concrete tabular-nums">{pct(b.hoursPct)}</p>
               <p className="text-xs text-rebar mt-0.5">{num(b.actualHours)} of {num(b.projectedHours)} hrs</p>
+              <HoursSource r={r} onSaved={onClose} />
             </div>
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Placed</p>
@@ -210,6 +211,67 @@ function SensCard({ label, now, was, delta, good }) {
         {was} · <span className={good ? "text-ok" : "text-danger"}>{delta}</span>
       </p>
     </div>
+  );
+}
+
+// Hours source control — appears ONLY when there's a payroll number to offer.
+// Timesheet-era job with a differing payroll figure → "payroll shows N · Use".
+// On payroll → "Payroll · Edit". No payroll number anywhere → nothing renders,
+// and once the payroll era ends the control retires itself.
+function HoursSource({ r, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(r.payrollHours != null ? String(r.payrollHours) : "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const ts = r.timesheetHours;
+  const pay = r.payrollHours;
+  const onPayroll = r.hoursOverridden;
+  const hasPayroll = typeof pay === "number" && pay > 0;
+  const differ = typeof ts === "number" && hasPayroll && Math.round(ts) !== Math.round(pay);
+
+  // nothing to offer → render nothing (self-retiring)
+  if (!onPayroll && !differ) return null;
+
+  async function save(changes) {
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/projects/${r.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      onSaved(); // close → the page revalidates with the new hours
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
+  if (editing) {
+    return (
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <input value={val} onChange={(e) => setVal(e.target.value)} inputMode="decimal"
+          className="w-20 text-xs px-1.5 py-1 rounded border border-line bg-transparent text-concrete" placeholder="hrs" />
+        <button disabled={busy} onClick={() => save({ payrollHours: Number(val) || 0, manualHoursOverride: true })}
+          className="text-[11px] px-2 py-1 rounded bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
+        <button onClick={() => setEditing(false)} className="text-[11px] text-rebar hover:text-concrete">Cancel</button>
+        {err && <span className="text-[11px] text-danger">{err}</span>}
+      </div>
+    );
+  }
+
+  if (onPayroll) {
+    return (
+      <p className="text-[11px] text-rebar mt-1.5">
+        <span className="text-safety uppercase tracking-wide">payroll</span> · <button onClick={() => setEditing(true)} className="underline hover:text-concrete">Edit</button>
+      </p>
+    );
+  }
+
+  // timesheet-era but a differing payroll number exists → offer it
+  return (
+    <p className="text-[11px] text-rebar mt-1.5">
+      timesheet — payroll shows {num(pay)} · <button disabled={busy} onClick={() => save({ manualHoursOverride: true })} className="underline hover:text-concrete disabled:opacity-40">Use</button>
+      {err && <span className="text-danger"> {err}</span>}
+    </p>
   );
 }
 
