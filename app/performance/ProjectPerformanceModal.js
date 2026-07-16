@@ -75,7 +75,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
 
   // job runway: steel left ÷ current pace = man-hours still needed
   const runwayMH =
-    typeof r.remainingLbs === "number" && r.remainingLbs > 0 && typeof r.realized === "number" && r.realized > 0
+    r.readablePace && typeof r.remainingLbs === "number" && r.remainingLbs > 0 && typeof r.realized === "number" && r.realized > 0
       ? r.remainingLbs / r.realized
       : null;
 
@@ -107,14 +107,23 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             </div>
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Productivity</p>
-              <p className="text-xl font-semibold tabular-nums">
-                <span className="text-rebar text-sm">{rate(r.bidProductivity)} → </span>
-                <span className={slow ? "text-danger" : fast ? "text-ok" : "text-concrete"}>{rate(r.realized)}</span>
-              </p>
-              <p className="text-xs text-rebar mt-0.5">
-                bid → actual lbs/MH
-                {r.matched && <> · matched thru {dateStr(r.matched.throughDate)}</>}
-              </p>
+              {r.readablePace ? (
+                <>
+                  <p className="text-xl font-semibold tabular-nums">
+                    <span className="text-rebar text-sm">{rate(r.bidProductivity)} → </span>
+                    <span className={slow ? "text-danger" : fast ? "text-ok" : "text-concrete"}>{rate(r.realized)}</span>
+                  </p>
+                  <p className="text-xs text-rebar mt-0.5">
+                    bid → actual lbs/MH
+                    {r.matched && <> · matched thru {dateStr(r.matched.throughDate)}</>}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xl font-semibold text-rebar">—</p>
+                  <p className="text-xs text-rebar mt-0.5">too early to read</p>
+                </>
+              )}
             </div>
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Runway</p>
@@ -137,20 +146,29 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             </div>
           </div>
 
-          {/* the $ line — what the gap is worth */}
-          {dollar && Math.abs(dollar.amount) >= 250 && (
-            <div className={`rounded-md border px-4 py-3 text-sm ${dollar.amount > 0 ? "border-danger/40 bg-danger/10" : "border-ok/40 bg-ok/10"}`}>
-              <span className="text-concrete">
-                {dollar.kind === "projected" ? "At current pace, this job is tracking to cost " : "Productivity variance on this job "}
-                <span className={`font-semibold ${dollar.amount > 0 ? "text-danger" : "text-ok"}`}>
-                  {dollar.amount > 0 ? `${money(Math.abs(dollar.amount))} more` : `${money(Math.abs(dollar.amount))} less`}
-                </span>{" "}
-                in burdened labor than the bid priced
-                {marginShift && (
-                  <> — margin {pct(marginShift.from)} → <span className={dollar.amount > 0 ? "text-danger font-medium" : "text-ok font-medium"}>{pct(marginShift.to)}</span></>
-                )}
-                {dollar.kind === "projected" ? ". Projection, not a verdict." : "."}
-              </span>
+          {/* profit + margin sensitivity — two cards, bid → at this pace */}
+          {r.sensitivity && (
+            <div>
+              <p className="text-xs text-rebar mb-2">
+                At {r.state === "in-progress" ? "today\u2019s pace" : "the realized pace"} — <span className="text-concrete">{rate(r.sensitivity.pace)} lbs/MH</span> <span className="text-rebar">(bid {rate(r.sensitivity.bidProductivity)})</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <SensCard
+                  label="Operating profit"
+                  now={money(r.sensitivity.projProfit)}
+                  was={`was ${money(r.sensitivity.bidProfit)}`}
+                  delta={`${r.sensitivity.profitDelta >= 0 ? "▲" : "▼"} ${money(Math.abs(r.sensitivity.profitDelta))}`}
+                  good={r.sensitivity.profitDelta >= 0}
+                />
+                <SensCard
+                  label="Operating margin"
+                  now={pct(r.sensitivity.projMargin)}
+                  was={`was ${pct(r.sensitivity.bidMargin)}`}
+                  delta={`${r.sensitivity.marginDeltaPts >= 0 ? "▲" : "▼"} ${Math.abs(r.sensitivity.marginDeltaPts).toFixed(1)} pts`}
+                  good={r.sensitivity.marginDeltaPts >= 0}
+                />
+              </div>
+              {r.state === "in-progress" && <p className="text-[11px] text-rebar mt-1.5">Projection if this pace holds — not a verdict.</p>}
             </div>
           )}
 
@@ -179,6 +197,18 @@ export default function ProjectPerformanceModal({ row, onClose }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SensCard({ label, now, was, delta, good }) {
+  return (
+    <div className="rounded-md border border-line p-3" style={{ background: "var(--surface)" }}>
+      <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">{label}</p>
+      <p className="text-2xl font-semibold text-concrete tabular-nums leading-tight">{now}</p>
+      <p className="text-xs text-rebar mt-1">
+        {was} · <span className={good ? "text-ok" : "text-danger"}>{delta}</span>
+      </p>
     </div>
   );
 }

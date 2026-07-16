@@ -100,12 +100,12 @@ export default function PerformanceClient({ data }) {
             <thead>
               <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
                 <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
-                <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" />
-                <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" />
-                <SortHeader label="Realized" sortKey="realized" sort={sort} toggle={toggle} align="right" />
-                <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" />
-                <SortHeader label="Variance" sortKey="variancePct" sort={sort} toggle={toggle} align="right" />
-                <SortHeader label="$ impact" sortKey="costSlip" sort={sort} toggle={toggle} align="right" className="px-4 hidden md:table-cell" />
+                <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" info="Pounds of rebar installed on this job." />
+                <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" info="Counted labor hours (voided and under-review timecards excluded)." />
+                <SortHeader label="Realized" sortKey="realized" sort={sort} toggle={toggle} align="right" info="Actual lbs placed per man-hour — placed pounds ÷ counted hours." />
+                <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
+                <SortHeader label="Variance" sortKey="variancePct" sort={sort} toggle={toggle} align="right" info="Realized productivity vs. what the bid assumed. Positive = beating the bid." />
+                <SortHeader label="$ impact" sortKey="costSlip" sort={sort} toggle={toggle} align="right" className="px-4 hidden md:table-cell" info="Burdened labor cost of that variance vs. the bid. Red = cost more than bid." />
               </tr>
             </thead>
             <tbody>
@@ -234,11 +234,11 @@ function InProgressTable({ rows, onOpen }) {
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
               <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
-              <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" />
-              <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" />
-              <SortHeader label="Pace" sortKey="paceLbsPerMH" sort={sort} toggle={toggle} align="right" />
-              <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" />
-              <SortHeader label="Forecast" sortKey="_forecast" sort={sort} toggle={toggle} align="right" className="px-4" />
+              <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" info="Pounds of rebar installed on this job." />
+              <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" info="Counted labor hours (voided and under-review timecards excluded)." />
+              <SortHeader label="Pace" sortKey="paceLbsPerMH" sort={sort} toggle={toggle} align="right" info="Current lbs/MH. \u2018Billed\u2019 = billed weight through the last invoice date; \u2018placed\u2019 = manual placed-to-date." />
+              <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
+              <SortHeader label="Forecast" sortKey="_forecast" sort={sort} toggle={toggle} align="right" className="px-4" info="Projected total hours at the current pace vs. the hours the bid budgeted. Over 100% = trending to finish over the hour budget." />
             </tr>
           </thead>
           <tbody>

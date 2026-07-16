@@ -59,8 +59,9 @@ function valueOf(row, key) {
   return key.split(".").reduce((o, k) => (o == null ? o : o[k]), row);
 }
 
-// A clickable <th>. `align="right"` for numeric columns.
-export function SortHeader({ label, sortKey, sort, toggle, align = "left", className = "" }) {
+// A clickable <th>. `align="right"` for numeric columns. `info` adds a hoverable
+// ⓘ that explains the column (clicking it doesn't trigger the sort).
+export function SortHeader({ label, sortKey, sort, toggle, align = "left", className = "", info = null }) {
   const active = sort.key === sortKey;
   const arrow = !active ? "" : sort.dir === "asc" ? "↑" : "↓";
   return (
@@ -72,6 +73,15 @@ export function SortHeader({ label, sortKey, sort, toggle, align = "left", class
       title={`Sort by ${label}`}
     >
       {label}
+      {info && (
+        <span
+          onClick={(e) => e.stopPropagation()}
+          title={info}
+          className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-rebar/50 text-rebar text-[9px] leading-none cursor-help align-middle hover:border-concrete hover:text-concrete"
+        >
+          i
+        </span>
+      )}
       <span className={`ml-1 ${active ? "text-safety" : "opacity-0"}`}>{arrow || "↑"}</span>
     </th>
   );

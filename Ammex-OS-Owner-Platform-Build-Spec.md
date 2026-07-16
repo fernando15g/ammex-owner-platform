@@ -315,3 +315,15 @@ Productivity's weight source now flips AUTOMATICALLY per job — no switch, no n
 **Popup cleanup:** four boxes (Hours · Placed · Productivity · Runway — remaining lbs ≈ MH at pace); trust shown ONLY when flagged (needs-review reason / billing-lag warning); weight source + matched thru-date + foreman collapsed to one quiet line; empty rows never shown.
 
 **Verified:** build passes; math test exact (matched 222 thru 6/1 at 40% billed with post-invoice hours excluded; verdict source stays placed until 98%; no-billing job falls back to placed pace).
+
+---
+
+## 29. Profit/margin sensitivity + column tooltips — BUILT
+
+**Popup profit/margin sensitivity (two cards):** recomputes operating profit + margin if the current pace holds. Labor cost swings by hours-at-pace (awarded ÷ realized) vs hours-at-bid (awarded ÷ bid productivity) × burdened wage; profit and margin move with it. Shown as two cards matching the stat-box language: big projected number leads, "was X · ▼ Δ" beneath in red (losing) / green (gaining), pace line above. Running jobs labeled "Projection if this pace holds — not a verdict." Replaces the old plain $ line. Gated by readablePace (>10% placed) so the early-job 446-artifact never drives a money number.
+
+**Too-early gate on the popup:** Productivity and Runway boxes show "too early to read" below 10% placed instead of an inflated figure (matches the table's pace gate). Bug fixed: readablePace keyed off `running` (phase), not `base.state` which isn't set at that point.
+
+**Column tooltips (ⓘ) on both Performance tables** — hoverable, click doesn't sort. Completed: Placed, Hours, Realized, Bid, Variance, $ impact. In-progress: Placed, Hours, Pace, Bid, Forecast. Forecast explained: "Projected total hours at the current pace vs. the hours the bid budgeted. Over 100% = trending over the hour budget." SortHeader gained an optional `info` prop (shared component — available to Bids/Active Work/Billing too).
+
+**Verified:** build passes; sensitivity math exact (pace 170 vs bid 200 → profit 20k→16.6k, margin 20%→16.6%, −3.4 pts) and the too-early gate nulls sensitivity at 5% placed.
