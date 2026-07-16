@@ -264,3 +264,23 @@ Structured line items so billed weight is trustworthy and hourly COs are handled
 **Verified:** full production build passes; line-item math unit-tested (hours×rate, blank=Quantity, LBS-only weight — SF/HR/LS excluded).
 
 **Parked:** codes-drive-math (SE credit? PA/PC weight?) — deferred, owner said fine for now. Unit dropdown not yet added to the weight-sheet paste grid (pasted rows still default LBS; matched item-numbers inherit the bid line's unit).
+
+---
+
+## 26. Billed weight → productivity (Part A: engine) — BUILT
+
+Productivity's weight source now flips AUTOMATICALLY per job — no switch, no new Notion fields.
+
+**The rule:** billed ≥98% of revised contract (PERF.FULLY_BILLED_PCT) AND billed LBS > 0 → weight source = billed LBS-line weight (Σ qtyToDate on LBS quantity lines; hourly COs and SF/LF/EA/LS carry zero weight). Below 98% → placed-to-date, exactly as before. Projects with no billing context are untouched.
+
+**Matched productivity (the trusted live number):** on billed-source jobs with timesheet-era hours, realized = billed lbs ÷ hours THROUGH the last invoice date (top and bottom of the fraction cover the same window — Fern's cutoff choice). "All hrs" variant (÷ every hour logged) shown quieter; >10% gap sets billingLags ("hours running ahead of billed weight" — billing behind the field). Payroll-era hours carry no dates → no matched; realized = billed ÷ all hours.
+
+**Engine:** performance.js — weightSourceForProject(), hoursThroughDate(), classifyJob(p, ctx), computePerformance(projects, billingByProject). getPerformance() in data.js builds the per-project billing context (events + projectLineItems + computeBilling). Zero behavior change for jobs without billing.
+
+**UI (light touch — Part B does the full popup):** Realized cell shows matched bold, "all hrs" quieter, source tag (billed/placed); in-progress rows note billed weight + billing-lag; footnote explains the flip and the matching.
+
+**Verified:** production build passes; 4-scenario math test exact (auto-flip at 98/100%, matched 250 vs all-hrs 200 with post-invoice hours excluded, HR-line weight exclusion, payroll fallback, half-billed stays placed).
+
+**98% threshold shared:** same "fully billed" definition will drive the auto-close prompt later — one definition of done.
+
+**Part B (next):** Project Performance popup (status indicator on target/watch/below target/missing, three signals, $ sensitivity line, trust state, billing pace, job runway, foreman, "Go to project"), fleet preview labeling, + queued billing UI fixes (Contract & retention header, contract value prominence, sq-ft calc → 2 inputs).

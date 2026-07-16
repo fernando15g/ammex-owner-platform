@@ -123,7 +123,13 @@ export default function PerformanceClient({ data }) {
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">{lbs(r.placedLbs)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{num(r.hours)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums font-semibold text-concrete">{rate(r.realized)}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">
+                      <div className="font-semibold text-concrete">{rate(r.realized)}</div>
+                      {r.matched && r.allHoursRealized != null && Math.round(r.allHoursRealized) !== Math.round(r.realized) && (
+                        <div className="text-[11px] text-rebar">{rate(r.allHoursRealized)} · all hrs</div>
+                      )}
+                      <div className={`text-[10px] uppercase tracking-wide ${r.weightSource === "billed" ? "text-safety" : "text-rebar/70"}`}>{r.weightSource}</div>
+                    </td>
                     <td className="px-3 py-3 text-right tabular-nums hidden sm:table-cell">{rate(r.bidProductivity)}</td>
                     <td className="px-3 py-3 text-right tabular-nums">
                       {typeof r.variancePct === "number" ? (
@@ -204,6 +210,8 @@ export default function PerformanceClient({ data }) {
                   <span className="text-xs text-rebar">
                     {r.projectId || "no ID"}
                     {r.isMobilizing ? " · mobilizing" : ""}
+                    {r.weightSource === "billed" ? " · billed weight" : ""}
+                    {r.billingLags ? " · hours running ahead of billed weight" : ""}
                   </span>
                   <span className="ml-auto text-xs tabular-nums">
                     {r.projectable ? (
@@ -230,7 +238,10 @@ export default function PerformanceClient({ data }) {
       <p className="text-xs text-rebar">
         Averages stand on trusted completed jobs only. A job lands in review when its hours and tonnage contradict each other
         (implied rate outside 40–500 lbs/MH, missing hours, or missing pounds) — fix the timesheet or the placed
-        pounds and it joins the averages automatically.
+        pounds and it joins the averages automatically. Weight source flips from <span className="text-concrete">placed</span> (manual
+        placed-to-date) to <span className="text-concrete">billed</span> (LBS billed on invoices) automatically once a job is ≥98% billed.
+        On billed jobs the headline rate is <span className="text-concrete">matched</span> — billed weight ÷ hours through the last
+        invoice date — so both sides of the fraction cover the same window; the quieter “all hrs” figure divides by every hour logged.
       </p>
 
       {detailsFor && <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />}
