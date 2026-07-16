@@ -147,8 +147,11 @@ export default function ProjectBillingClient({ data }) {
       {/* Contract + installed pounds settings */}
       <div className="rounded-lg border border-line mb-6" style={{ background: "var(--surface)" }}>
         <button onClick={() => setSettingsOpen((s) => !s)} className="w-full flex items-center justify-between px-4 py-3 text-sm">
-          <span className="text-concrete font-medium">Contract & retention settings</span>
-          <span className="text-rebar text-xs">contract {money(b.revisedContract)} · {settingsOpen ? "hide" : "edit"}</span>
+          <span className="text-concrete font-medium">Contract & retention</span>
+          <span className="flex items-baseline gap-2">
+            <span className="text-concrete font-semibold text-base tabular-nums">{money(b.revisedContract)}</span>
+            <span className="text-rebar text-xs">{settingsOpen ? "hide ▴" : "edit ▾"}</span>
+          </span>
         </button>
         {settingsOpen && <SettingsPanel data={data} setBusy={setBusy} setErr={setErr} onSaved={refresh} busy={busy} />}
       </div>

@@ -16,7 +16,7 @@
 
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
-import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
+import ProjectPerformanceModal from "./ProjectPerformanceModal";
 
 // ---- formatters (house style) ----
 const money = (n) =>
@@ -30,7 +30,7 @@ const rate = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
 export default function PerformanceClient({ data }) {
   const { trusted, needsReview, inProgress, fleet } = data;
   const { sorted, sort, toggle } = useSort(trusted, "variancePct", "asc", "performance");
-  const [detailsFor, setDetailsFor] = useState(null);
+  const [perfRow, setPerfRow] = useState(null);
 
   const gap = fleet.gap;
   const crewsSlower = gap && gap.pct < 0;
@@ -113,7 +113,7 @@ export default function PerformanceClient({ data }) {
                 const slow = typeof r.variancePct === "number" && r.variancePct < -0.05;
                 const fast = typeof r.variancePct === "number" && r.variancePct > 0.05;
                 return (
-                  <tr key={r.id} onClick={() => setDetailsFor(r.id)} className="border-t border-line cursor-pointer hover:bg-graphite/60 transition-colors">
+                  <tr key={r.id} onClick={() => setPerfRow(r)} className="border-t border-line cursor-pointer hover:bg-graphite/60 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
                       <div className="text-xs text-rebar mt-0.5">
@@ -174,7 +174,7 @@ export default function PerformanceClient({ data }) {
           <div className="rounded-lg border border-warn/40 divide-y divide-line overflow-hidden" style={{ background: "var(--surface)" }}>
             {needsReview.map((r) => (
               <div key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-graphite/40">
-                <button onClick={() => setDetailsFor(r.id)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
+                <button onClick={() => setPerfRow(r)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
                   {r.name || "—"}
                 </button>
                 <span className="text-xs text-rebar">{r.projectId || "no ID"}</span>
@@ -204,7 +204,7 @@ export default function PerformanceClient({ data }) {
                 r.projectable && typeof r.variancePct === "number" && r.variancePct < -0.05;
               return (
                 <div key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-graphite/40">
-                  <button onClick={() => setDetailsFor(r.id)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
+                  <button onClick={() => setPerfRow(r)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
                     {r.name || "—"}
                   </button>
                   <span className="text-xs text-rebar">
@@ -244,7 +244,7 @@ export default function PerformanceClient({ data }) {
         invoice date — so both sides of the fraction cover the same window; the quieter “all hrs” figure divides by every hour logged.
       </p>
 
-      {detailsFor && <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />}
+      {perfRow && <ProjectPerformanceModal row={perfRow} onClose={() => setPerfRow(null)} />}
     </div>
   );
 }

@@ -284,3 +284,20 @@ Productivity's weight source now flips AUTOMATICALLY per job — no switch, no n
 **98% threshold shared:** same "fully billed" definition will drive the auto-close prompt later — one definition of done.
 
 **Part B (next):** Project Performance popup (status indicator on target/watch/below target/missing, three signals, $ sensitivity line, trust state, billing pace, job runway, foreman, "Go to project"), fleet preview labeling, + queued billing UI fixes (Contract & retention header, contract value prominence, sq-ft calc → 2 inputs).
+
+---
+
+## 27. Project Performance popup + billing UI fixes (Part B) — BUILT
+
+**Project Performance modal** (app/performance/ProjectPerformanceModal.js): clicking a row on /performance now opens PERFORMANCE, not project details (admin lives in Active Work / project page — button says "Go to project", not "Edit"). Reads straight off the row (no fetch, can't disagree with the table). Contents:
+- Header indicator (prior-chat view's states): on target / watch / below target / missing weight-hours (+ mobilizing). Derived from burn severity; needs-review forces missing.
+- The three signals side by side (only honest together): Hours % (actual/projected) · Placed % (lbs) · Productivity (bid → actual, matched-aware).
+- The $ line: done jobs = settled costSlip; running jobs = PROJECTION (full-job hours at current pace vs bid hours, burdened) labeled "Projection, not a verdict." Margin shift shown when the bid carries economics (margin from → to).
+- Context strip: Trust state (with reasons) · Weight source + % billed · Billing pace (lags flag) · Runway (remaining lbs ≈ man-hours at current pace) · Foreman.
+- Rows enriched in performance.js: burn (computeBurn), indicator, contractValue/operatingProfit/operatingMargin/projectedHours, remainingLbs. Hours-composition deliberately excluded (owner's call).
+
+**Billing UI fixes:**
+- "Contract & retention settings" → "Contract & retention"; contract value on that line now prominent (base size, semibold) with the chevron-style hide/edit kept.
+- Sq-ft calculator: Total sq ft auto-fills from the SF line's quantity; $/sqft auto-fills from the SF line's price, else DERIVED = contract ÷ total sqft. Owner typically types only Lbs completed.
+
+**Verified:** build passes; indicator/burn/runway/projected-$ math test exact (below-target at forecast 1.25, projected +$4,800 on the hand-checked hot job).

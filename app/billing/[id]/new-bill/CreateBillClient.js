@@ -72,9 +72,22 @@ export default function CreateBillClient({ data }) {
           .reduce((sum, l) => sum + (l.quantity || 0), 0);
         if (totalLbs > 0) next.lbsTotal = String(totalLbs);
       }
+      if (!a.totalSqft) {
+        // the SF line's quantity IS the job's square-foot total (ADOT's number)
+        const sf = data.lines.find((l) => (l.unit || "").toUpperCase() === "SF");
+        if (sf?.quantity) next.totalSqft = String(sf.quantity);
+      }
       if (!a.ratePerSqft) {
+        // rate comes from the SF line when it exists; otherwise DERIVE it —
+        // you bid the job in dollars, so $/sqft = contract ÷ total sqft. The
+        // owner should never have to hand-type a rate the system can compute.
         const sf = data.lines.find((l) => (l.unit || "").toUpperCase() === "SF");
         if (sf?.unitPrice) next.ratePerSqft = String(sf.unitPrice);
+        else {
+          const contract = data.lines.reduce((sum, l) => sum + (l.quantity || 0) * (l.unitPrice || 0), 0);
+          const sqft = Number(next.totalSqft || a.totalSqft);
+          if (contract > 0 && sqft > 0) next.ratePerSqft = String(Math.round((contract / sqft) * 100) / 100);
+        }
       }
       return next;
     });
