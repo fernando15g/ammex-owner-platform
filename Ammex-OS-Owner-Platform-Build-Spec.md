@@ -301,3 +301,17 @@ Productivity's weight source now flips AUTOMATICALLY per job — no switch, no n
 - Sq-ft calculator: Total sq ft auto-fills from the SF line's quantity; $/sqft auto-fills from the SF line's price, else DERIVED = contract ÷ total sqft. Owner typically types only Lbs completed.
 
 **Verified:** build passes; indicator/burn/runway/projected-$ math test exact (below-target at forecast 1.25, projected +$4,800 on the hand-checked hot job).
+
+---
+
+## 28. Matched pace at all times + in-progress table + popup cleanup — BUILT
+
+**Correction (owner caught it):** matched productivity was wrongly gated behind the 98% flip. Matched is honest at ANY billing level — billed lbs thru the last invoice ÷ hours thru that date is true "as of" that date at 30% billed or 100%. Now: matched computes and displays whenever billed LBS + an invoice date + dated (timesheet-era) hours exist. The 98% threshold governs ONLY (a) which weight source feeds a job's VERDICT realized + the fleet averages and (b) the future auto-close signal. Placed-to-date dies job-by-job as each finishes billing.
+
+**Running jobs — pace is billing-driven:** paceLbsPerMH = matched whenever billing exists (paceSource "billed", shown with its thru-date); placed-based pace survives only on jobs with zero billing (paceSource "placed"). Variance/$ on running rows now computed off the pace number.
+
+**In-progress section → real table** (matches trusted format): Project · Placed (lbs + % of awarded) · Hours (+ % of budget) · Pace (bold, thru-date, source tag) · Bid · Forecast (projected finish % of hour budget, colored ok/warn/danger, sorted worst-first). Mobilizing sinks to bottom; "too early/staging" rows stay in the table greyed. Row click → Project Performance popup.
+
+**Popup cleanup:** four boxes (Hours · Placed · Productivity · Runway — remaining lbs ≈ MH at pace); trust shown ONLY when flagged (needs-review reason / billing-lag warning); weight source + matched thru-date + foreman collapsed to one quiet line; empty rows never shown.
+
+**Verified:** build passes; math test exact (matched 222 thru 6/1 at 40% billed with post-invoice hours excluded; verdict source stays placed until 98%; no-billing job falls back to placed pace).

@@ -191,49 +191,8 @@ export default function PerformanceClient({ data }) {
         </div>
       )}
 
-      {/* ================= IN PROGRESS — projections, never verdicts ================= */}
-      {inProgress.length > 0 && (
-        <div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <h2 className="text-sm font-medium text-concrete">In progress</h2>
-            <span className="text-xs text-rebar">pace so far — a projection, not a verdict</span>
-          </div>
-          <div className="rounded-lg border border-line divide-y divide-line overflow-hidden" style={{ background: "var(--surface)" }}>
-            {inProgress.map((r) => {
-              const slow =
-                r.projectable && typeof r.variancePct === "number" && r.variancePct < -0.05;
-              return (
-                <div key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-graphite/40">
-                  <button onClick={() => setPerfRow(r)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
-                    {r.name || "—"}
-                  </button>
-                  <span className="text-xs text-rebar">
-                    {r.projectId || "no ID"}
-                    {r.isMobilizing ? " · mobilizing" : ""}
-                    {r.weightSource === "billed" ? " · billed weight" : ""}
-                    {r.billingLags ? " · hours running ahead of billed weight" : ""}
-                  </span>
-                  <span className="ml-auto text-xs tabular-nums">
-                    {r.projectable ? (
-                      <>
-                        <span className="text-rebar">pacing </span>
-                        <span className={`font-semibold ${slow ? "text-warn" : "text-concrete"}`}>{rate(r.paceLbsPerMH)} lbs/MH</span>
-                        {typeof r.bidProductivity === "number" && (
-                          <span className="text-rebar"> vs {rate(r.bidProductivity)} bid ({pct(r.placedFraction)} placed)</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-rebar">
-                        {r.isMobilizing ? "staging — too early to read" : "not enough placed to project"}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* ================= IN PROGRESS — pace table, projections never verdicts ================= */}
+      {inProgress.length > 0 && <InProgressTable rows={inProgress} onOpen={setPerfRow} />}
 
       <p className="text-xs text-rebar">
         Averages stand on trusted completed jobs only. A job lands in review when its hours and tonnage contradict each other
@@ -245,6 +204,89 @@ export default function PerformanceClient({ data }) {
       </p>
 
       {perfRow && <ProjectPerformanceModal row={perfRow} onClose={() => setPerfRow(null)} />}
+    </div>
+  );
+}
+
+
+// In-progress table — same format discipline as the trusted table. Forecast
+// (projected finish % of hour budget) sorts worst-first; mobilizing sinks.
+function InProgressTable({ rows, onOpen }) {
+  const prepared = rows.map((r) => ({
+    ...r,
+    _forecast: r.burn?.forecastPct ?? null,
+    _sink: r.isMobilizing ? 1 : 0,
+  }));
+  const { sorted, sort, toggle } = useSort(prepared, "_forecast", "desc", "perf-inprogress");
+  const ordered = [...sorted].sort((a, b) => a._sink - b._sink);
+  const pct1 = (f) => (typeof f !== "number" ? "—" : `${Math.round(f * 100)}%`);
+  const rateN = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
+  const lbsN = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
+  const numN = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 mb-2">
+        <h2 className="text-sm font-medium text-concrete">In progress</h2>
+        <span className="text-xs text-rebar">pace so far — projections, never verdicts</span>
+      </div>
+      <div className="rounded-lg border border-line overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
+              <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Pace" sortKey="paceLbsPerMH" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" />
+              <SortHeader label="Forecast" sortKey="_forecast" sort={sort} toggle={toggle} align="right" className="px-4" />
+            </tr>
+          </thead>
+          <tbody>
+            {ordered.map((r) => {
+              const f = r._forecast;
+              const fCls = typeof f !== "number" ? "text-rebar" : f >= 1.05 ? "text-danger" : f >= 0.95 ? "text-warn" : "text-ok";
+              return (
+                <tr key={r.id} onClick={() => onOpen(r)} className="border-t border-line cursor-pointer hover:bg-graphite/60 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
+                    <div className="text-xs text-rebar mt-0.5">
+                      {r.projectId || "no ID"}
+                      {r.isMobilizing ? " · mobilizing" : ""}
+                      {r.billingLags ? " · billing behind field" : ""}
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums">
+                    <div>{lbsN(r.placedLbs)}</div>
+                    <div className="text-[11px] text-rebar">{pct1(r.placedFraction)} of {lbsN(r.awardedLbs)}</div>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums">
+                    <div>{numN(r.hours)}</div>
+                    <div className="text-[11px] text-rebar">{r.burn?.hoursPct != null ? `${pct1(r.burn.hoursPct)} of budget` : "no bid hours"}</div>
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums">
+                    {r.paceLbsPerMH != null ? (
+                      <>
+                        <div className="font-semibold text-concrete">{rateN(r.paceLbsPerMH)}</div>
+                        {r.paceSource === "billed" && r.matched && (
+                          <div className="text-[11px] text-rebar">thru {String(r.matched.throughDate).slice(5)}</div>
+                        )}
+                        <div className={`text-[10px] uppercase tracking-wide ${r.paceSource === "billed" ? "text-safety" : "text-rebar/70"}`}>{r.paceSource}</div>
+                      </>
+                    ) : (
+                      <span className="text-xs text-rebar">{r.isMobilizing ? "staging" : "too early"}</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums hidden sm:table-cell">{rateN(r.bidProductivity)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    <span className={`font-medium ${fCls}`}>{typeof f === "number" ? pct1(f) : "—"}</span>
+                    {typeof f === "number" && <div className="text-[11px] text-rebar">of hour budget</div>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

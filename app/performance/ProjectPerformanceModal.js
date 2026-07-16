@@ -94,7 +94,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
 
         <div className="p-5 space-y-4">
           {/* the three signals — only honest together */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Hours</p>
               <p className="text-xl font-semibold text-concrete tabular-nums">{pct(b.hoursPct)}</p>
@@ -116,6 +116,25 @@ export default function ProjectPerformanceModal({ row, onClose }) {
                 {r.matched && <> · matched thru {dateStr(r.matched.throughDate)}</>}
               </p>
             </div>
+            <div className="rounded-md border border-line p-3">
+              <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Runway</p>
+              {runwayMH != null ? (
+                <>
+                  <p className="text-xl font-semibold text-concrete tabular-nums">{num(runwayMH)} <span className="text-sm font-normal text-rebar">MH</span></p>
+                  <p className="text-xs text-rebar mt-0.5">{lbs(r.remainingLbs)} lbs left at pace</p>
+                </>
+              ) : r.remainingLbs === 0 ? (
+                <>
+                  <p className="text-xl font-semibold text-ok">Done</p>
+                  <p className="text-xs text-rebar mt-0.5">steel fully placed</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xl font-semibold text-rebar">—</p>
+                  <p className="text-xs text-rebar mt-0.5">needs a readable pace</p>
+                </>
+              )}
+            </div>
           </div>
 
           {/* the $ line — what the gap is worth */}
@@ -135,41 +154,24 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             </div>
           )}
 
-          {/* context strip */}
-          <div className="rounded-md border border-line divide-y divide-line text-sm">
-            <Row label="Trust">
-              {r.state === "trusted" && <span className="text-ok">Trusted — feeds the fleet averages</span>}
-              {r.state === "in-progress" && <span className="text-rebar">In progress — projections only, no verdict yet</span>}
-              {r.state === "needs-review" && <span className="text-warn">Needs review — excluded from averages: {r.problems?.join("; ")}</span>}
-            </Row>
-            <Row label="Weight source">
-              <span className="text-concrete">{r.weightSource === "billed" ? "Billed (LBS lines on invoices)" : "Placed to-date (manual)"}</span>
-              {typeof r.billedPct === "number" && <span className="text-rebar"> · {pct(r.billedPct)} billed</span>}
-            </Row>
-            <Row label="Billing pace">
-              {r.matched && r.allHoursRealized != null ? (
-                r.billingLags
-                  ? <span className="text-warn">Hours running ahead of billed weight — billing may be behind the field</span>
-                  : <span className="text-concrete">Billing keeping pace with the field</span>
-              ) : (
-                <span className="text-rebar">— needs billed weight + dated hours</span>
-              )}
-            </Row>
-            <Row label="Runway">
-              {runwayMH != null ? (
-                <span className="text-concrete">{lbs(r.remainingLbs)} lbs left ≈ <span className="font-medium">{num(runwayMH)} man-hours</span> at current pace</span>
-              ) : r.remainingLbs === 0 ? (
-                <span className="text-concrete">Steel fully placed</span>
-              ) : (
-                <span className="text-rebar">— needs remaining lbs + a readable pace</span>
-              )}
-            </Row>
-            {r.foreman?.length > 0 && (
-              <Row label="Foreman">
-                <span className="text-concrete">{r.foreman.join(", ")}</span>
-              </Row>
-            )}
-          </div>
+          {/* exceptions + one quiet source line */}
+          {r.state === "needs-review" && (
+            <div className="rounded-md border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+              Needs review — excluded from averages: {r.problems?.join("; ")}
+            </div>
+          )}
+          {r.state === "in-progress" && r.billingLags && (
+            <div className="rounded-md border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+              Hours running ahead of billed weight — billing may be behind the field.
+            </div>
+          )}
+          <p className="text-xs text-rebar">
+            {r.weightSource === "billed" ? "Billed weight (LBS lines on invoices)" : "Placed to-date"}
+            {typeof r.billedPct === "number" && <> · {pct(r.billedPct)} billed</>}
+            {r.matched && <> · matched thru {dateStr(r.matched.throughDate)}</>}
+            {r.state === "in-progress" && <> · projection, not a verdict</>}
+            {r.foreman?.length > 0 && <> · {r.foreman.join(", ")}</>}
+          </p>
 
           <div className="flex gap-2 pt-1">
             <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
