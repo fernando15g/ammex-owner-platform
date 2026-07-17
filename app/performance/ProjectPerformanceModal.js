@@ -99,7 +99,6 @@ export default function ProjectPerformanceModal({ row, onClose }) {
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Hours</p>
               <p className="text-xl font-semibold text-concrete tabular-nums">{pct(b.hoursPct)}</p>
               <p className="text-xs text-rebar mt-0.5">{num(b.actualHours)} of {num(b.projectedHours)} hrs</p>
-              <HoursSource r={r} onSaved={onClose} />
             </div>
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Placed</p>
@@ -192,9 +191,12 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             {r.foreman?.length > 0 && <> · {r.foreman.join(", ")}</>}
           </p>
 
-          <div className="flex gap-2 pt-1">
-            <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
-            <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
+          <div className="flex items-center gap-2 pt-1">
+            <HoursSource r={r} onSaved={onClose} />
+            <div className="ml-auto flex gap-2">
+              <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
+              <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
+            </div>
           </div>
         </div>
       </div>
@@ -229,25 +231,13 @@ function HoursSource({ r, onSaved }) {
   const onPayroll = r.hoursOverridden;
   const isPayrollEra = r.hoursEra === "payroll";
   const hasPayroll = typeof pay === "number" && pay > 0;
-  // "different enough to offer": any real gap, treating null/absent timesheet
-  // hours as 0 so an all-voided or not-yet-logged timesheet job still offers
-  // the payroll number.
   const tsNum = typeof ts === "number" ? ts : 0;
   const differ = hasPayroll && Math.round(tsNum) !== Math.round(pay);
 
-  const showUse = !onPayroll && !isPayrollEra && differ;   // switch to payroll
-  const showEdit = onPayroll || isPayrollEra;              // already on payroll → edit it
-  // Nothing to work with (no payroll number and not on payroll) → hide.
+  const showUse = !onPayroll && !isPayrollEra && differ;
+  const showEdit = onPayroll || isPayrollEra;
   if (!hasPayroll && !onPayroll) return null;
-  if (!showUse && !showEdit) {
-    // Temporary diagnostic: if we get here the control is intentionally hidden.
-    // Show why, quietly, so we can confirm the data on a real job then remove.
-    return (
-      <p className="text-[10px] text-rebar/60 mt-1.5" title="hours source diagnostic">
-        ts={String(ts)} · pay={String(pay)} · era={String(r.hoursEra)}
-      </p>
-    );
-  }
+  if (!showUse && !showEdit) return null;
 
   async function save(changes) {
     setBusy(true); setErr(null);
@@ -257,37 +247,47 @@ function HoursSource({ r, onSaved }) {
         body: JSON.stringify({ changes }),
       });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
-      onSaved(); // close → the page revalidates with the new hours
+      onSaved();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
+  // hover tooltip content — the two numbers, so the box stays clean
+  const tip = [
+    typeof ts === "number" ? `Timesheet ${Math.round(ts)} hrs` : "Timesheet —",
+    hasPayroll ? `Payroll ${Math.round(pay)} hrs` : "Payroll —",
+  ].join("  ·  ");
+
   if (editing) {
     return (
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <input value={val} onChange={(e) => setVal(e.target.value)} inputMode="decimal"
-          className="w-20 text-xs px-1.5 py-1 rounded border border-line bg-transparent text-concrete" placeholder="hrs" />
+      <div className="flex items-center gap-1.5">
+        <span className="text-xs text-rebar">Payroll hrs</span>
+        <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} inputMode="decimal"
+          className="w-24 text-sm px-2 py-1.5 rounded-md border border-line bg-transparent text-concrete" placeholder="hrs" />
         <button disabled={busy} onClick={() => save({ payrollHours: Number(val) || 0, manualHoursOverride: true })}
-          className="text-[11px] px-2 py-1 rounded bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
-        <button onClick={() => setEditing(false)} className="text-[11px] text-rebar hover:text-concrete">Cancel</button>
-        {err && <span className="text-[11px] text-danger">{err}</span>}
+          className="text-sm px-3 py-1.5 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
+        <button onClick={() => setEditing(false)} className="text-sm px-2 py-1.5 text-rebar hover:text-concrete">Cancel</button>
+        {err && <span className="text-xs text-danger">{err}</span>}
       </div>
     );
   }
 
-  if (showEdit) {
-    return (
-      <p className="text-[11px] text-rebar mt-1.5">
-        <span className="text-safety uppercase tracking-wide">payroll</span> · <button onClick={() => setEditing(true)} className="underline hover:text-concrete">Edit</button>
-      </p>
-    );
-  }
-
-  // timesheet-era but a differing payroll number exists → offer it
   return (
-    <p className="text-[11px] text-rebar mt-1.5">
-      timesheet — payroll shows {num(pay)} · <button disabled={busy} onClick={() => save({ manualHoursOverride: true })} className="underline hover:text-concrete disabled:opacity-40">Use</button>
-      {err && <span className="text-danger"> {err}</span>}
-    </p>
+    <div className="group relative">
+      <button
+        disabled={busy}
+        onClick={() => (showEdit ? setEditing(true) : save({ manualHoursOverride: true }))}
+        className="text-sm px-3 py-2 rounded-md border border-line text-rebar hover:text-concrete hover:border-rebar disabled:opacity-40"
+      >
+        {busy ? "…" : showEdit ? "Edit payroll hours" : "Use payroll hours"}
+      </button>
+      {/* hover tooltip */}
+      <div className="pointer-events-none absolute left-0 bottom-full mb-1.5 hidden group-hover:block whitespace-nowrap text-xs px-2.5 py-1.5 rounded-md border border-line shadow-lg z-10"
+        style={{ background: "var(--surface)" }}>
+        <span className="text-concrete">{tip}</span>
+        <span className="block text-rebar mt-0.5">{showEdit ? "Currently using payroll hours" : "Switch this job to the payroll number"}</span>
+      </div>
+      {err && <span className="ml-2 text-xs text-danger">{err}</span>}
+    </div>
   );
 }
 

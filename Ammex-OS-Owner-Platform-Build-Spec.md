@@ -357,3 +357,11 @@ The §30 "Use/Edit" hours control wasn't appearing on Kino (timesheet-era job wi
 **Temporary diagnostic:** when the control is intentionally hidden, a tiny grey line shows `ts=… · pay=… · era=…` so the real values on a live job (Kino) can be confirmed, then removed next build.
 
 **Verified:** build passes.
+
+---
+
+## 32. Payroll hours control — professional placement
+
+Moved the Use/Edit payroll control out of the cramped Hours stat box into the popup FOOTER (bottom-left, actions Go-to-project/Close pushed right). Now a proper bordered button: "Use payroll hours" (timesheet job, payroll differs) or "Edit payroll hours" (already on payroll). Hover shows a tooltip with both numbers (Timesheet N · Payroll N) + what the action does, so the stat boxes stay clean. Edit opens an inline input in the footer. Temporary §31 diagnostic removed.
+
+**Verified:** build passes; diagnostic gone, button + tooltip in footer.
