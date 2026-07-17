@@ -227,11 +227,27 @@ function HoursSource({ r, onSaved }) {
   const ts = r.timesheetHours;
   const pay = r.payrollHours;
   const onPayroll = r.hoursOverridden;
+  const isPayrollEra = r.hoursEra === "payroll";
   const hasPayroll = typeof pay === "number" && pay > 0;
-  const differ = typeof ts === "number" && hasPayroll && Math.round(ts) !== Math.round(pay);
+  // "different enough to offer": any real gap, treating null/absent timesheet
+  // hours as 0 so an all-voided or not-yet-logged timesheet job still offers
+  // the payroll number.
+  const tsNum = typeof ts === "number" ? ts : 0;
+  const differ = hasPayroll && Math.round(tsNum) !== Math.round(pay);
 
-  // nothing to offer → render nothing (self-retiring)
-  if (!onPayroll && !differ) return null;
+  const showUse = !onPayroll && !isPayrollEra && differ;   // switch to payroll
+  const showEdit = onPayroll || isPayrollEra;              // already on payroll → edit it
+  // Nothing to work with (no payroll number and not on payroll) → hide.
+  if (!hasPayroll && !onPayroll) return null;
+  if (!showUse && !showEdit) {
+    // Temporary diagnostic: if we get here the control is intentionally hidden.
+    // Show why, quietly, so we can confirm the data on a real job then remove.
+    return (
+      <p className="text-[10px] text-rebar/60 mt-1.5" title="hours source diagnostic">
+        ts={String(ts)} · pay={String(pay)} · era={String(r.hoursEra)}
+      </p>
+    );
+  }
 
   async function save(changes) {
     setBusy(true); setErr(null);
@@ -258,7 +274,7 @@ function HoursSource({ r, onSaved }) {
     );
   }
 
-  if (onPayroll) {
+  if (showEdit) {
     return (
       <p className="text-[11px] text-rebar mt-1.5">
         <span className="text-safety uppercase tracking-wide">payroll</span> · <button onClick={() => setEditing(true)} className="underline hover:text-concrete">Edit</button>

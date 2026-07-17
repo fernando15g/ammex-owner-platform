@@ -345,3 +345,15 @@ Transition-overlap fix: an old job whose real hours live in the manual Labor Hou
 - One number shown at a time; the alternative offered only when they conflict.
 
 **Verified:** build passes; 4-case hours test exact (timesheet keeps 40 while exposing payroll 400; override→400; override ignored when no payroll; no-timecards→payroll).
+
+---
+
+## 31. Payroll override control — gate fix + diagnostic
+
+The §30 "Use/Edit" hours control wasn't appearing on Kino (timesheet-era job with a differing old payroll number). Root cause: the gate required timesheetHours to be a non-null number AND only offered the control when timesheet differed — it didn't handle payroll-era jobs (no Edit affordance) or all-voided/under-review timesheet jobs (ts null/0).
+
+**Fix:** gate split into showUse (timesheet-era job whose payroll number differs — null/absent timesheet treated as 0) and showEdit (job already on payroll, via override OR natural payroll-era). Control hides only when there's genuinely no payroll number and not on payroll.
+
+**Temporary diagnostic:** when the control is intentionally hidden, a tiny grey line shows `ts=… · pay=… · era=…` so the real values on a live job (Kino) can be confirmed, then removed next build.
+
+**Verified:** build passes.
