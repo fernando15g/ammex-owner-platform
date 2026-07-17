@@ -8,15 +8,22 @@
 // that worth? Everything here reads straight off the performance row — no
 // extra fetch, so it opens instantly and can never disagree with the table.
 //
-//   header     — status indicator: on target / watch / below target / missing
+//   header     — running jobs: live burn indicator (on target / watch / below
+//                target / missing). CLOSED trusted jobs: money leads — the pill
+//                is the achieved margin vs the 12% floor; the productivity
+//                verdict (beat / met / missed estimate, ±10% band) rides as the
+//                secondary read. A finished job gets a verdict, not a trajectory.
 //   signals    — the three that only tell the truth together (prior-chat view):
 //                hours % · placed % · productivity bid → actual
 //   $ line     — what the productivity gap is costing (or saving) on this job
-//   context    — trust state · billing pace · job runway · foreman
+//   context    — labeled chips: weight source · billed % · matched thru ·
+//                projection/verdict · foreman — each fact self-explanatory
 //   action     — "Go to project" (not "Edit project" — admin lives elsewhere)
 // =============================================================================
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { PERF } from "@/lib/rules/performance";
 
 const money = (n) =>
   typeof n !== "number" || isNaN(n) ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n)).toLocaleString()}`;
@@ -39,7 +46,15 @@ const INDICATOR = {
   mobilizing: { label: "Mobilizing", cls: "bg-graphite text-rebar border-line" },
 };
 
+// productivity verdict on closed jobs (derived in rules, ±10% band vs bid)
+const VERDICT = {
+  beat: { label: "Beat estimate", tone: "text-ok" },
+  met: { label: "Met estimate", tone: "text-concrete" },
+  missed: { label: "Missed estimate", tone: "text-warn" },
+};
+
 export default function ProjectPerformanceModal({ row, onClose }) {
+  const router = useRouter(); // hooks stay above the early return
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -48,8 +63,40 @@ export default function ProjectPerformanceModal({ row, onClose }) {
 
   if (!row) return null;
   const r = row;
-  const ind = INDICATOR[r.indicator] || INDICATOR.missing;
+
+  // header pill — CLOSED trusted jobs lead with the money: achieved margin vs
+  // the 12% floor (below-floor is the hard red no matter how the crew ran).
+  // Falls back to the productivity verdict when the bid carried no economics.
+  // Running / needs-review jobs keep the live burn indicator — a trajectory
+  // signal only means something while the job is still moving.
+  const floorPct = Math.round(PERF.MARGIN_FLOOR * 100);
+  const closedPill =
+    r.state === "trusted"
+      ? r.marginState === "below-floor"
+        ? { label: `Margin ${pct(r.achievedMargin)} · below ${floorPct}% floor`, cls: INDICATOR["below-target"].cls }
+        : typeof r.achievedMargin === "number"
+        ? {
+            label: `Margin ${pct(r.achievedMargin)}`,
+            cls: r.marginState === "eroded" ? INDICATOR.watch.cls : INDICATOR["on-target"].cls,
+          }
+        : r.verdict
+        ? {
+            label: VERDICT[r.verdict].label,
+            cls: r.verdict === "beat" ? INDICATOR["on-target"].cls : r.verdict === "missed" ? INDICATOR.watch.cls : "bg-graphite text-concrete border-line",
+          }
+        : { label: "Complete", cls: "bg-graphite text-rebar border-line" }
+      : null;
+  const ind = closedPill || INDICATOR[r.indicator] || INDICATOR.missing;
   const b = r.burn || {};
+
+  // after a successful save the page data is stale — close, give Notion's
+  // eventually-consistent reads a beat to catch up, then re-run the server
+  // fetch in place (no full reload, scroll/sort survive). Same pattern will
+  // simply get faster post-Postgres.
+  const savedRefresh = () => {
+    onClose();
+    setTimeout(() => router.refresh(), 900);
+  };
   const slow = typeof r.variancePct === "number" && r.variancePct < -0.05;
   const fast = typeof r.variancePct === "number" && r.variancePct > 0.05;
 
@@ -183,16 +230,34 @@ export default function ProjectPerformanceModal({ row, onClose }) {
               Hours running ahead of billed weight — billing may be behind the field.
             </div>
           )}
-          <p className="text-xs text-rebar">
-            {r.weightSource === "billed" ? "Billed weight (LBS lines on invoices)" : "Placed to-date"}
-            {typeof r.billedPct === "number" && <> · {pct(r.billedPct)} billed</>}
-            {r.matched && <> · matched thru {dateStr(r.matched.throughDate)}</>}
-            {r.state === "in-progress" && <> · projection, not a verdict</>}
-            {r.foreman?.length > 0 && <> · {r.foreman.join(", ")}</>}
-          </p>
+          {/* below-floor: money led the headline; this line lets productivity explain WHY */}
+          {r.state === "trusted" && r.marginState === "below-floor" && (
+            <div className="rounded-md border border-danger/40 bg-danger/10 px-4 py-2.5 text-sm text-danger">
+              Finished at {pct(r.achievedMargin)} margin — below the {floorPct}% floor.{" "}
+              {r.verdict === "beat"
+                ? "Crews beat the productivity estimate — the bid was priced too thin."
+                : r.verdict === "missed"
+                ? `Productivity missed the estimate${typeof r.variancePct === "number" ? ` by ${Math.abs(Math.round(r.variancePct * 100))}%` : ""} — the labor overrun ate the margin.`
+                : r.verdict === "met"
+                ? "Crews hit the productivity estimate — the bid margin was too thin from the start."
+                : ""}
+            </div>
+          )}
+
+          {/* context chips — every fact labeled, nothing to decode */}
+          <div className="flex flex-wrap gap-1.5">
+            <Chip label="Weight" value={r.weightSource === "billed" ? "Billed invoices" : "Placed to-date (manual)"} />
+            {typeof r.billedPct === "number" && <Chip label="Billed" value={pct(r.billedPct)} />}
+            {r.matched && <Chip label="Matched thru" value={dateStr(r.matched.throughDate)} />}
+            {r.state === "in-progress" && <Chip label="Read" value="Projection — not a verdict" />}
+            {r.state === "trusted" && r.verdict && (
+              <Chip label="Estimate" value={VERDICT[r.verdict].label} tone={VERDICT[r.verdict].tone} />
+            )}
+            {r.foreman?.length > 0 && <Chip label="Foreman" value={r.foreman.join(", ")} />}
+          </div>
 
           <div className="flex items-center gap-2 pt-1">
-            <HoursSource r={r} onSaved={onClose} />
+            <HoursSource r={r} onSaved={savedRefresh} />
             <div className="ml-auto flex gap-2">
               <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
               <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
@@ -291,11 +356,13 @@ function HoursSource({ r, onSaved }) {
   );
 }
 
-function Row({ label, children }) {
+// One labeled context chip — a tiny uppercase label glued to its value, so
+// "Placed to-date" and "Projection" never read as mystery words again.
+function Chip({ label, value, tone }) {
   return (
-    <div className="flex gap-3 px-4 py-2.5">
-      <span className="text-rebar shrink-0 w-28">{label}</span>
-      <span className="min-w-0">{children}</span>
-    </div>
+    <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-line bg-graphite/40">
+      <span className="text-rebar uppercase tracking-wide text-[10px]">{label}</span>
+      <span className={tone || "text-concrete"}>{value}</span>
+    </span>
   );
 }

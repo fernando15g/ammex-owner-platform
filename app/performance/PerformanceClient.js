@@ -27,10 +27,35 @@ const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumF
 const num = (n, d = 0) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: d }) : "—");
 const rate = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
 
+// margin banding (rules layer decides the state; this only picks the color):
+// below-floor = the hard red · eroded = profitable but > 2 pts under bid ·
+// on-plan = within ±2 pts of bid (neutral) · above-plan = beat the bid margin
+const MARGIN_CLS = {
+  "below-floor": "text-danger",
+  eroded: "text-warn",
+  "on-plan": "text-concrete",
+  "above-plan": "text-ok",
+};
+
 export default function PerformanceClient({ data }) {
   const { trusted, needsReview, inProgress, fleet } = data;
-  const { sorted, sort, toggle } = useSort(trusted, "variancePct", "asc", "performance");
   const [perfRow, setPerfRow] = useState(null);
+
+  // search — one box filters every section, by job name or Job ID
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const match = (r) =>
+    !q ||
+    String(r.name || "").toLowerCase().includes(q) ||
+    String(r.projectId || "").toLowerCase().includes(q);
+  const fTrusted = q ? trusted.filter(match) : trusted;
+  const fNeedsReview = q ? needsReview.filter(match) : needsReview;
+  const fInProgress = q ? inProgress.filter(match) : inProgress;
+
+  const { sorted, sort, toggle } = useSort(fTrusted, "variancePct", "asc", "performance");
+
+  // section count — shows "shown of total" while a search is narrowing
+  const count = (shown, total) => (q && shown !== total ? `${shown} of ${total}` : `${total}`);
 
   const gap = fleet.gap;
   const crewsSlower = gap && gap.pct < 0;
@@ -89,11 +114,51 @@ export default function PerformanceClient({ data }) {
         )}
       </div>
 
-      {/* ================= TRUSTED — the jobs the averages stand on ================= */}
+      {/* ================= SEARCH — one box, every section ================= */}
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search jobs — name or ID"
+        className="w-full sm:w-80 text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
+      />
+
+      {/* ================= IN PROGRESS — the work you act on, first ================= */}
+      {fInProgress.length > 0 && (
+        <InProgressTable rows={fInProgress} count={count(fInProgress.length, inProgress.length)} onOpen={setPerfRow} />
+      )}
+
+      {/* ================= NEEDS REVIEW — shown, excluded, fixable ================= */}
+      {fNeedsReview.length > 0 && (
+        <div>
+          <div className="flex items-baseline gap-2 mb-2">
+            <h2 className="text-sm font-medium text-warn">Needs review ({count(fNeedsReview.length, needsReview.length)})</h2>
+            <span className="text-xs text-rebar">excluded from every average until fixed</span>
+          </div>
+          <div className="rounded-lg border border-warn/40 divide-y divide-line overflow-hidden" style={{ background: "var(--surface)" }}>
+            {fNeedsReview.map((r) => (
+              <div key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-graphite/40">
+                <button onClick={() => setPerfRow(r)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
+                  {r.name || "—"}
+                </button>
+                <span className="text-xs text-rebar">{r.projectId || "no ID"}</span>
+                <span className="text-xs tabular-nums text-rebar">
+                  {lbs(r.placedLbs)} lbs · {num(r.hours)} hrs
+                  {r.realized != null && <> · implies <span className="text-warn font-medium">{rate(r.realized)} lbs/MH</span></>}
+                </span>
+                <span className="w-full sm:w-auto sm:ml-auto text-xs text-warn">
+                  {r.problems.join("; ")}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ================= COMPLETED — reference, at the bottom ================= */}
       <div>
         <div className="flex items-baseline gap-2 mb-2">
-          <h2 className="text-sm font-medium text-concrete">Trusted completed jobs</h2>
-          <span className="text-xs text-rebar">these feed the averages</span>
+          <h2 className="text-sm font-medium text-concrete">Completed jobs ({count(fTrusted.length, trusted.length)})</h2>
+          <span className="text-xs text-rebar">trusted — these feed the averages</span>
         </div>
         <div className="rounded-lg border border-line overflow-x-auto">
           <table className="w-full text-sm">
@@ -105,7 +170,7 @@ export default function PerformanceClient({ data }) {
                 <SortHeader label="Realized" sortKey="realized" sort={sort} toggle={toggle} align="right" info="Actual lbs placed per man-hour — placed pounds ÷ counted hours." />
                 <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
                 <SortHeader label="Variance" sortKey="variancePct" sort={sort} toggle={toggle} align="right" info="Realized productivity vs. what the bid assumed. Positive = beating the bid." />
-                <SortHeader label="$ impact" sortKey="costSlip" sort={sort} toggle={toggle} align="right" className="px-4 hidden md:table-cell" info="Burdened labor cost of that variance vs. the bid. Red = cost more than bid." />
+                <SortHeader label="Margin" sortKey="achievedMargin" sort={sort} toggle={toggle} align="right" className="px-4 hidden md:table-cell" info="Operating margin the job actually finished at, vs. what the bid priced. Red only below the 12% floor; within ±2 pts of the bid margin reads neutral — a 30% bid that lands 29% is fine, not a failure." />
               </tr>
             </thead>
             <tbody>
@@ -139,8 +204,21 @@ export default function PerformanceClient({ data }) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums hidden md:table-cell">
-                      {typeof r.costSlip === "number" ? (
-                        <span className={r.costSlip > 0 ? "text-danger" : "text-ok"}>{r.costSlip > 0 ? `−${money(r.costSlip)}` : `+${money(Math.abs(r.costSlip))}`}</span>
+                      {typeof r.achievedMargin === "number" ? (
+                        <>
+                          {/* money leads: the margin the job actually made. Color is banded
+                              off the BID margin, not zero — red only below the 12% floor. */}
+                          <div className={`font-semibold ${MARGIN_CLS[r.marginState] || "text-concrete"}`}>{pct(r.achievedMargin)}</div>
+                          <div className="text-[11px] text-rebar">
+                            bid {pct(r.bidMargin)}
+                            {typeof r.costSlip === "number" && Math.abs(r.costSlip) >= 1 && (
+                              <> · {r.costSlip > 0 ? "−" : "+"}{money(Math.abs(r.costSlip))} labor</>
+                            )}
+                          </div>
+                        </>
+                      ) : typeof r.costSlip === "number" ? (
+                        // no bid economics on this job — show the labor $ quietly, no verdict color
+                        <span className="text-rebar">{r.costSlip > 0 ? `−${money(r.costSlip)}` : `+${money(Math.abs(r.costSlip))}`}</span>
                       ) : (
                         "—"
                       )}
@@ -148,10 +226,12 @@ export default function PerformanceClient({ data }) {
                   </tr>
                 );
               })}
-              {trusted.length === 0 && (
+              {fTrusted.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-rebar text-sm">
-                    No trusted completed jobs yet — the averages will light up as jobs finish with clean hours and tonnage.
+                    {q
+                      ? "No completed jobs match this search."
+                      : "No trusted completed jobs yet — the averages will light up as jobs finish with clean hours and tonnage."}
                   </td>
                 </tr>
               )}
@@ -160,39 +240,11 @@ export default function PerformanceClient({ data }) {
         </div>
         <p className="text-xs text-rebar mt-2">
           Realized = placed lbs ÷ counted hours (voided &amp; under-review timecards excluded). Variance is against the productivity that job&apos;s
-          bid priced. $ impact = the burdened labor cost of the hours the job took beyond (or under) what the bid assumed for the steel placed.
+          bid priced. Margin = the operating margin the job actually finished at (labor moved to the realized pace), next to what the bid priced;
+          the small $ figure is the burdened labor cost of the productivity variance. Coloring is banded off the bid margin — red only below the
+          12% floor, amber when profitable but more than 2 pts under the bid, neutral within ±2 pts.
         </p>
       </div>
-
-      {/* ================= NEEDS REVIEW — shown, excluded, fixable ================= */}
-      {needsReview.length > 0 && (
-        <div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <h2 className="text-sm font-medium text-warn">Needs review</h2>
-            <span className="text-xs text-rebar">excluded from every average until fixed</span>
-          </div>
-          <div className="rounded-lg border border-warn/40 divide-y divide-line overflow-hidden" style={{ background: "var(--surface)" }}>
-            {needsReview.map((r) => (
-              <div key={r.id} className="px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 hover:bg-graphite/40">
-                <button onClick={() => setPerfRow(r)} className="text-sm font-medium text-concrete hover:text-safety truncate text-left">
-                  {r.name || "—"}
-                </button>
-                <span className="text-xs text-rebar">{r.projectId || "no ID"}</span>
-                <span className="text-xs tabular-nums text-rebar">
-                  {lbs(r.placedLbs)} lbs · {num(r.hours)} hrs
-                  {r.realized != null && <> · implies <span className="text-warn font-medium">{rate(r.realized)} lbs/MH</span></>}
-                </span>
-                <span className="w-full sm:w-auto sm:ml-auto text-xs text-warn">
-                  {r.problems.join("; ")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ================= IN PROGRESS — pace table, projections never verdicts ================= */}
-      {inProgress.length > 0 && <InProgressTable rows={inProgress} onOpen={setPerfRow} />}
 
       <p className="text-xs text-rebar">
         Averages stand on trusted completed jobs only. A job lands in review when its hours and tonnage contradict each other
@@ -211,7 +263,7 @@ export default function PerformanceClient({ data }) {
 
 // In-progress table — same format discipline as the trusted table. Forecast
 // (projected finish % of hour budget) sorts worst-first; mobilizing sinks.
-function InProgressTable({ rows, onOpen }) {
+function InProgressTable({ rows, count, onOpen }) {
   const prepared = rows.map((r) => ({
     ...r,
     _forecast: r.burn?.forecastPct ?? null,
@@ -226,7 +278,7 @@ function InProgressTable({ rows, onOpen }) {
   return (
     <div>
       <div className="flex items-baseline gap-2 mb-2">
-        <h2 className="text-sm font-medium text-concrete">In progress</h2>
+        <h2 className="text-sm font-medium text-concrete">In progress ({count})</h2>
         <span className="text-xs text-rebar">pace so far — projections, never verdicts</span>
       </div>
       <div className="rounded-lg border border-line overflow-x-auto">
