@@ -9,6 +9,7 @@
 // =============================================================================
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import ProposalButton from "@/app/pipeline/ProposalButton";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
@@ -18,6 +19,7 @@ const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 
 export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [w0, setW0] = useState(null);   // pristine copy, to detect real changes
   const [options, setOptions] = useState({});   // the real Notion option lists
@@ -148,6 +150,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       if (!data.ok) throw new Error(data.error || "Save failed");
       setState({ saving: false, saved: true, error: null });
       setEditing(false);
+      // re-fetch server data in place (Notion is eventually consistent — give it
+      // a beat). Keeps the page canonical instead of optimistic. Same pattern as
+      // the Performance modal; gets faster post-Postgres.
+      setTimeout(() => router.refresh(), 900);
     } catch (e) {
       setState({ saving: false, saved: false, error: String(e.message || e) });
     }

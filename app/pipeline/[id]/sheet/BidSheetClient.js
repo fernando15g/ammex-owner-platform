@@ -49,6 +49,10 @@ export default function BidSheetClient({ data, linkedProject = null }) {
           res = await fetch(`/api/line-items/${r.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "close" }) });
           d = await res.json();
           if (!d.ok) throw new Error(d.error);
+          // a closed line is NOT deleted — it stays as a closed line. Reload so it
+          // reappears in its true state instead of vanishing like a clean delete.
+          window.location.reload();
+          return;
         } else { setState((st) => ({ ...st, saving: false })); return; }
       } else if (!d.ok) throw new Error(d.error);
       removeRow(i);
