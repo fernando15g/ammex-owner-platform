@@ -26,22 +26,21 @@ spec's build log.
   overshoot = cushion), labeled stat tiles (hrs saved/100k, $/100k, realized
   variance), and a per-job spread strip with its own explanation. Handles the
   crews-slower case (red shortfall) too.
+- [x] **The Book** (`/book`) — WIP schedule of awarded work. One row per won job:
+  contract, expected profit/margin, billed, remaining, outstanding, with totals.
+  Four KPI tiles, search, sortable columns with "i" tooltips, click-through to
+  each job's billing page, collapsed closed-jobs history. Read-only; every figure
+  runs through the same billing engine as the Billing zone (`getBook()` in
+  `lib/data.js`). Nav enabled.
 
 ---
 
-## Bigger builds — new read-only zones (spec §177)
-
-- [ ] **The Book** (`/book` — nav stub exists in `AppShell.js`, `ready:false`)
-  Money on **awarded** work: contract value, operating profit, margins
-  (spec §121, "not built yet"). Mostly a rollup across awarded projects of
-  numbers `billing.js` / `performance.js` / the bid engine already compute.
-  **Scope its shape first** — which metrics, grouping (by project / GC /
-  fabricator?), totals row. Build before Home.
+## Next up
 
 - [ ] **Home dashboard** (`/` — currently redirects to `/active`)
   Front-door zone summarizing every zone's headline (pipeline value, active
-  work, billing outstanding + unbilled-in-field, the Book's awarded total).
-  Build **after** The Book.
+  work, billing outstanding, the Book's contract value + profit). Last of the
+  read-only zones.
 
 ---
 
@@ -54,6 +53,10 @@ spec's build log.
 - [ ] **Placement staleness threshold** — Active Work now flags *blank* placement;
   decide what date age counts as "stale" if we want to flag old-but-present
   placement too.
+- [ ] **Migration note** — before the Postgres move, snapshot the legacy Notion
+  formula columns the money layer falls back to (`Estimated Contract Value`,
+  `Operating Profit (pre-tax)`) for incomplete/historical rows, or those
+  fallbacks go blank. Performance + confidence are already pure-code and safe.
 
 ---
 

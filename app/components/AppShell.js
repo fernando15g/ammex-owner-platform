@@ -15,7 +15,7 @@ const NAV = [
   { key: "active", label: "Active Work", href: "/active", ready: true },
   { key: "billing", label: "Billing", href: "/billing", ready: true },
   { key: "performance", label: "Performance", href: "/performance", ready: true },
-  { key: "book", label: "The Book", href: "/book", ready: false },
+  { key: "book", label: "The Book", href: "/book", ready: true },
   { key: "history", label: "History", href: "/history", ready: true },
   { key: "check", label: "System Check", href: "/check", ready: true, minor: true },
 ];
