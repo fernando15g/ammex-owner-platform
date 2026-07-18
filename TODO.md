@@ -38,6 +38,11 @@ spec's build log.
 
 ## Next up
 
+- [x] **Bids/Pipeline rework** — in-flight bids now grouped by stage, hottest on
+  top (Live: Contingent then Negotiating · Submitted/Follow-Up newest-first ·
+  in-the-works at the bottom). Killed the red Due column; the date shown is the
+  submission date everywhere, neutral. `app/pipeline/PipelineClient.js`.
+
 - [ ] **Home dashboard** (`/` — currently redirects to `/active`)
   Front-door zone summarizing every zone's headline (pipeline value, active
   work, billing outstanding, the Book's contract value + profit). Last of the
