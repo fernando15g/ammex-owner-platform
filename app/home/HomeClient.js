@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { AZ_COUNTIES, AZ_VIEWBOX } from "./azCounties";
 
 const money = (n) =>
   typeof n !== "number" ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
@@ -30,7 +31,7 @@ const ALERT_META = {
 };
 
 export default function HomeClient({ data }) {
-  const { tiles } = data;
+  const { tiles, analytics } = data;
   const [alerts, setAlerts] = useState(data.alerts);
   const [open, setOpen] = useState({}); // alertId -> bool
   const [modal, setModal] = useState(null); // { alertId, item }
@@ -95,6 +96,14 @@ export default function HomeClient({ data }) {
           )}
         </div>
       </div>
+
+      {/* ===================== analytics canvas ===================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <Card title="Job concentration · Arizona"><AzMap county={analytics.county} unmapped={analytics.unmapped} /></Card>
+        <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
+      </div>
+      <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} /></Card>
+      <Card title="The Book · contract by stage"><BookByStage stages={analytics.bookStages} /></Card>
 
       {modal && (
         <Modal alert={alerts.find((a) => a.id === modal.alertId)} item={modal.item} onClose={() => setModal(null)} onResolve={resolve} />
@@ -309,6 +318,116 @@ function NoSheetBody({ item }) {
       <p className="text-xs text-rebar mt-3">This job has no line items, so it can&apos;t be invoiced. Add its bid sheet and this clears.</p>
       <div className="mt-4">
         <a href={item.bidId ? `/pipeline/${item.bidId}/sheet` : "/pipeline"} className="text-sm px-3 py-2 rounded-md bg-safety text-steel font-medium inline-block">Add bid sheet</a>
+      </div>
+    </div>
+  );
+}
+
+// ---- analytics cards ----
+function Card({ title, children }) {
+  return (
+    <div className="rounded-xl border border-line p-4" style={{ background: "var(--surface)" }}>
+      <div className="text-[11px] uppercase tracking-wider text-rebar mb-3">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function mixHex(a, b, t) {
+  const h = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), parseInt(s.slice(5, 7), 16)];
+  const pa = h(a), pb = h(b);
+  const c = pa.map((x, i) => Math.round(x + (pb[i] - x) * t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+function AzMap({ county, unmapped }) {
+  const vals = Object.values(county);
+  const max = Math.max(1, ...vals);
+  const shade = (n) => (!n ? "#2b313a" : mixHex("#3a2a1c", "#ff6a13", 0.3 + 0.7 * (n / max)));
+  return (
+    <div>
+      <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 240 }} role="img" aria-label="Arizona counties shaded by active job count">
+        {AZ_COUNTIES.map((c) => (
+          <path key={c.name} d={c.d} fill={shade(county[c.name] || 0)} stroke="#1c2127" strokeWidth={0.6}>
+            <title>{c.name}: {county[c.name] || 0} active</title>
+          </path>
+        ))}
+      </svg>
+      <div className="flex items-center justify-between text-[11px] text-rebar mt-1.5">
+        <span className="flex items-center gap-1.5"><span className="inline-block w-10 h-2 rounded" style={{ background: "linear-gradient(90deg,#2b313a,#ff6a13)" }} /> fewer → more jobs</span>
+        {unmapped > 0 && <span>{unmapped} not placed</span>}
+      </div>
+    </div>
+  );
+}
+
+const MIX_COLORS = ["#3987e5", "#199e70", "#d55181", "#c98500", "#9085e9", "#5a95d5", "#5a626e"];
+function WorkMixDonut({ mix }) {
+  if (!mix.length) return <div className="text-sm text-rebar py-6 text-center">No active jobs to break down yet.</div>;
+  const total = mix.reduce((s, m) => s + m.count, 0) || 1;
+  let acc = 0;
+  const segs = mix.map((m, i) => { const start = (acc / total) * 100; acc += m.count; return { ...m, color: MIX_COLORS[i % MIX_COLORS.length], start, end: (acc / total) * 100, pctv: Math.round((m.count / total) * 100) }; });
+  const grad = segs.map((s) => `${s.color} ${s.start}% ${s.end}%`).join(", ");
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative shrink-0" style={{ width: 116, height: 116 }}>
+        <div style={{ width: 116, height: 116, borderRadius: "50%", background: `conic-gradient(${grad})` }} />
+        <div className="absolute" style={{ inset: 22, borderRadius: "50%", background: "var(--surface)" }} />
+      </div>
+      <div className="flex flex-col gap-1.5 text-xs min-w-0">
+        {segs.map((s) => (
+          <span key={s.type} className="flex items-center gap-2 text-rebar">
+            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />
+            <span className="text-concrete truncate">{s.type}</span>
+            <span className="ml-auto tabular-nums">{s.pctv}%</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ForemanScorecard({ foremen }) {
+  if (!foremen.length) return <div className="text-sm text-rebar py-4 text-center">No completed jobs with a foreman yet — assign foremen and this fills in.</div>;
+  const max = Math.max(...foremen.map((f) => Math.max(f.realized || 0, f.bid || 0))) * 1.12 || 1;
+  return (
+    <div className="space-y-2.5">
+      {foremen.map((f) => {
+        const tone = f.gap == null ? "text-rebar" : f.gap >= 0.1 ? "text-ok" : f.gap >= -0.05 ? "text-rebar" : "text-danger";
+        const bar = f.gap == null ? "bg-rebar/50" : f.gap >= 0.1 ? "bg-ok" : f.gap >= -0.05 ? "bg-rebar/60" : "bg-danger";
+        return (
+          <div key={f.name} className="flex items-center gap-3">
+            <span className="w-24 text-sm text-concrete truncate shrink-0">{f.name}</span>
+            <div className="flex-1 relative h-3.5 rounded bg-graphite min-w-0">
+              <div className={`absolute left-0 top-0 h-3.5 rounded ${bar}`} style={{ width: `${((f.realized || 0) / max) * 100}%` }} />
+              {f.bid && <div className="absolute w-0.5 bg-concrete" style={{ left: `${(f.bid / max) * 100}%`, top: -2, height: 18 }} />}
+            </div>
+            <span className="w-20 text-right text-sm tabular-nums text-concrete shrink-0">{f.realized != null ? Math.round(f.realized) : "—"}<span className="text-[10px] text-rebar ml-0.5">lbs/MH</span></span>
+            <span className={`w-12 text-right text-sm font-semibold shrink-0 ${tone}`}>{f.gap != null ? `${f.gap > 0 ? "+" : ""}${Math.round(f.gap * 100)}%` : "—"}</span>
+            {f.jobs < 2 && <span className="text-[10px] text-rebar/70 shrink-0">1 job</span>}
+          </div>
+        );
+      })}
+      <p className="text-[10px] text-rebar pt-1">White line = bid target · color = beating / on / behind bid.</p>
+    </div>
+  );
+}
+
+const STAGE = [["backlog", "#2f73d8", "Backlog"], ["active", "#4a9e63", "Active"], ["closed", "#5a626e", "Closed"]];
+function BookByStage({ stages }) {
+  const total = STAGE.reduce((s, [k]) => s + (stages[k] || 0), 0) || 1;
+  return (
+    <div>
+      <div className="flex h-6 rounded-md overflow-hidden gap-0.5">
+        {STAGE.map(([k, color, label]) => {
+          const p = ((stages[k] || 0) / total) * 100;
+          return p > 0 ? <div key={k} style={{ width: `${p}%`, background: color }} className="flex items-center justify-center text-[11px]" title={`${label}: ${money(stages[k])}`}><span style={{ color: "#12161c" }}>{p > 14 ? label : ""}</span></div> : null;
+        })}
+      </div>
+      <div className="flex justify-between mt-2 text-[11px] text-rebar tabular-nums">
+        <span>{money(stages.backlog)} backlog</span>
+        <span>{money(stages.active)} active</span>
+        <span>{money(stages.closed)} closed</span>
       </div>
     </div>
   );

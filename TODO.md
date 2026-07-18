@@ -38,6 +38,14 @@ spec's build log.
 
 ## Next up
 
+- [x] **Home flagship analytics** — added the analytics canvas below tiles/alerts:
+  Arizona county job-concentration map (pre-projected paths, no runtime map
+  library), work-mix donut by project type, foreman scorecard (realized vs bid
+  lbs/MH, colored by beating/on/behind, small samples flagged), and the book by
+  stage (backlog/active/closed). Dependency-free (SVG/CSS charts).
+
+
+
 - [x] **Bids/Pipeline rework** — in-flight bids now grouped by stage, hottest on
   top (Live: Contingent then Negotiating · Submitted/Follow-Up newest-first ·
   in-the-works at the bottom). Killed the red Due column; the date shown is the
@@ -60,6 +68,11 @@ spec's build log.
 ---
 
 ## Optional refinements
+
+- [ ] **Map pins via geocoding** — add `Site Address` (text) to the Projects DB;
+  a geocoding step converts address → lat/long (stored, not per-load) so jobs
+  with an address drop a precise pin over the county shading. Shading works today
+  without it.
 
 - [ ] **Billing draft auto-save** — while entering billing numbers, keep a local
   draft so a refresh/nav-away doesn't lose input; on return, offer to restore the
