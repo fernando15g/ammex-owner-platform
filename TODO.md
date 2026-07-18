@@ -20,27 +20,12 @@ spec's build log.
   job panel); Forecast kept.
 - [x] **Placement freshness flag** — "not updated" flag on jobs whose placement
   was never logged, so a blank/stale Complete % can't read as real progress.
-
----
-
-## Next up
-
-- [ ] **Performance headline redesign** (`app/performance/PerformanceClient.js`)
-  Adopt the mocked-up layout, re-skinned in the real app theme (tokens:
-  `rebar`/`concrete`/`steel`/`safety`/`ok`/`danger`, `--surface`, `--line` —
-  not generic mockup colors). Pieces:
-  - Keep a compact visible readout of the raw numbers (247 / 180 / +37%), plus
-    an **"i" info affordance** that reveals the full readout + a plain-language
-    explanation of what it means and that it's dynamic (updates as jobs
-    complete; only trusted completed jobs counted). Explanation is the priority.
-  - Replace the two prose insight sentences with a **bullet-chart** actual-vs-bid
-    comparison (bid marker, realized overshoot = cushion) + labeled **stat tiles**
-    (151 hrs saved/100k, +$6k/100k, +$55k realized variance).
-  - **Per-job spread strip** — one dot per trusted job by realized lbs/MH, WITH a
-    short plain-language explanation (it's confusing without one). Data is ready:
-    `performance.js` already exposes each job's `realized` lbs/MH.
-  - At build time, check whether the app already has a charting/bar pattern to
-    stay consistent with, before introducing new markup.
+- [x] **Performance headline redesign** — visual layout in the app theme: hero
+  readout + gap badge, an "i" toggle revealing a plain-language explanation of
+  what it means and that it's dynamic, a bullet bar (bid marker + realized
+  overshoot = cushion), labeled stat tiles (hrs saved/100k, $/100k, realized
+  variance), and a per-job spread strip with its own explanation. Handles the
+  crews-slower case (red shortfall) too.
 
 ---
 

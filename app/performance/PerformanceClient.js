@@ -40,6 +40,7 @@ const MARGIN_CLS = {
 export default function PerformanceClient({ data }) {
   const { trusted, needsReview, inProgress, fleet } = data;
   const [perfRow, setPerfRow] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   // search — one box filters every section, by job name or Job ID
   const [query, setQuery] = useState("");
@@ -60,56 +61,118 @@ export default function PerformanceClient({ data }) {
   const gap = fleet.gap;
   const crewsSlower = gap && gap.pct < 0;
 
+  // Headline geometry — recomputed every render from the trusted set, so the
+  // bar, tiles and dots all move as jobs complete. Bullet bar is 0-based (honest
+  // magnitude); the per-job spread uses a windowed scale so dots don't bunch up.
+  const realizedVals = trusted.map((r) => r.realized).filter((v) => typeof v === "number" && v > 0);
+  const clampPct = (v) => Math.max(0, Math.min(100, v));
+  const haveHead = fleet.blendedRealized != null && fleet.bidAssumed != null;
+  const axisMax = haveHead ? Math.max(fleet.blendedRealized, fleet.bidAssumed) * 1.15 : 1;
+  const bidX = haveHead ? clampPct((fleet.bidAssumed / axisMax) * 100) : 0;
+  const realX = haveHead ? clampPct((fleet.blendedRealized / axisMax) * 100) : 0;
+  const lo = realizedVals.length ? Math.min(...realizedVals, fleet.bidAssumed ?? Infinity) : 0;
+  const hi = realizedVals.length ? Math.max(...realizedVals, fleet.blendedRealized ?? -Infinity) : 1;
+  const sPad = Math.max((hi - lo) * 0.15, 10);
+  const sMin = lo - sPad;
+  const sMax = hi + sPad;
+  const spreadX = (v) => clampPct(((v - sMin) / (sMax - sMin)) * 100);
+
   return (
     <div className="space-y-6">
-      {/* ================= HEADLINE — the one number ================= */}
+      {/* ================= HEADLINE — the one number, made visual ================= */}
       <div className="rounded-lg border border-line overflow-hidden" style={{ background: "var(--surface)" }}>
-        <div className="p-6 flex flex-wrap gap-x-10 gap-y-4 items-end">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Crews actually produce</p>
-            <p className="text-3xl font-semibold text-concrete tabular-nums">
-              {fleet.blendedRealized != null ? <>{rate(fleet.blendedRealized)} <span className="text-base font-normal text-rebar">lbs/MH</span></> : "—"}
-            </p>
-            <p className="text-xs text-rebar mt-1">
+        <div className="px-6 pt-5 pb-4 flex items-start gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wider text-rebar">Fleet productivity</p>
+            <div className="flex items-baseline gap-2.5 mt-1 flex-wrap">
+              <span className="text-4xl font-semibold text-concrete tabular-nums leading-none">{haveHead ? rate(fleet.blendedRealized) : "—"}</span>
+              <span className="text-sm text-rebar">lbs/MH produced</span>
+              {gap && (
+                <span className={`inline-flex items-center gap-1 text-sm font-semibold px-2 py-0.5 rounded ${crewsSlower ? "text-danger bg-danger/10" : "text-ok bg-ok/10"}`}>
+                  {pct(gap.pct, true)} vs bid
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-rebar mt-1.5">
               {fleet.trustedJobs > 0
-                ? `${lbs(fleet.trustedLbs)} lbs ÷ ${num(fleet.trustedHours)} hrs across ${fleet.trustedJobs} trusted job${fleet.trustedJobs === 1 ? "" : "s"}`
+                ? `${lbs(fleet.trustedLbs)} lbs ÷ ${num(fleet.trustedHours)} hrs · ${fleet.trustedJobs} trusted job${fleet.trustedJobs === 1 ? "" : "s"}`
                 : "no trusted completed jobs yet"}
             </p>
           </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Bids assume</p>
-            <p className="text-3xl font-semibold text-concrete tabular-nums">
-              {fleet.bidAssumed != null ? <>{rate(fleet.bidAssumed)} <span className="text-base font-normal text-rebar">lbs/MH</span></> : "—"}
-            </p>
-            <p className="text-xs text-rebar mt-1">avg productivity priced on the same jobs</p>
-          </div>
-          {gap && (
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Gap</p>
-              <p className={`text-3xl font-semibold tabular-nums ${crewsSlower ? "text-danger" : "text-ok"}`}>{pct(gap.pct, true)}</p>
-              <p className="text-xs text-rebar mt-1">{crewsSlower ? "crews place slower than bids price" : "crews beat what bids price"}</p>
-            </div>
-          )}
+          <button
+            onClick={() => setInfoOpen((o) => !o)}
+            className={`ml-auto shrink-0 w-6 h-6 rounded-full border text-xs italic flex items-center justify-center transition-colors ${infoOpen ? "border-safety text-safety" : "border-line text-rebar hover:text-concrete hover:border-rebar"}`}
+            aria-label="What does this mean?"
+            title="What does this mean?"
+          >
+            i
+          </button>
         </div>
 
-        {/* what the gap MEANS — hours and dollars on the next bid */}
-        {gap && Math.abs(gap.deltaHoursPer100k) >= 1 && (
-          <div className={`px-6 py-3 border-t border-line text-sm ${crewsSlower ? "bg-danger/10" : "bg-ok/10"}`}>
-            <span className="text-concrete">
-              On every <span className="font-medium">100,000 lbs</span> bid at {rate(fleet.bidAssumed)} lbs/MH, crews at their real pace take{" "}
-              <span className={`font-semibold ${crewsSlower ? "text-danger" : "text-ok"}`}>
-                {num(Math.abs(gap.deltaHoursPer100k))} {crewsSlower ? "more" : "fewer"} hours
-              </span>{" "}
-              ≈ <span className={`font-semibold ${crewsSlower ? "text-danger" : "text-ok"}`}>{money(Math.abs(gap.costPer100k))}</span> in burdened labor{" "}
-              {crewsSlower ? "the bid never priced." : "of cushion the bid didn't count on."}
-            </span>
+        {infoOpen && haveHead && (
+          <div className="px-6 pb-4 text-sm space-y-2 border-b border-line">
+            <p><span className="text-concrete font-medium">What this shows:</span> <span className="text-rebar">how much rebar your crews actually place per man-hour, next to what your bids assumed when they were priced.</span></p>
+            <ul className="space-y-1 text-rebar">
+              <li><span className="text-concrete">Produced ({rate(fleet.blendedRealized)})</span> — total pounds placed ÷ total hours across trusted completed jobs. Bigger jobs count more.</li>
+              <li><span className="text-concrete">Bid ({rate(fleet.bidAssumed)})</span> — the average productivity those same jobs were priced at.</li>
+              <li><span className="text-concrete">Gap ({pct(gap?.pct, true)})</span> — {crewsSlower ? "crews place slower than bids assumed, so jobs run tight on labor." : "crews place faster than bids assumed, so jobs finish with labor to spare."}</li>
+            </ul>
+            <p className="text-rebar">These recalculate on their own as jobs finish — only completed jobs you trust are counted, so the number sharpens over time.</p>
           </div>
         )}
-        {typeof fleet.totalCostSlip === "number" && fleet.trustedJobs > 0 && Math.abs(fleet.totalCostSlip) >= 500 && (
-          <div className="px-6 py-3 border-t border-line text-xs text-rebar">
-            Across the trusted jobs, productivity variance has {fleet.totalCostSlip > 0 ? "cost" : "saved"}{" "}
-            <span className={`font-medium ${fleet.totalCostSlip > 0 ? "text-danger" : "text-ok"}`}>{money(Math.abs(fleet.totalCostSlip))}</span>{" "}
-            vs. what those bids priced.
+
+        {haveHead && (
+          <div className="px-6 pt-4 pb-2">
+            <div className="relative h-11">
+              <div className="absolute left-0 right-0 top-4 h-3 rounded-full bg-graphite border border-line" />
+              <div className="absolute top-4 left-0 h-3 rounded-l-full bg-rebar/25" style={{ width: `${Math.min(bidX, realX)}%` }} />
+              <div className={`absolute top-4 h-3 ${crewsSlower ? "bg-danger/60" : "bg-ok"}`} style={{ left: `${Math.min(bidX, realX)}%`, width: `${Math.abs(realX - bidX)}%` }} />
+              <div className="absolute top-2 w-0.5 h-7 bg-concrete" style={{ left: `${bidX}%` }} />
+              <div className="absolute top-0 text-[11px] text-rebar -translate-x-1/2 whitespace-nowrap" style={{ left: `${bidX}%` }}>bid {rate(fleet.bidAssumed)}</div>
+              <div className={`absolute top-0 text-[11px] font-medium -translate-x-1/2 whitespace-nowrap ${crewsSlower ? "text-danger" : "text-ok"}`} style={{ left: `${realX}%` }}>{rate(fleet.blendedRealized)}</div>
+            </div>
+            <p className="text-center text-xs text-rebar">
+              {crewsSlower ? "the red band is labor the bid didn’t budget for" : "the green band is cushion your bids never priced"}
+            </p>
+          </div>
+        )}
+
+        {gap && (
+          <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <Tile label={crewsSlower ? "Extra hrs / 100k lbs" : "Hours saved / 100k lbs"} value={`${num(Math.abs(gap.deltaHoursPer100k))} hrs`} tone={crewsSlower ? "danger" : "ok"} />
+            <Tile label="Labor value / 100k lbs" value={money(Math.abs(gap.costPer100k))} tone={crewsSlower ? "danger" : "ok"} signed={crewsSlower ? "−" : "+"} />
+            {typeof fleet.totalCostSlip === "number" && fleet.trustedJobs > 0 && (
+              <Tile label="Realized variance" value={money(Math.abs(fleet.totalCostSlip))} tone={fleet.totalCostSlip > 0 ? "danger" : "ok"} signed={fleet.totalCostSlip > 0 ? "−" : "+"} />
+            )}
+          </div>
+        )}
+
+        {realizedVals.length >= 2 && (
+          <div className="px-6 pb-5 border-t border-line">
+            <p className="text-[11px] uppercase tracking-wider text-rebar mt-3 mb-3">Per-job spread · realized lbs/MH</p>
+            <div className="relative h-8">
+              <div className="absolute left-0 right-0 top-4 h-px bg-line" />
+              <div className="absolute top-1 w-px h-6 bg-rebar/70" style={{ left: `${spreadX(fleet.bidAssumed)}%` }} />
+              <div className={`absolute top-1 w-0.5 h-6 ${crewsSlower ? "bg-danger" : "bg-ok"}`} style={{ left: `${spreadX(fleet.blendedRealized)}%` }} />
+              {trusted.map((r) =>
+                typeof r.realized === "number" && r.realized > 0 ? (
+                  <div
+                    key={r.id}
+                    className="absolute top-2.5 w-2.5 h-2.5 rounded-full bg-concrete/70 -translate-x-1/2 hover:bg-safety cursor-default"
+                    style={{ left: `${spreadX(r.realized)}%` }}
+                    title={`${r.name || r.projectId}: ${rate(r.realized)} lbs/MH`}
+                  />
+                ) : null
+              )}
+            </div>
+            <div className="flex justify-between text-[11px] text-rebar mt-1">
+              <span>slower</span>
+              <span>faster →</span>
+            </div>
+            <p className="text-xs text-rebar mt-2">
+              Each dot is one trusted job, by how fast that crew actually placed. The
+              <span className={crewsSlower ? "text-danger" : "text-ok"}> {crewsSlower ? "red" : "green"} line</span> is your fleet blend ({rate(fleet.blendedRealized)}); the gray line is what bids assumed ({rate(fleet.bidAssumed)}). Dots clustered tight mean a steady pace you can bank on when bidding; spread wide means the average hides big job-to-job swings.
+            </p>
           </div>
         )}
       </div>
@@ -260,6 +323,17 @@ export default function PerformanceClient({ data }) {
   );
 }
 
+
+// A labeled stat tile — the prose insights, turned into scannable numbers.
+function Tile({ label, value, tone, signed }) {
+  const c = tone === "danger" ? "text-danger" : tone === "ok" ? "text-ok" : "text-concrete";
+  return (
+    <div className="rounded-md px-3 py-2.5" style={{ background: "var(--surface-2)" }}>
+      <div className="text-[11px] text-rebar mb-1">{label}</div>
+      <div className={`text-lg font-semibold tabular-nums ${c}`}>{signed || ""}{value}</div>
+    </div>
+  );
+}
 
 // In-progress table — same format discipline as the trusted table. Forecast
 // (projected finish % of hour budget) sorts worst-first; mobilizing sinks.
