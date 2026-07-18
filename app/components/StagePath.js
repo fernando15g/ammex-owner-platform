@@ -71,6 +71,19 @@ export default function StagePath({ status, projectId, onChanged, compact = fals
           const isNow = i === current;
           const label = compact ? (SHORT[stage] || stage) : stage;
 
+          // one chevron shape, used by BOTH layers. clip-path eats a border on
+          // the diagonal edges, so instead of a border we stack two clipped
+          // layers: an outer chevron in the outline colour, and an inner fill
+          // inset 1px (via p-px on the outer). The 1px of outer that shows all
+          // the way around — including the diagonals — IS the outline, so every
+          // segment reads as the same shape whether it's filled or not.
+          const chevron =
+            i === 0
+              ? "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%)"
+              : i === STAGES.length - 1
+              ? "polygon(0 0, 100% 0, 100% 100%, 0 100%, 8px 50%)"
+              : "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%, 8px 50%)";
+
           return (
             <button
               key={stage}
@@ -78,29 +91,29 @@ export default function StagePath({ status, projectId, onChanged, compact = fals
               disabled={busy}
               title={busy ? "Saving…" : `Move to ${stage}`}
               className={[
-                "relative flex-1 min-w-0 whitespace-nowrap transition-colors disabled:opacity-60",
-                compact ? "text-[11px] px-2.5 py-1.5" : "text-xs px-3 py-2",
+                "group relative flex flex-1 min-w-0 whitespace-nowrap transition-colors disabled:opacity-60 p-px",
                 i === 0 ? "rounded-l-md" : "",
                 i === STAGES.length - 1 ? "rounded-r-md" : "",
-                // every segment carries a border, so an un-selected stage reads
-                // as a clickable section rather than floating words
-                "border",
-                done ? "bg-ok/25 border-ok/40 text-ok hover:bg-ok/35"
-                  : isNow ? "bg-safety border-safety text-steel font-semibold"
-                  : "bg-graphite/40 border-line text-rebar hover:text-concrete hover:bg-graphite/70 hover:border-rebar/50",
+                // outer layer = the outline colour
+                done ? "bg-ok/40 hover:bg-ok/50"
+                  : isNow ? "bg-safety"
+                  : "bg-line hover:bg-rebar/60",
               ].join(" ")}
-              style={{
-                // chevron: point into the next segment, notch out of the previous
-                clipPath:
-                  i === 0
-                    ? "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%)"
-                    : i === STAGES.length - 1
-                    ? "polygon(0 0, 100% 0, 100% 100%, 0 100%, 8px 50%)"
-                    : "polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%, 8px 50%)",
-                marginLeft: i === 0 ? 0 : -1,
-              }}
+              style={{ clipPath: chevron, marginLeft: i === 0 ? 0 : -1 }}
             >
-              <span className="block truncate">{label}</span>
+              <span
+                className={[
+                  "flex flex-1 items-center justify-center transition-colors",
+                  compact ? "text-[11px] px-2.5 py-1.5" : "text-xs px-3 py-2",
+                  // inner layer = the fill colour + label
+                  done ? "bg-ok/25 text-ok group-hover:bg-ok/35"
+                    : isNow ? "bg-safety text-steel font-semibold"
+                    : "bg-graphite/40 text-rebar group-hover:text-concrete group-hover:bg-graphite/70",
+                ].join(" ")}
+                style={{ clipPath: chevron }}
+              >
+                <span className="block truncate">{label}</span>
+              </span>
             </button>
           );
         })}

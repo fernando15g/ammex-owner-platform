@@ -124,8 +124,7 @@ export default function ActiveWorkClient({ data }) {
               <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
                 <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
                 <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
-                <SortHeader label="Hours" sortKey="payrollHours" sort={sort} toggle={toggle} align="right" />
-                <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
+                <SortHeader label="Complete" sortKey="placedFraction" sort={sort} toggle={toggle} align="right" />
                 <SortHeader label="Forecast" sortKey="forecastLbsPerMH" sort={sort} toggle={toggle} align="right" className="px-4" />
               </tr>
             </thead>
@@ -153,14 +152,7 @@ export default function ActiveWorkClient({ data }) {
                       <StatusPill status={r.status} sev={r.burn.severity} />
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums">
-                      {r.burn.hoursPct != null ? (
-                        <span className={sev.text}>{pct(r.burn.hoursPct)}</span>
-                      ) : (
-                        <span className="text-rebar">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell">
-                      {pct(r.placedFraction)}
+                      <CompleteCell fraction={r.placedFraction} asOf={r.placementAsOf} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {r.burn.forecastable ? (
@@ -173,14 +165,16 @@ export default function ActiveWorkClient({ data }) {
                 );
               })}
               {rows.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">No running jobs right now.</td></tr>
+                <tr><td colSpan={4} className="px-4 py-10 text-center text-rebar">No running jobs right now.</td></tr>
               )}
             </tbody>
           </table>
         </div>
         <p className="text-xs text-rebar mt-3">
-          Forecast = on pace to finish at this % of budgeted hours (hours spent ÷ steel placed). Mobilizing jobs show
-          staging hours before much is placed — expected, not an alarm.
+          Complete = rebar placed ÷ awarded weight — physical job progress. Forecast = on pace to finish at this % of
+          budgeted hours (hours spent ÷ steel placed). Mobilizing jobs show staging hours before much is placed —
+          expected, not an alarm. A <span className="text-warn">not updated</span> flag means placement hasn&apos;t been
+          logged, so Complete can&apos;t be trusted yet.
         </p>
       </div>
 
@@ -209,6 +203,24 @@ function Metric({ label, value, tone }) {
     <div>
       <span className={`text-xl font-semibold ${c}`}>{value}</span>
       <span className="text-rebar ml-2">{label}</span>
+    </div>
+  );
+}
+
+// Physical completion by weight — the number that actually says "how far along
+// is this job". A slim bar makes it scannable down the column; a freshness flag
+// calls out jobs whose placement was never logged, so a stale/blank % can't
+// quietly read as real progress.
+function CompleteCell({ fraction, asOf }) {
+  const hasVal = typeof fraction === "number";
+  const w = hasVal ? Math.min(Math.max(fraction, 0), 1) * 100 : 0;
+  return (
+    <div className="inline-flex flex-col items-end gap-1">
+      <span className="text-concrete">{hasVal ? `${Math.round(fraction * 100)}%` : "—"}</span>
+      <span className="block w-16 h-1 rounded-full bg-line overflow-hidden">
+        <span className="block h-full rounded-full bg-ok" style={{ width: `${w}%` }} />
+      </span>
+      {!asOf && <span className="text-[10px] text-warn">not updated</span>}
     </div>
   );
 }
