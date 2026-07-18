@@ -26,12 +26,13 @@ spec's build log.
   overshoot = cushion), labeled stat tiles (hrs saved/100k, $/100k, realized
   variance), and a per-job spread strip with its own explanation. Handles the
   crews-slower case (red shortfall) too.
-- [x] **The Book** (`/book`) — WIP schedule of awarded work. One row per won job:
-  contract, expected profit/margin, billed, remaining, outstanding, with totals.
-  Four KPI tiles, search, sortable columns with "i" tooltips, click-through to
-  each job's billing page, collapsed closed-jobs history. Read-only; every figure
-  runs through the same billing engine as the Billing zone (`getBook()` in
-  `lib/data.js`). Nav enabled.
+- [x] **The Book** (`/book`) — WIP schedule of awarded work, split the way a
+  bonding company reads it: **Backlog** (awarded, not started), **Active** (the
+  live WIP, sortable with totals), and a collapsed **Closed** history. One row
+  per job: contract, expected profit/margin, billed, remaining, outstanding.
+  Four KPI tiles (whole live book), search, "i" tooltips, click-through to each
+  job's billing page. Read-only; same billing engine as the Billing zone
+  (`getBook()` in `lib/data.js`). Nav enabled.
 
 ---
 
