@@ -43,14 +43,20 @@ spec's build log.
   in-the-works at the bottom). Killed the red Due column; the date shown is the
   submission date everywhere, neutral. `app/pipeline/PipelineClient.js`.
 
-- [ ] **Home dashboard** (`/` — currently redirects to `/active`)
-  Front-door zone summarizing every zone's headline (pipeline value, active
-  work, billing outstanding, the Book's contract value + profit). Last of the
-  read-only zones.
+- [x] **Home dashboard** (`/home`) — front door. Five zone tiles (bids in
+  flight, active work, to-collect, the Book, crew pace), each linking in, plus a
+  prioritized "needs your attention" list: aging receivables, jobs over pace,
+  cold bids (14d, with snooze/mark-lost right on the card), missing placement.
+  Root `/` now resumes your last zone within 6h, else lands on Home. New
+  `Last Follow-Up` date property on the Bid Tracker drives cold-bid snooze.
 
 ---
 
 ## Optional refinements
+
+- [ ] **Billing draft auto-save** — while entering billing numbers, keep a local
+  draft so a refresh/nav-away doesn't lose input; on return, offer to restore the
+  unsaved entry. Billing-zone improvement, unrelated to Home.
 
 - [ ] **Performance "cushion" weighting** (`lib/rules/performance.js`) — realized
   is pounds-weighted but `bidAssumed` is a plain average of ratios; consistent

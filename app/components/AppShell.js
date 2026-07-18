@@ -7,10 +7,11 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import IdentityGate from "@/app/components/IdentityGate";
 
 const NAV = [
-  { key: "home", label: "Home", href: "/", ready: false },
+  { key: "home", label: "Home", href: "/home", ready: true },
   { key: "pipeline", label: "Bids", href: "/pipeline", ready: true },
   { key: "active", label: "Active Work", href: "/active", ready: true },
   { key: "billing", label: "Billing", href: "/billing", ready: true },
@@ -93,6 +94,17 @@ function Breadcrumbs({ trail }) {
 export default function AppShell({ current, title, subtitle, breadcrumbs, actions, children }) {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
+  const pathname = usePathname();
+
+  // Remember the last real zone you were on, so reopening the app drops you back
+  // where you were (see app/page.js) — unless it's been a while, in which case
+  // you get Home. Home and the bare root aren't "work", so they don't count.
+  useEffect(() => {
+    if (pathname && pathname !== "/" && pathname !== "/home") {
+      try { window.localStorage.setItem("ammex-last-page", JSON.stringify({ path: pathname, ts: Date.now() })); } catch {}
+    }
+  }, [pathname]);
+
   return (
     <div className="min-h-screen lg:flex">
       <IdentityGate />
