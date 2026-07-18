@@ -47,8 +47,15 @@ spec's build log.
   flight, active work, to-collect, the Book, crew pace), each linking in, plus a
   prioritized "needs your attention" list: aging receivables, jobs over pace,
   cold bids (14d, with snooze/mark-lost right on the card), missing placement.
-  Root `/` now resumes your last zone within 6h, else lands on Home. New
-  `Last Follow-Up` date property on the Bid Tracker drives cold-bid snooze.
+  Root `/` resumes your last zone within 6h, else lands on Home.
+- [x] **Home v2 — command center** — alerts expand to their items; click an item
+  for a modal that resolves it in place, no leaving Home. Actions: log a payment
+  (overdue), snooze / mark lost (cold bids), enter placed pounds (missing
+  placement), open bid sheet (no sheet); over-pace is view-only. Added a
+  no-bid-sheet alert. Alerts are live signals — they clear when the real thing is
+  resolved, never by a dismiss. New `Last Follow-Up` date property on the Bid
+  Tracker drives cold-bid snooze; `placedLbs` now project-editable for inline
+  placement entry.
 
 ---
 
