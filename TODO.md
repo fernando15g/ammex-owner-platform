@@ -38,6 +38,20 @@ spec's build log.
 
 ## Next up
 
+- [x] **Active-job editing + bulk grid + Notes** — (1) inline placed-to-date
+  editor on the Active detail panel (click "Installed lbs" to update it for the
+  life of the job; same write path as the Home alert). (2) Bulk-update grid on
+  Active Work: one row per active job, editable Placed lbs / Labor hours / Notes;
+  labor hours editable ONLY on payroll-era jobs (timesheet-era locked, hours come
+  from the timecard app — respects the Performance source toggle, never flips it);
+  changed cells highlight amber; "Save all" commits only changed cells, failed
+  rows flag and keep the rest. (3) Notes property (Projects DB "Notes") now
+  read + editable in the OS — bulk grid, project form (textarea), and shown on the
+  Active panel. (4) Home nav item now has a divider line under it. Files:
+  app/active/BulkUpdate.js (new), ActiveWorkClient.js, ProjectForm.js, AppShell.js,
+  lib/data.js, lib/notion/projectRepository.js, lib/rules/mutations.js.
+
+
 - [x] **Map streamline (one source of truth)** — location now comes ONLY from the
   project's address/pin; dropped the bid City/County text layer entirely. County
   shading is derived from the pins themselves (point-in-polygon via baked AZ

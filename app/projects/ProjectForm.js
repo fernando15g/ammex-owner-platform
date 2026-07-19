@@ -69,6 +69,7 @@ export default function ProjectForm({
     siteLat: project?.siteLat ?? null,
     siteLng: project?.siteLng ?? null,
     sitePinManual: project?.sitePinManual || false,
+    notes: project?.notes || "",
   });
   const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
@@ -145,6 +146,7 @@ export default function ProjectForm({
       siteLat: f.siteLat,
       siteLng: f.siteLng,
       sitePinManual: !!f.sitePinManual,
+      notes: f.notes,
     };
     // If the address changed on an existing project, drop the cached coordinates
     // so Home re-geocodes to the new spot — UNLESS the pin was placed by hand,
@@ -307,6 +309,11 @@ export default function ProjectForm({
                 />
               </div>
             )}
+          </div>
+
+          <div className="sm:col-span-2">
+            <span className="text-xs text-rebar mb-1 block">Notes</span>
+            <textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={3} className="inp w-full resize-y" placeholder="Job notes…" />
           </div>
 
           <div className="sm:col-span-2">

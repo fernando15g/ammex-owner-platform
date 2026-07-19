@@ -117,9 +117,14 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
           <span className="font-semibold tracking-tight text-concrete">AMMEX<span className="text-rebar font-normal"> OS</span></span>
         </div>
         <nav className="p-3 space-y-0.5">
-          {NAV.filter((n) => !n.minor).map((n) => (
+          {NAV.filter((n) => n.key === "home").map((n) => (
             <NavItem key={n.key} item={n} active={n.key === current} />
           ))}
+          <div className="pt-3 mt-3 border-t border-line space-y-0.5">
+            {NAV.filter((n) => !n.minor && n.key !== "home").map((n) => (
+              <NavItem key={n.key} item={n} active={n.key === current} />
+            ))}
+          </div>
           <div className="pt-3 mt-3 border-t border-line">
             {NAV.filter((n) => n.minor).map((n) => (
               <NavItem key={n.key} item={n} active={n.key === current} />

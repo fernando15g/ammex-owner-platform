@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
+import BulkUpdate from "@/app/active/BulkUpdate";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import { useEffect } from "react";
 import StagePath from "@/app/components/StagePath";
@@ -34,6 +35,7 @@ export default function ActiveWorkClient({ data }) {
   const { rows, counts, backlog = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc", "active");
   const [query, setQuery] = useState("");
+  const [bulk, setBulk] = useState(false);
   const q = query.trim().toLowerCase();
   const filtered = q
     ? sorted.filter((r) => [r.name, r.detail?.projectId, (r.detail?.gc || []).join(" "), (r.detail?.foreman || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q))
@@ -124,13 +126,14 @@ export default function ActiveWorkClient({ data }) {
       {/* Table — scrolls sideways when the window is too narrow for every column */}
       <div className="flex-1 min-w-0">
         {rows.length > 0 && (
-          <div className="mb-3">
+          <div className="mb-3 flex items-center gap-2">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search jobs by name, ID, GC, or foreman"
-              className="w-full sm:max-w-xs text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
+              className="flex-1 sm:max-w-xs text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
             />
+            <button onClick={() => setBulk(true)} className="ml-auto text-sm px-3 py-2 rounded-md border border-line text-concrete hover:bg-graphite whitespace-nowrap">Bulk update</button>
           </div>
         )}
         <div className="rounded-lg border border-line overflow-x-auto">
@@ -211,6 +214,7 @@ export default function ActiveWorkClient({ data }) {
       {detailsFor && (
         <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />
       )}
+      {bulk && <BulkUpdate rows={rows} onClose={() => setBulk(false)} />}
     </div>
   );
 }
@@ -287,7 +291,7 @@ function DetailPanel({ row, onClose, onEdit }) {
 
         <Section title="Placement">
           <Row label="Awarded lbs" value={lbs(row.awardedLbs)} />
-          <Row label="Installed lbs" value={lbs(row.placedLbs)} sub={row.placementAsOf ? `as of ${dateStr(row.placementAsOf)}` : "not updated"} />
+          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} asOf={row.placementAsOf} />
           <Row label="Placed" value={pct(row.placedFraction)} />
           <Row label="Bid productivity" value={row.bidProductivity != null ? `${num(row.bidProductivity)} lbs/MH` : "—"} />
         </Section>
@@ -322,6 +326,12 @@ function DetailPanel({ row, onClose, onEdit }) {
             <p className="text-concrete/80 text-sm leading-relaxed">{d.scope}</p>
           </div>
         )}
+        {row.notes && (
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Notes</p>
+            <p className="text-concrete/80 text-sm leading-relaxed whitespace-pre-wrap">{row.notes}</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -343,6 +353,52 @@ function Row({ label, value, sub }) {
       <span className="text-concrete text-right tabular-nums">
         {value}
         {sub && <span className="block text-[11px] text-rebar/70">{sub}</span>}
+      </span>
+    </div>
+  );
+}
+
+// Placed-to-date is the live progress number — editable here for the life of the
+// job (until billed lbs takes over). Same write path as the Home placement alert.
+function EditablePlacedRow({ projectId, placedLbs, asOf }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(placedLbs ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const save = async () => {
+    const n = Number(val);
+    if (val === "" || Number.isNaN(n) || n < 0) { setErr("Enter a number"); return; }
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ changes: { placedLbs: n } }) });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error || "Couldn't save");
+      window.location.reload();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-rebar">Installed lbs</span>
+        <span className="text-right tabular-nums">
+          <button onClick={() => { setVal(placedLbs ?? ""); setErr(null); setEditing(true); }} className="text-concrete hover:text-safety underline underline-offset-2 decoration-dotted">{lbs(placedLbs)}</button>
+          <span className="block text-[11px] text-rebar/70">{asOf ? `as of ${dateStr(asOf)} · tap to update` : "tap to update"}</span>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-rebar">Installed lbs</span>
+      <span className="text-right">
+        <span className="flex items-center gap-1.5 justify-end">
+          <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }} inputMode="numeric" className="w-28 text-sm px-2 py-1 rounded border border-line bg-transparent text-concrete text-right focus:outline-none focus:border-rebar" />
+          <button onClick={save} disabled={busy} className="text-xs px-2 py-1 rounded bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
+          <button onClick={() => setEditing(false)} className="text-xs text-rebar hover:text-concrete px-1" aria-label="Cancel">✕</button>
+        </span>
+        {err && <span className="block text-[11px] text-danger mt-1">{err}</span>}
       </span>
     </div>
   );
