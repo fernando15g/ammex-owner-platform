@@ -268,8 +268,8 @@ export default function ProjectForm({
               <button type="button" onClick={() => setShowMap((v) => !v)} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">
                 {showMap ? "Hide map" : f.siteLat != null ? "Adjust pin on map" : "Drop a pin on map"}
               </button>
-              <span className="text-[11px] text-rebar">
-                {f.sitePinManual ? "Pin placed by hand" : f.siteLat != null ? "Pinned from address" : "No pin yet — auto-placed from the address"}
+              <span className={`text-[11px] ${f.sitePinManual ? "text-ok" : "text-rebar"}`}>
+                {f.sitePinManual ? "✓ Pin set — save changes below" : f.siteLat != null ? "Pinned from address" : "No pin yet — auto-placed from the address"}
               </span>
               {f.sitePinManual && (
                 <button type="button" onClick={() => setF((s) => ({ ...s, siteLat: null, siteLng: null, sitePinManual: false }))} className="text-[11px] text-rebar hover:text-concrete underline underline-offset-2">reset to address</button>
@@ -277,7 +277,19 @@ export default function ProjectForm({
             </div>
             {showMap && (
               <div className="mt-3">
-                <PinPicker lat={f.siteLat} lng={f.siteLng} onPick={({ lat, lng }) => setF((s) => ({ ...s, siteLat: lat, siteLng: lng, sitePinManual: true }))} />
+                <PinPicker
+                  lat={f.siteLat}
+                  lng={f.siteLng}
+                  onPick={({ lat, lng, address }) => setF((s) => ({
+                    ...s,
+                    siteLat: lat, siteLng: lng, sitePinManual: true,
+                    ...(address ? {
+                      siteStreet: s.siteStreet || address.street || "",
+                      siteCity: s.siteCity || address.city || "",
+                      siteZip: s.siteZip || address.zip || "",
+                    } : {}),
+                  }))}
+                />
               </div>
             )}
           </div>

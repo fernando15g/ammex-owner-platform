@@ -22,6 +22,7 @@ export default function PinPicker({ lat, lng, onPick }) {
   const LRef = useRef(null);
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
+  const [placed, setPlaced] = useState(typeof lat === "number" && typeof lng === "number");
 
   useEffect(() => {
     let cancelled = false;
@@ -43,6 +44,15 @@ export default function PinPicker({ lat, lng, onPick }) {
     return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function emit(la, ln) {
+    setPlaced(true);
+    onPick({ lat: la, lng: ln });
+    try {
+      const d = await fetch(`/api/geo-reverse?lat=${la}&lng=${ln}`).then((r) => r.json());
+      if (d?.result) onPick({ lat: la, lng: ln, address: d.result });
+    } catch {}
+  }
+
   function setMarker([la, ln], fire) {
     const L = LRef.current, map = mapRef.current;
     if (!L || !map) return;
@@ -53,11 +63,11 @@ export default function PinPicker({ lat, lng, onPick }) {
         iconSize: [16, 16], iconAnchor: [8, 8],
       });
       markerRef.current = L.marker([la, ln], { draggable: true, icon }).addTo(map);
-      markerRef.current.on("dragend", () => { const p = markerRef.current.getLatLng(); onPick({ lat: p.lat, lng: p.lng }); });
+      markerRef.current.on("dragend", () => { const p = markerRef.current.getLatLng(); emit(p.lat, p.lng); });
     } else {
       markerRef.current.setLatLng([la, ln]);
     }
-    if (fire) onPick({ lat: la, lng: ln });
+    if (fire) emit(la, ln);
   }
 
   async function search() {
@@ -83,7 +93,11 @@ export default function PinPicker({ lat, lng, onPick }) {
         <button type="button" onClick={search} disabled={searching} className="text-xs px-3 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40">{searching ? "…" : "Search"}</button>
       </div>
       <div ref={elRef} style={{ height: 300, borderRadius: 8, overflow: "hidden", border: "1px solid var(--line, #39414c)" }} />
-      <p className="text-[11px] text-rebar mt-1.5">Click the map or drag the pin onto the exact jobsite. A hand-placed pin overrides the address and won&apos;t be moved by auto-geocoding.</p>
+      {placed ? (
+        <p className="text-[11px] text-ok mt-1.5">✓ Pin set — save the form below to keep it. It fills in any blank address fields and overrides auto-geocoding.</p>
+      ) : (
+        <p className="text-[11px] text-rebar mt-1.5">Click the map or drag the pin onto the exact jobsite. A hand-placed pin overrides the address and won&apos;t be moved by auto-geocoding.</p>
+      )}
     </div>
   );
 }
