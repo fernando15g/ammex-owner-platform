@@ -38,6 +38,23 @@ spec's build log.
 
 ## Next up
 
+- [x] **Hours source modes (Auto / Payroll / Combined)** — one resolver
+  (actualHoursForProject) now honors a per-job Hours Mode: Auto (timecards if any,
+  else payroll), Payroll (use the payroll number as-is; editable — doubles as the
+  close-out "final"), Combined (frozen payroll baseline + only timecard hours
+  logged AFTER the combine anchor; baseline frozen at select-time). Every zone
+  inherits it — Active, Performance, Home, burn, productivity — so they can't
+  diverge. Shared HoursControl picker in BOTH the Active detail panel and the
+  Performance modal (same fields, perfect lockstep); removed the modal's old
+  two-way HoursSource. New Notion fields: Hours Mode (select) + Combine Baseline
+  (number). Legacy Manual Hours Override still respected. Math verified 7/7.
+  Also: bulk grid cells outlined like a spreadsheet; Active right panel now aligns
+  to the table (search/bulk moved above both columns). Files: lib/rules/hours.js,
+  lib/data.js, lib/rules/performance.js, lib/notion/projectRepository.js,
+  lib/rules/mutations.js, app/components/HoursControl.js (new), ActiveWorkClient.js,
+  ProjectPerformanceModal.js, BulkUpdate.js.
+
+
 - [x] **Active-job editing + bulk grid + Notes** — (1) inline placed-to-date
   editor on the Active detail panel (click "Installed lbs" to update it for the
   life of the job; same write path as the Home alert). (2) Bulk-update grid on

@@ -23,6 +23,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import HoursControl from "@/app/components/HoursControl";
 import { PERF } from "@/lib/rules/performance";
 
 const money = (n) =>
@@ -257,7 +258,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
           </div>
 
           <div className="flex items-center gap-2 pt-1">
-            <HoursSource r={r} onSaved={savedRefresh} />
+            <HoursControl projectId={r.id} mode={r.hoursMode} timesheet={r.timesheetHours} payroll={r.payrollHours} baseline={r.combineBaseline} />
             <div className="ml-auto flex gap-2">
               <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
               <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
@@ -282,80 +283,6 @@ function SensCard({ label, now, was, delta, good }) {
 }
 
 // Hours source control — appears ONLY when there's a payroll number to offer.
-// Timesheet-era job with a differing payroll figure → "payroll shows N · Use".
-// On payroll → "Payroll · Edit". No payroll number anywhere → nothing renders,
-// and once the payroll era ends the control retires itself.
-function HoursSource({ r, onSaved }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(r.payrollHours != null ? String(r.payrollHours) : "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const ts = r.timesheetHours;
-  const pay = r.payrollHours;
-  const onPayroll = r.hoursOverridden;
-  const isPayrollEra = r.hoursEra === "payroll";
-  const hasPayroll = typeof pay === "number" && pay > 0;
-  const tsNum = typeof ts === "number" ? ts : 0;
-  const differ = hasPayroll && Math.round(tsNum) !== Math.round(pay);
-
-  const showUse = !onPayroll && !isPayrollEra && differ;
-  const showEdit = onPayroll || isPayrollEra;
-  if (!hasPayroll && !onPayroll) return null;
-  if (!showUse && !showEdit) return null;
-
-  async function save(changes) {
-    setBusy(true); setErr(null);
-    try {
-      const res = await fetch(`/api/projects/${r.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ changes }),
-      });
-      const d = await res.json(); if (!d.ok) throw new Error(d.error);
-      onSaved();
-    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
-  }
-
-  // hover tooltip content — the two numbers, so the box stays clean
-  const tip = [
-    typeof ts === "number" ? `Timesheet ${Math.round(ts)} hrs` : "Timesheet —",
-    hasPayroll ? `Payroll ${Math.round(pay)} hrs` : "Payroll —",
-  ].join("  ·  ");
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-rebar">Payroll hrs</span>
-        <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} inputMode="decimal"
-          className="w-24 text-sm px-2 py-1.5 rounded-md border border-line bg-transparent text-concrete" placeholder="hrs" />
-        <button disabled={busy} onClick={() => save({ payrollHours: Number(val) || 0, manualHoursOverride: true })}
-          className="text-sm px-3 py-1.5 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
-        <button onClick={() => setEditing(false)} className="text-sm px-2 py-1.5 text-rebar hover:text-concrete">Cancel</button>
-        {err && <span className="text-xs text-danger">{err}</span>}
-      </div>
-    );
-  }
-
-  return (
-    <div className="group relative">
-      <button
-        disabled={busy}
-        onClick={() => (showEdit ? setEditing(true) : save({ manualHoursOverride: true }))}
-        className="text-sm px-3 py-2 rounded-md border border-line text-rebar hover:text-concrete hover:border-rebar disabled:opacity-40"
-      >
-        {busy ? "…" : showEdit ? "Edit payroll hours" : "Use payroll hours"}
-      </button>
-      {/* hover tooltip */}
-      <div className="pointer-events-none absolute left-0 bottom-full mb-1.5 hidden group-hover:block whitespace-nowrap text-xs px-2.5 py-1.5 rounded-md border border-line shadow-lg z-10"
-        style={{ background: "var(--surface)" }}>
-        <span className="text-concrete">{tip}</span>
-        <span className="block text-rebar mt-0.5">{showEdit ? "Currently using payroll hours" : "Switch this job to the payroll number"}</span>
-      </div>
-      {err && <span className="ml-2 text-xs text-danger">{err}</span>}
-    </div>
-  );
-}
-
 // One labeled context chip — a tiny uppercase label glued to its value, so
 // "Placed to-date" and "Projection" never read as mystery words again.
 function Chip({ label, value, tone }) {

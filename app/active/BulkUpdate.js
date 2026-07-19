@@ -11,7 +11,8 @@
 
 import { useState } from "react";
 
-const CELL = "w-full bg-transparent text-sm px-2 py-1.5 text-concrete focus:outline-none";
+const CELL = "w-full bg-transparent text-sm px-2 py-1.5 text-concrete focus:outline-none focus:ring-1 focus:ring-rebar rounded-sm";
+const TD = "border border-line align-middle";
 
 export default function BulkUpdate({ rows, onClose }) {
   const orig = {};
@@ -71,10 +72,10 @@ export default function BulkUpdate({ rows, onClose }) {
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0 z-10" style={{ background: "var(--surface-2)" }}>
               <tr className="text-[11px] uppercase tracking-wider text-rebar">
-                <th className="text-left font-normal px-4 py-2 min-w-[180px]">Job</th>
-                <th className="text-left font-normal px-2 py-2 w-32">Placed lbs</th>
-                <th className="text-left font-normal px-2 py-2 w-36">Labor hours</th>
-                <th className="text-left font-normal px-2 py-2 min-w-[220px]">Notes</th>
+                <th className="text-left font-normal px-4 py-2 min-w-[180px] border border-line">Job</th>
+                <th className="text-left font-normal px-2 py-2 w-32 border border-line">Placed lbs</th>
+                <th className="text-left font-normal px-2 py-2 w-36 border border-line">Labor hours</th>
+                <th className="text-left font-normal px-2 py-2 min-w-[220px] border border-line">Notes</th>
               </tr>
             </thead>
             <tbody>
@@ -82,15 +83,15 @@ export default function BulkUpdate({ rows, onClose }) {
                 const payroll = r.detail?.hoursEra === "payroll";
                 return (
                   <tr key={r.id} className="border-t border-line">
-                    <td className="px-4 py-1.5 align-top">
+                    <td className={`${TD} px-4 py-1.5 align-top`}>
                       <div className="text-concrete truncate max-w-[220px]">{r.name}</div>
                       <div className="text-[11px] text-rebar">{r.projectId}</div>
                       {errors[r.id] && <div className="text-[11px] text-danger mt-0.5">{errors[r.id]}</div>}
                     </td>
-                    <td className={dirty(r.id, "placedLbs") ? "bg-warn/15" : ""}>
+                    <td className={`${TD} ${dirty(r.id, "placedLbs") ? "bg-warn/15" : ""}`}>
                       <input value={draft[r.id].placedLbs} onChange={(e) => set(r.id, "placedLbs", e.target.value)} inputMode="numeric" className={CELL} placeholder="—" />
                     </td>
-                    <td className={dirty(r.id, "hours") ? "bg-warn/15" : ""}>
+                    <td className={`${TD} ${dirty(r.id, "hours") ? "bg-warn/15" : ""}`}>
                       {payroll ? (
                         <input value={draft[r.id].hours} onChange={(e) => set(r.id, "hours", e.target.value)} inputMode="numeric" className={CELL} placeholder="—" />
                       ) : (
@@ -99,7 +100,7 @@ export default function BulkUpdate({ rows, onClose }) {
                         </div>
                       )}
                     </td>
-                    <td className={dirty(r.id, "notes") ? "bg-warn/15" : ""}>
+                    <td className={`${TD} ${dirty(r.id, "notes") ? "bg-warn/15" : ""}`}>
                       <input value={draft[r.id].notes} onChange={(e) => set(r.id, "notes", e.target.value)} className={CELL} placeholder="—" />
                     </td>
                   </tr>

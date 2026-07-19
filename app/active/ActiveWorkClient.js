@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
 import BulkUpdate from "@/app/active/BulkUpdate";
+import HoursControl from "@/app/components/HoursControl";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import { useEffect } from "react";
 import StagePath from "@/app/components/StagePath";
@@ -122,20 +123,21 @@ export default function ActiveWorkClient({ data }) {
         );
       })()}
 
+      {rows.length > 0 && (
+        <div className="mb-4 flex items-center gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search jobs by name, ID, GC, or foreman"
+            className="flex-1 sm:max-w-xs text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
+          />
+          <button onClick={() => setBulk(true)} className="ml-auto text-sm px-3 py-2 rounded-md border border-line text-concrete hover:bg-graphite whitespace-nowrap">Bulk update</button>
+        </div>
+      )}
+
       <div className="lg:flex lg:gap-6">
       {/* Table — scrolls sideways when the window is too narrow for every column */}
       <div className="flex-1 min-w-0">
-        {rows.length > 0 && (
-          <div className="mb-3 flex items-center gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search jobs by name, ID, GC, or foreman"
-              className="flex-1 sm:max-w-xs text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
-            />
-            <button onClick={() => setBulk(true)} className="ml-auto text-sm px-3 py-2 rounded-md border border-line text-concrete hover:bg-graphite whitespace-nowrap">Bulk update</button>
-          </div>
-        )}
         <div className="rounded-lg border border-line overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -287,6 +289,7 @@ function DetailPanel({ row, onClose, onEdit }) {
           <Row label="Logged hours" value={num(row.burn.actualHours)} sub={d.hoursEra === "payroll" ? "payroll-era" : d.hoursEra === "timesheet" ? "from timecards" : null} />
           <Row label="Hours consumed" value={pct(row.burn.hoursPct)} />
           <Row label="Forecast finish" value={row.burn.forecastable ? `${pct(row.burn.forecastPct)} of budget` : "not enough placed"} />
+          <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
         </Section>
 
         <Section title="Placement">
