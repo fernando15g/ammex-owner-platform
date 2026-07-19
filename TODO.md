@@ -43,6 +43,16 @@ spec's build log.
   library), work-mix donut by project type, foreman scorecard (realized vs bid
   lbs/MH, colored by beating/on/behind, small samples flagged), and the book by
   stage (backlog/active/closed). Dependency-free (SVG/CSS charts).
+- [x] **Map pins + site fields + Home polish** — projects now carry Site
+  Street/City/State/Zip (+ Lat/Lng cache); the new-project form captures them
+  (State defaults to AZ, sweet-spot fields softly encouraged, confirm-on-skip).
+  A Census geocoder (no key, fails safe) resolves address → lat/lng, caches it to
+  Notion, and drops a pin; county shading is the fallback. Map card gained a
+  by-county list and a subtle "N need a location" note; Home is full-width; the
+  foreman scorecard right side is aligned into fixed columns.
+- [ ] **Billing draft auto-save** — while entering billing numbers, keep a local
+  draft (covers a freeze/crash); confirm on exit with unsaved input; offer to
+  restore on return. Local-only until saved — never touches the books. Next build.
 
 
 
@@ -69,14 +79,7 @@ spec's build log.
 
 ## Optional refinements
 
-- [ ] **Map pins via geocoding** — add `Site Address` (text) to the Projects DB;
-  a geocoding step converts address → lat/long (stored, not per-load) so jobs
-  with an address drop a precise pin over the county shading. Shading works today
-  without it.
 
-- [ ] **Billing draft auto-save** — while entering billing numbers, keep a local
-  draft so a refresh/nav-away doesn't lose input; on return, offer to restore the
-  unsaved entry. Billing-zone improvement, unrelated to Home.
 
 - [ ] **Performance "cushion" weighting** (`lib/rules/performance.js`) — realized
   is pounds-weighted but `bidAssumed` is a plain average of ratios; consistent

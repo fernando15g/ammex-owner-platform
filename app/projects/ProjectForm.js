@@ -54,6 +54,10 @@ export default function ProjectForm({
       ? project.relatedBidIds
       : project?.relatedBidId ? [project.relatedBidId]
       : presetBidId ? [presetBidId] : [],
+    siteStreet: project?.siteStreet || "",
+    siteCity: project?.siteCity || "",
+    siteState: project?.siteState || "AZ",
+    siteZip: project?.siteZip || "",
   });
   const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
@@ -98,6 +102,11 @@ export default function ProjectForm({
 
   async function save() {
     if (!f.name.trim()) { setErr("A project needs a name."); return; }
+    // Site street + city are the "sweet spot" for a map pin. Not required — but
+    // if they're blank on a new project, confirm rather than silently skip.
+    if (isNew && (!f.siteStreet.trim() || !f.siteCity.trim())) {
+      if (!window.confirm("No site address yet — the job map needs a street and city to drop a pin.\n\nCreate the project without it? You can add it later.")) return;
+    }
     setBusy(true); setErr(null);
     const payload = {
       name: f.name.trim(),
@@ -108,6 +117,10 @@ export default function ProjectForm({
       gc: f.gc,
       relatedBidIds: f.relatedBidIds,
       relatedBidId: f.relatedBidIds[0] || null,   // kept for callers that still read one
+      siteStreet: f.siteStreet.trim(),
+      siteCity: f.siteCity.trim(),
+      siteState: f.siteState.trim(),
+      siteZip: f.siteZip.trim(),
     };
     try {
       const res = await fetch(isNew ? "/api/projects" : `/api/projects/${project.id}`, {
@@ -205,6 +218,16 @@ export default function ProjectForm({
               {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
+
+          <div className="sm:col-span-2">
+            <span className="text-xs text-rebar mb-1 block">Site location <span className="text-rebar/60">· good to have — puts the job on the map</span></span>
+            <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
+              <input className="inp sm:col-span-6" value={f.siteStreet} onChange={(e) => setF({ ...f, siteStreet: e.target.value })} placeholder="Street (e.g. 1200 E Washington St)" />
+              <input className="inp sm:col-span-3" value={f.siteCity} onChange={(e) => setF({ ...f, siteCity: e.target.value })} placeholder="City" />
+              <input className="inp sm:col-span-1" value={f.siteState} onChange={(e) => setF({ ...f, siteState: e.target.value })} placeholder="State" />
+              <input className="inp sm:col-span-2" value={f.siteZip} onChange={(e) => setF({ ...f, siteZip: e.target.value })} placeholder="Zip" />
+            </div>
+          </div>
 
           <div className="sm:col-span-2">
             <span className="text-xs text-rebar mb-1 block">

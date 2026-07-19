@@ -10,7 +10,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
-import { AZ_COUNTIES, AZ_VIEWBOX } from "./azCounties";
+import { AZ_COUNTIES, AZ_VIEWBOX, projectAZ } from "./azCounties";
 
 const money = (n) =>
   typeof n !== "number" ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
@@ -49,7 +49,7 @@ export default function HomeClient({ data }) {
   const need = alerts.reduce((s, a) => s + a.items.length, 0);
 
   return (
-    <div className="space-y-7 max-w-5xl">
+    <div className="space-y-7">
       {/* header */}
       <div className="flex items-end justify-between flex-wrap gap-2">
         <div>
@@ -98,8 +98,8 @@ export default function HomeClient({ data }) {
       </div>
 
       {/* ===================== analytics canvas ===================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <Card title="Job concentration · Arizona"><AzMap county={analytics.county} unmapped={analytics.unmapped} /></Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2"><MapCard county={analytics.county} pins={analytics.pins} needLocation={analytics.needLocation} /></div>
         <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
       </div>
       <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} /></Card>
@@ -340,22 +340,52 @@ function mixHex(a, b, t) {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-function AzMap({ county, unmapped }) {
+function MapCard({ county, pins, needLocation }) {
   const vals = Object.values(county);
   const max = Math.max(1, ...vals);
   const shade = (n) => (!n ? "#2b313a" : mixHex("#3a2a1c", "#ff6a13", 0.3 + 0.7 * (n / max)));
+  const list = Object.entries(county).sort((a, b) => b[1] - a[1]);
   return (
-    <div>
-      <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 240 }} role="img" aria-label="Arizona counties shaded by active job count">
-        {AZ_COUNTIES.map((c) => (
-          <path key={c.name} d={c.d} fill={shade(county[c.name] || 0)} stroke="#1c2127" strokeWidth={0.6}>
-            <title>{c.name}: {county[c.name] || 0} active</title>
-          </path>
-        ))}
-      </svg>
-      <div className="flex items-center justify-between text-[11px] text-rebar mt-1.5">
-        <span className="flex items-center gap-1.5"><span className="inline-block w-10 h-2 rounded" style={{ background: "linear-gradient(90deg,#2b313a,#ff6a13)" }} /> fewer → more jobs</span>
-        {unmapped > 0 && <span>{unmapped} not placed</span>}
+    <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="text-[11px] uppercase tracking-wider text-rebar">Job concentration · Arizona</div>
+        {needLocation > 0 && <div className="text-[11px] text-rebar/70">{needLocation} need a location</div>}
+      </div>
+      <div className="flex gap-4">
+        <div className="flex-1 min-w-0">
+          <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 260 }} role="img" aria-label="Arizona counties shaded by active job count, with pins for jobs that have an address">
+            {AZ_COUNTIES.map((c) => (
+              <path key={c.name} d={c.d} fill={shade(county[c.name] || 0)} stroke="#1c2127" strokeWidth={0.6}>
+                <title>{c.name}: {county[c.name] || 0} active</title>
+              </path>
+            ))}
+            {(pins || []).map((p, i) => {
+              const [x, y] = projectAZ(p.lng, p.lat);
+              if (x < 0 || x > 420 || y < 0 || y > 280) return null;
+              return <circle key={i} cx={x} cy={y} r={3.5} fill="#f4f3f0" stroke="#1c2127" strokeWidth={1.3}><title>{p.name}</title></circle>;
+            })}
+          </svg>
+          <div className="flex items-center gap-2 text-[11px] text-rebar mt-1.5">
+            <span className="inline-block w-10 h-2 rounded" style={{ background: "linear-gradient(90deg,#2b313a,#ff6a13)" }} /> fewer → more jobs
+            {pins?.length > 0 && <span className="ml-3 flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-concrete" /> address pin</span>}
+          </div>
+        </div>
+        <div className="w-40 shrink-0">
+          <div className="text-[10px] uppercase tracking-wider text-rebar/70 mb-2">By county</div>
+          {list.length === 0 ? (
+            <div className="text-xs text-rebar">No active jobs placed yet.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {list.map(([name, n]) => (
+                <div key={name} className="flex items-center gap-2 text-xs">
+                  <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: shade(n) }} />
+                  <span className="text-concrete truncate">{name}</span>
+                  <span className="ml-auto tabular-nums text-rebar">{n}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -397,14 +427,14 @@ function ForemanScorecard({ foremen }) {
         const bar = f.gap == null ? "bg-rebar/50" : f.gap >= 0.1 ? "bg-ok" : f.gap >= -0.05 ? "bg-rebar/60" : "bg-danger";
         return (
           <div key={f.name} className="flex items-center gap-3">
-            <span className="w-24 text-sm text-concrete truncate shrink-0">{f.name}</span>
+            <span className="w-28 shrink-0 text-sm text-concrete truncate">{f.name}</span>
             <div className="flex-1 relative h-3.5 rounded bg-graphite min-w-0">
               <div className={`absolute left-0 top-0 h-3.5 rounded ${bar}`} style={{ width: `${((f.realized || 0) / max) * 100}%` }} />
               {f.bid && <div className="absolute w-0.5 bg-concrete" style={{ left: `${(f.bid / max) * 100}%`, top: -2, height: 18 }} />}
             </div>
-            <span className="w-20 text-right text-sm tabular-nums text-concrete shrink-0">{f.realized != null ? Math.round(f.realized) : "—"}<span className="text-[10px] text-rebar ml-0.5">lbs/MH</span></span>
-            <span className={`w-12 text-right text-sm font-semibold shrink-0 ${tone}`}>{f.gap != null ? `${f.gap > 0 ? "+" : ""}${Math.round(f.gap * 100)}%` : "—"}</span>
-            {f.jobs < 2 && <span className="text-[10px] text-rebar/70 shrink-0">1 job</span>}
+            <span className="w-24 shrink-0 text-right text-sm tabular-nums text-concrete">{f.realized != null ? Math.round(f.realized) : "—"}<span className="text-[10px] text-rebar ml-1">lbs/MH</span></span>
+            <span className={`w-14 shrink-0 text-right text-sm font-semibold tabular-nums ${tone}`}>{f.gap != null ? `${f.gap > 0 ? "+" : ""}${Math.round(f.gap * 100)}%` : "—"}</span>
+            <span className="w-12 shrink-0 text-right text-[10px] text-rebar/70">{f.jobs < 2 ? "1 job" : ""}</span>
           </div>
         );
       })}
