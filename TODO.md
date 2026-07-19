@@ -38,6 +38,18 @@ spec's build log.
 
 ## Next up
 
+- [x] **Integration audit fixes + line-join bug** — (1) FIXED: the hub joined
+  line items by projectId ONLY, so bid-attached lines (e.g. a line added in the
+  billing sheet, linked via the bid) never reached Active Work — contract/remaining
+  undercounted. Now uses projectLineItems (projectId OR bidId) — the SAME join the
+  billing sheet uses. Verified: item added in sheet now flows to Active Work
+  (25k contract / 15k remaining, matches). (2) Contract VALUE ($) now resolves
+  from the revised line-item contract (computed centrally in getEverything), so
+  Active Work / Billing / The Book show identical contract $ per job. (3) Removed
+  dead stubs (p.production/invoices/payments) + dead projectId-only map in
+  getBillingOverview. Files: lib/data.js. Build clean.
+
+
 - [x] **Unbilled-work readout + margin flag + contract-from-sheet** — (1) Contract
   pounds now resolve from the LIVE bill sheet (Σ LBS-line quantities) when a sheet
   exists, else the bid estimate — so adding a line item flows into Active Work's
