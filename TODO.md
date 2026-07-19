@@ -38,6 +38,19 @@ spec's build log.
 
 ## Next up
 
+- [x] **Combined hours fix** — Combined now = payroll + full timesheet (e.g. 64 +
+  60 = 124), no baseline subtraction. The earlier baseline-freeze made it collapse
+  to payroll right after combining (added-since-combine = 0), which read as "not
+  saving." Payroll stays frozen during the job; close-out reconciliation is the
+  Payroll-mode final number. Combine Baseline field now unused (left in Notion,
+  harmless). Files: lib/rules/hours.js, app/components/HoursControl.js. Verified 4/4.
+
+- [ ] **Avg + peak crew size** (FTE-based) on the job panel — replace/augment the
+  "Timecards" row. avg crew = total man-hours ÷ days worked ÷ real-avg-workday
+  (~6h, already measured); pair with peak crew. Skew-proof, tied to real labor.
+  (Backlog — build when ready.)
+
+
 - [x] **Active detail panel redesign + 4-stage chevron** — rebuilt the panel to
   the approved flagship layout: hero placement-progress (big % + bar + editable
   installed/awarded/remaining), bold section headers with real spacing, and four

@@ -35,8 +35,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
 
   const pick = (m) => {
     if (m === mode || busy) return;
-    if (m === "combined") patch({ hoursMode: "Combined", combineBaseline: typeof timesheet === "number" ? timesheet : 0 });
-    else patch({ hoursMode: m === "payroll" ? "Payroll" : "Auto" });
+    patch({ hoursMode: m === "payroll" ? "Payroll" : m === "combined" ? "Combined" : "Auto" });
   };
 
   const savePayroll = () => {
@@ -52,7 +51,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
     </button>
   );
 
-  const since = Math.max(0, (timesheet || 0) - (baseline || 0));
+  const combinedTotal = (typeof payroll === "number" ? payroll : 0) + (typeof timesheet === "number" ? timesheet : 0);
 
   return (
     <div className="mt-3 rounded-md border border-line p-3" style={{ background: "var(--surface)" }}>
@@ -60,7 +59,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
         <span className="text-[10px] uppercase tracking-wider text-rebar/70">hours source</span>
         <span>timesheet <span className="text-concrete tabular-nums">{n0(timesheet)}</span></span>
         <span>payroll <span className="text-concrete tabular-nums">{n0(payroll)}</span></span>
-        {mode === "combined" && <span>added since combine <span className="text-concrete tabular-nums">{n0(since)}</span></span>}
+        {mode === "combined" && <span>combined <span className="text-concrete tabular-nums">{n0(combinedTotal)}</span></span>}
       </div>
       <div className="flex items-center gap-1.5">
         <Btn m="auto" label="Auto" />
