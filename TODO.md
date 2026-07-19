@@ -38,6 +38,14 @@ spec's build log.
 
 ## Next up
 
+- [x] **Manual pin-drop** — project form gained a collapsed "drop a pin on map"
+  control (Leaflet + free OpenStreetMap tiles, lazy-loaded on open, no key). Click
+  or drag to set exact coordinates; search a city/ZIP to zoom in. A hand-placed
+  pin sets `Site Pin Manual` and is treated as truth — auto-geocoding skips it and
+  an address change won't move it; "reset to address" hands control back to
+  geocoding. Pairs with auto-geocode (Census→OSM) rather than replacing it.
+
+
 - [x] **Home flagship analytics** — added the analytics canvas below tiles/alerts:
   Arizona county job-concentration map (pre-projected paths, no runtime map
   library), work-mix donut by project type, foreman scorecard (realized vs bid

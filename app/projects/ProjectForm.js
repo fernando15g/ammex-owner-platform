@@ -26,8 +26,14 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import BidPicker from "@/app/projects/BidPicker";
 import ChipSelect from "@/app/components/ChipSelect";
+
+const PinPicker = dynamic(() => import("@/app/projects/PinPicker"), {
+  ssr: false,
+  loading: () => <div className="text-xs text-rebar py-6 text-center">Loading map…</div>,
+});
 
 const PROJECT_STATUSES = [
   "Bidding", "Awarded", "Mobilizing", "Active",
@@ -59,11 +65,15 @@ export default function ProjectForm({
     siteCity: project?.siteCity || "",
     siteState: project?.siteState || "AZ",
     siteZip: project?.siteZip || "",
+    siteLat: project?.siteLat ?? null,
+    siteLng: project?.siteLng ?? null,
+    sitePinManual: project?.sitePinManual || false,
   });
   const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const savedSnap = useRef(null);
   const router = useRouter();
 
@@ -131,10 +141,14 @@ export default function ProjectForm({
       siteCity: f.siteCity.trim(),
       siteState: f.siteState.trim(),
       siteZip: f.siteZip.trim(),
+      siteLat: f.siteLat,
+      siteLng: f.siteLng,
+      sitePinManual: !!f.sitePinManual,
     };
     // If the address changed on an existing project, drop the cached coordinates
-    // so Home re-geocodes to the new spot instead of leaving the pin behind.
-    if (!isNew) {
+    // so Home re-geocodes to the new spot — UNLESS the pin was placed by hand,
+    // which is the source of truth and stays put.
+    if (!isNew && !f.sitePinManual) {
       const moved = ["siteStreet", "siteCity", "siteState", "siteZip"].some((k) => (project?.[k] || "") !== payload[k]);
       if (moved) { payload.siteLat = null; payload.siteLng = null; }
     }
@@ -250,6 +264,22 @@ export default function ProjectForm({
               <input className="inp sm:col-span-1" value={f.siteState} onChange={(e) => setF({ ...f, siteState: e.target.value })} placeholder="State" />
               <input className="inp sm:col-span-2" value={f.siteZip} onChange={(e) => setF({ ...f, siteZip: e.target.value })} placeholder="Zip" />
             </div>
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
+              <button type="button" onClick={() => setShowMap((v) => !v)} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">
+                {showMap ? "Hide map" : f.siteLat != null ? "Adjust pin on map" : "Drop a pin on map"}
+              </button>
+              <span className="text-[11px] text-rebar">
+                {f.sitePinManual ? "Pin placed by hand" : f.siteLat != null ? "Pinned from address" : "No pin yet — auto-placed from the address"}
+              </span>
+              {f.sitePinManual && (
+                <button type="button" onClick={() => setF((s) => ({ ...s, siteLat: null, siteLng: null, sitePinManual: false }))} className="text-[11px] text-rebar hover:text-concrete underline underline-offset-2">reset to address</button>
+              )}
+            </div>
+            {showMap && (
+              <div className="mt-3">
+                <PinPicker lat={f.siteLat} lng={f.siteLng} onPick={({ lat, lng }) => setF((s) => ({ ...s, siteLat: lat, siteLng: lng, sitePinManual: true }))} />
+              </div>
+            )}
           </div>
 
           <div className="sm:col-span-2">
