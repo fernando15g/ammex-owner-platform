@@ -36,6 +36,21 @@ const GROUPS = [
 ];
 const LIVE_ORDER = { Contingent: 0, Negotiating: 1 };
 
+// Quiet per-status color cue — a small dot on the status pill so the pipeline
+// reads at a glance. Warm = hot/blocked, blue = out for decision, green = won.
+const STATUS_COLOR = {
+  Contingent: "#ff6a13",    // hottest — waiting on the contract
+  Negotiating: "#f0873a",   // warm — in play
+  Submitted: "#2f73d8",     // out for decision
+  "Follow Up": "#e0a63b",   // amber — going cold
+  Reviewing: "#7c8899",     // neutral — pre-submission
+  Estimating: "#7c8899",    // neutral — pre-submission
+  "Need Weights": "#e5533c", // blocked
+  Awarded: "#4a9e63",       // won
+  Lost: "#5b6470",          // muted
+  "No Bid": "#5b6470",      // muted
+};
+
 function buildGroups(rows) {
   return GROUPS
     .map((g) => {
@@ -165,7 +180,10 @@ function BidRow({ r }) {
         <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
       </td>
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap">
-        <span className="inline-block text-xs rounded-full px-2 py-0.5 bg-steel border border-line text-concrete/80">{r.status}</span>
+        <span className="inline-flex items-center gap-1.5 text-xs rounded-full px-2 py-0.5 bg-steel border border-line text-concrete/80">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[r.status] || "#9aa3af" }} />
+          {r.status}
+        </span>
         {r.status === "Awarded" && !r.project && (
           <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-warn/50 text-warn">needs project</span>
         )}

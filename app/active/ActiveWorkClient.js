@@ -152,7 +152,6 @@ export default function ActiveWorkClient({ data }) {
               {filtered.map((r) => {
                 const sev = SEV[r.burn.severity] || SEV.ok;
                 const isSel = selected?.id === r.id;
-                const marginRisk = r.pace && typeof r.bidProductivity === "number" && r.bidProductivity > 0 && r.pace.lbsPerMH < r.bidProductivity * 0.85;
                 const toBill = r.pace?.source === "matched" && r.pace.unbilledEstLbs > 0 ? r.pace.unbilledEstLbs : 0;
                 return (
                   <tr
@@ -165,7 +164,6 @@ export default function ActiveWorkClient({ data }) {
                         <span className={`inline-block w-1.5 h-1.5 rounded-full ${sev.dot}`} />
                         <span className="truncate">{r.name || "—"}</span>
                         {r.multiBid && <span className="text-[10px] text-warn border border-warn/40 rounded px-1">multi-bid</span>}
-                        {marginRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn shrink-0" title="Running under bid pace — margin at risk" />}
                       </div>
                       <div className="text-xs text-rebar mt-0.5 pl-3.5">
                         {r.projectId || "no ID"}{r.foreman?.length ? ` · ${r.foreman.join(", ")}` : ""}

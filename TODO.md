@@ -38,6 +38,14 @@ spec's build log.
 
 ## Next up
 
+- [x] **Quiet polish batch** — (1) Bids: subtle per-status color dot on the status
+  pill (Contingent hottest → Awarded green → Lost muted), scannable not loud.
+  (2) Active Work: hours-source picker collapsed by default to a one-line
+  "hours source: Auto · adjust", expands on click. (3) Margin-at-risk dot removed
+  from the job row; still shown in the detail panel. Files: PipelineClient.js,
+  HoursControl.js, ActiveWorkClient.js.
+
+
 - [x] **Integration audit fixes + line-join bug** — (1) FIXED: the hub joined
   line items by projectId ONLY, so bid-attached lines (e.g. a line added in the
   billing sheet, linked via the bid) never reached Active Work — contract/remaining

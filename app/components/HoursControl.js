@@ -21,7 +21,10 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState(false);
   const [val, setVal] = useState(payroll ?? "");
+
+  const modeLabel = mode === "payroll" ? "Payroll" : mode === "combined" ? "Combined" : "Auto";
 
   const patch = async (changes) => {
     setBusy(true); setErr(null);
@@ -53,6 +56,16 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
 
   const combinedTotal = (typeof payroll === "number" ? payroll : 0) + (typeof timesheet === "number" ? timesheet : 0);
 
+  if (!open) {
+    return (
+      <div className="mt-3 flex items-center gap-2 text-[11px]">
+        <span className="text-[10px] uppercase tracking-wider text-rebar/70">hours source</span>
+        <span className="text-concrete">{modeLabel}</span>
+        <button onClick={() => setOpen(true)} className="text-rebar hover:text-concrete underline underline-offset-2">adjust</button>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 rounded-md border border-line p-3" style={{ background: "var(--surface)" }}>
       <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-[11px] text-rebar mb-2.5">
@@ -60,6 +73,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
         <span>timesheet <span className="text-concrete tabular-nums">{n0(timesheet)}</span></span>
         <span>payroll <span className="text-concrete tabular-nums">{n0(payroll)}</span></span>
         {mode === "combined" && <span>combined <span className="text-concrete tabular-nums">{n0(combinedTotal)}</span></span>}
+        <button onClick={() => setOpen(false)} className="ml-auto text-rebar hover:text-concrete underline underline-offset-2">hide</button>
       </div>
       <div className="flex items-center gap-1.5">
         <Btn m="auto" label="Auto" />
