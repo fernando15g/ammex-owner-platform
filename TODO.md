@@ -38,6 +38,16 @@ spec's build log.
 
 ## Next up
 
+- [x] **Address autocomplete + Home polish** — (1) Photon (OSM) type-ahead on the
+  project street field: pick a suggestion to fill street/city/state/ZIP + pin
+  coords in one shot; free-typing still works (non-mandatory), pin-drop still the
+  backstop. (2) Timesheet card: trims trailing empty days (no weekend bars),
+  compacted, slimmer bars with hover-to-read hours. (3) Balanced analytics row
+  (map 2 / timesheet 2 / work mix 1) so the map reads clearly again. (4) The map's
+  "N need a location" flag is now clickable -> modal listing those jobs, each
+  linking straight to its edit page.
+
+
 - [x] **Home timesheet pulse + Active Work search** — Home's top analytics row is
   now map | "This week in the field" (middle, wide) | work mix. The timesheet card
   shows total hours (with ▲/▼ vs last week), crew on the clock, jobs worked, an

@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import BidPicker from "@/app/projects/BidPicker";
 import ChipSelect from "@/app/components/ChipSelect";
+import AddressAutocomplete from "@/app/projects/AddressAutocomplete";
 
 const PinPicker = dynamic(() => import("@/app/projects/PinPicker"), {
   ssr: false,
@@ -259,7 +260,21 @@ export default function ProjectForm({
           <div className="sm:col-span-2">
             <span className="text-xs text-rebar mb-1 block">Site location <span className="text-rebar/60">· good to have — puts the job on the map</span></span>
             <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-              <input className="inp sm:col-span-6" value={f.siteStreet} onChange={(e) => setF({ ...f, siteStreet: e.target.value })} placeholder="Street (e.g. 1200 E Washington St)" />
+              <div className="sm:col-span-6">
+                <AddressAutocomplete
+                  value={f.siteStreet}
+                  onType={(v) => setF((s) => ({ ...s, siteStreet: v }))}
+                  onPick={(a) => setF((s) => ({
+                    ...s,
+                    siteStreet: a.street || s.siteStreet,
+                    siteCity: a.city || s.siteCity,
+                    siteState: a.state || s.siteState,
+                    siteZip: a.zip || s.siteZip,
+                    siteLat: typeof a.lat === "number" ? a.lat : s.siteLat,
+                    siteLng: typeof a.lng === "number" ? a.lng : s.siteLng,
+                  }))}
+                />
+              </div>
               <input className="inp sm:col-span-3" value={f.siteCity} onChange={(e) => setF({ ...f, siteCity: e.target.value })} placeholder="City" />
               <input className="inp sm:col-span-1" value={f.siteState} onChange={(e) => setF({ ...f, siteState: e.target.value })} placeholder="State" />
               <input className="inp sm:col-span-2" value={f.siteZip} onChange={(e) => setF({ ...f, siteZip: e.target.value })} placeholder="Zip" />

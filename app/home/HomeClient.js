@@ -98,8 +98,8 @@ export default function HomeClient({ data }) {
       </div>
 
       {/* ===================== analytics canvas ===================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-        <MapCard county={analytics.county} pins={analytics.pins} needLocation={analytics.needLocation} />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+        <div className="lg:col-span-2"><MapCard county={analytics.county} pins={analytics.pins} needLocationJobs={analytics.needLocationJobs} /></div>
         <div className="lg:col-span-2"><TimesheetCard ts={analytics.timesheet} /></div>
         <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
       </div>
@@ -341,7 +341,9 @@ function mixHex(a, b, t) {
   return `rgb(${c[0]},${c[1]},${c[2]})`;
 }
 
-function MapCard({ county, pins, needLocation }) {
+function MapCard({ county, pins, needLocationJobs }) {
+  const [open, setOpen] = useState(false);
+  const jobs = needLocationJobs || [];
   const vals = Object.values(county);
   const max = Math.max(1, ...vals);
   const shade = (n) => (!n ? "#2b313a" : mixHex("#3a2a1c", "#ff6a13", 0.3 + 0.7 * (n / max)));
@@ -350,7 +352,9 @@ function MapCard({ county, pins, needLocation }) {
     <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
       <div className="flex items-baseline justify-between mb-3">
         <div className="text-[11px] uppercase tracking-wider text-rebar">Job concentration · Arizona</div>
-        {needLocation > 0 && <div className="text-[11px] text-rebar/70">{needLocation} need a location</div>}
+        {jobs.length > 0 && (
+          <button onClick={() => setOpen(true)} className="text-[11px] text-warn/90 hover:text-warn underline underline-offset-2">{jobs.length} need a location</button>
+        )}
       </div>
       <div>
         <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 220 }} role="img" aria-label="Arizona counties shaded by active job count, with pins for jobs that have an address">
@@ -377,6 +381,30 @@ function MapCard({ county, pins, needLocation }) {
           </div>
         )}
       </div>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setOpen(false)}>
+          <div className="w-full max-w-md rounded-xl border border-line overflow-hidden" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-rebar">Jobs needing a location</div>
+                <h3 className="text-lg font-semibold text-concrete mt-0.5">{jobs.length} to place on the map</h3>
+              </div>
+              <button onClick={() => setOpen(false)} className="ml-auto text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
+            </div>
+            <div className="max-h-80 overflow-y-auto divide-y divide-line">
+              {jobs.map((j) => (
+                <a key={j.id} href={`/projects/${j.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-graphite/40">
+                  <span className="min-w-0">
+                    <span className="block text-sm text-concrete truncate">{j.name || "—"}</span>
+                    {j.projectId && <span className="text-[11px] text-rebar">{j.projectId}</span>}
+                  </span>
+                  <span className="ml-auto text-[11px] text-rebar shrink-0">add address ›</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -454,36 +482,50 @@ function BookByStage({ stages }) {
 }
 
 const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+const DAY_FULL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function TimesheetCard({ ts }) {
+  const [hover, setHover] = useState(null);
   if (!ts) return <Card title="This week in the field"><div className="text-sm text-rebar py-4 text-center">No timesheet data.</div></Card>;
-  const maxDay = Math.max(1, ...ts.byDay);
+
+  // Trim trailing empty days (e.g. no weekend work); keep mid-week gaps as real info.
+  let lastActive = -1;
+  ts.byDay.forEach((h, i) => { if (h > 0) lastActive = i; });
+  const days = lastActive >= 0 ? ts.byDay.slice(0, lastActive + 1) : ts.byDay.slice(0, 5);
+  const maxDay = Math.max(1, ...days);
   const deltaTone = ts.delta == null ? "text-rebar" : ts.delta >= 0 ? "text-ok" : "text-warn";
   const deltaTxt = ts.delta == null ? null : `${ts.delta > 0 ? "\u25B2" : "\u25BC"} ${Math.abs(Math.round(ts.delta * 100))}% vs last week`;
+
   return (
     <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
       <div className="text-[11px] uppercase tracking-wider text-rebar mb-3">This week in the field</div>
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-3">
         <div>
-          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.totalHours}<span className="text-xs font-normal text-rebar ml-1">hrs</span></div>
-          <div className="text-[11px] text-rebar mt-1.5">total hours</div>
+          <div className="text-[22px] leading-none font-semibold text-concrete tabular-nums">{ts.totalHours}<span className="text-xs font-normal text-rebar ml-1">hrs</span></div>
+          <div className="text-[11px] text-rebar mt-1">total hours</div>
           {deltaTxt && <div className={`text-[11px] mt-0.5 ${deltaTone}`}>{deltaTxt}</div>}
         </div>
         <div>
-          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.crew}</div>
-          <div className="text-[11px] text-rebar mt-1.5">crew on the clock</div>
+          <div className="text-[22px] leading-none font-semibold text-concrete tabular-nums">{ts.crew}</div>
+          <div className="text-[11px] text-rebar mt-1">crew</div>
         </div>
         <div>
-          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.jobs}</div>
-          <div className="text-[11px] text-rebar mt-1.5">jobs worked</div>
+          <div className="text-[22px] leading-none font-semibold text-concrete tabular-nums">{ts.jobs}</div>
+          <div className="text-[11px] text-rebar mt-1">jobs</div>
         </div>
       </div>
-      <div className="flex items-end gap-1.5 h-12">
-        {ts.byDay.map((h, i) => (
-          <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(4, (h / maxDay) * 100)}%`, background: h > 0 ? "#ff6a13" : "#2b313a" }} title={`${DAYS[i]}: ${h} hrs`} />
+      <div className="flex items-baseline justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider text-rebar/70">by day</span>
+        <span className="text-[11px] text-concrete tabular-nums h-[14px]">{hover != null ? `${DAY_FULL[hover]} \u00B7 ${days[hover]} hrs` : ""}</span>
+      </div>
+      <div className="flex items-end gap-2 h-9">
+        {days.map((h, i) => (
+          <div key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} className="flex-1 flex items-end h-full cursor-default">
+            <div className="w-full rounded-sm" style={{ height: `${Math.max(6, (h / maxDay) * 100)}%`, background: hover === i ? "#ffa060" : h > 0 ? "#ff6a13" : "#2b313a" }} />
+          </div>
         ))}
       </div>
-      <div className="flex gap-1.5 mt-1">
-        {DAYS.map((d, i) => <div key={i} className="flex-1 text-center text-[10px] text-rebar">{d}</div>)}
+      <div className="flex gap-2 mt-1">
+        {days.map((_, i) => <div key={i} className="flex-1 text-center text-[10px] text-rebar">{DAYS[i]}</div>)}
       </div>
       {(ts.underReviewHours > 0 || ts.unassignedHours > 0) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] border-t border-line mt-3 pt-2.5">
