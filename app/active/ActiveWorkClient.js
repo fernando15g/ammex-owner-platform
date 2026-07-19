@@ -152,6 +152,8 @@ export default function ActiveWorkClient({ data }) {
               {filtered.map((r) => {
                 const sev = SEV[r.burn.severity] || SEV.ok;
                 const isSel = selected?.id === r.id;
+                const marginRisk = r.pace && typeof r.bidProductivity === "number" && r.bidProductivity > 0 && r.pace.lbsPerMH < r.bidProductivity * 0.85;
+                const toBill = r.pace?.source === "matched" && r.pace.unbilledEstLbs > 0 ? r.pace.unbilledEstLbs : 0;
                 return (
                   <tr
                     key={r.id}
@@ -163,9 +165,11 @@ export default function ActiveWorkClient({ data }) {
                         <span className={`inline-block w-1.5 h-1.5 rounded-full ${sev.dot}`} />
                         <span className="truncate">{r.name || "—"}</span>
                         {r.multiBid && <span className="text-[10px] text-warn border border-warn/40 rounded px-1">multi-bid</span>}
+                        {marginRisk && <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn shrink-0" title="Running under bid pace — margin at risk" />}
                       </div>
                       <div className="text-xs text-rebar mt-0.5 pl-3.5">
                         {r.projectId || "no ID"}{r.foreman?.length ? ` · ${r.foreman.join(", ")}` : ""}
+                        {toBill > 0 && <span className="text-safety"> · ~{lbs(toBill)} to bill</span>}
                       </div>
                     </td>
                     <td className="px-3 py-3 hidden sm:table-cell">
@@ -267,6 +271,7 @@ function DetailPanel({ row, onClose, onEdit }) {
   const frac = Math.min(100, Math.max(0, (row.placedFraction || 0) * 100));
   const hasBilling = typeof f.billedLbs === "number" && f.billedLbs > 0;
   const jobFieldsEmpty = !(d.gc?.length || d.fabricator?.length || d.projectType?.length || d.cityCounty);
+  const paceVar = row.pace && typeof row.bidProductivity === "number" && row.bidProductivity > 0 ? row.pace.lbsPerMH / row.bidProductivity - 1 : null;
 
   return (
     <div className="rounded-lg border border-line bg-graphite lg:sticky lg:top-24 overflow-hidden">
@@ -298,6 +303,20 @@ function DetailPanel({ row, onClose, onEdit }) {
           <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} installedLbs={row.installedLbs} fromBilling={row.installedSource === "billed"} awardedLbs={row.awardedLbs} />
           {typeof remaining === "number" && <span className="text-rebar shrink-0">{lbs(remaining)} remaining</span>}
         </div>
+        {row.pace?.source === "matched" && (
+          <div className="mt-3 rounded-md border border-line px-3 py-2.5 text-xs" style={{ background: "var(--surface)" }}>
+            <div className="flex items-baseline justify-between">
+              <span className="text-rebar">Billed <span className="text-concrete tabular-nums">{lbs(row.pace.billedLbs)}</span> as of {dateStr(row.pace.throughDate)}</span>
+              <span className="text-rebar/70 tabular-nums">{num(row.pace.hoursThrough)} hrs</span>
+            </div>
+            {row.pace.hoursSince > 0 && (
+              <div className="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-line/60">
+                <span className="text-rebar">{num(row.pace.hoursSince)} hrs since &rarr; <span className="text-safety tabular-nums">~{lbs(row.pace.unbilledEstLbs)}</span> to bill</span>
+                <span className="text-rebar/60 text-[10px] uppercase tracking-wider">est. @ {num(row.pace.lbsPerMH)} lbs/MH</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Section title="Hours">
@@ -307,9 +326,15 @@ function DetailPanel({ row, onClose, onEdit }) {
         {row.pace && (
           <Row
             label="Pace"
-            value={`${num(row.pace.lbsPerMH)} lbs/MH`}
+            value={<>{num(row.pace.lbsPerMH)} lbs/MH{typeof row.bidProductivity === "number" && row.bidProductivity > 0 && <span className="text-rebar/70"> vs {num(row.bidProductivity)} bid</span>}</>}
             sub={row.pace.source === "matched" ? `billed ÷ hours thru ${dateStr(row.pace.throughDate)}` : row.pace.source === "total" ? "billed ÷ all hours" : "placed ÷ all hours"}
           />
+        )}
+        {paceVar != null && paceVar < -0.15 && (
+          <div className="flex items-center gap-1.5 text-[11px] text-warn">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn shrink-0" />
+            {Math.abs(Math.round(paceVar * 100))}% under bid pace — margin at risk
+          </div>
         )}
         {row.burn.forecastable && <Row label="Forecast finish" value={`${pct(row.burn.forecastPct)} of budget`} />}
         <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
@@ -326,7 +351,7 @@ function DetailPanel({ row, onClose, onEdit }) {
         {hasBilling ? (
           <>
             <Row label="Billed lbs" value={lbs(f.billedLbs)} />
-            <Row label="Unbilled in field" value={f.unbilledInstalledLbs != null ? lbs(f.unbilledInstalledLbs) : "—"} />
+            <Row label="Unbilled in field" value={row.pace?.source === "matched" && row.pace.unbilledEstLbs > 0 ? `~${lbs(row.pace.unbilledEstLbs)}` : "—"} sub={row.pace?.source === "matched" && row.pace.unbilledEstLbs > 0 ? "est. from hours since last invoice" : null} />
             <Row label="Remaining to bill" value={lbs(remaining)} />
           </>
         ) : (

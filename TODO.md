@@ -38,6 +38,20 @@ spec's build log.
 
 ## Next up
 
+- [x] **Unbilled-work readout + margin flag + contract-from-sheet** — (1) Contract
+  pounds now resolve from the LIVE bill sheet (Σ LBS-line quantities) when a sheet
+  exists, else the bid estimate — so adding a line item flows into Active Work's
+  remaining-to-bill + placement %, matching the billing page (was frozen to the
+  bid estimate). (2) Unbilled-work readout under Placement progress: "billed X as
+  of DATE (Y hrs) · Z hrs since -> ~W lbs to bill (est. @ pace)"; the same estimate
+  now IS Billing's "Unbilled in field" (the installed-minus-billed row went to
+  zero once installed=billed, so it needed a real source). (3) Margin flag: "N%
+  under bid pace - margin at risk" in the panel + a quiet amber dot on the job row,
+  plus a "~X to bill" hint on rows with a growing unbilled estimate. Verified
+  contract/billed/remaining math + pace 6/6. Files: lib/data.js,
+  lib/rules/performance.js, app/active/ActiveWorkClient.js.
+
+
 - [x] **Billed-lbs wired end to end (the interconnect)** — installed pounds now
   resolves ONCE in getEverything: billed LBS weight the moment a job has OS
   billing, hand-entered Rebar Placed To-Date only when it doesn't (legacy jobs
