@@ -295,7 +295,7 @@ function DetailPanel({ row, onClose, onEdit }) {
           <div className="h-full bg-safety rounded-full" style={{ width: `${frac}%` }} />
         </div>
         <div className="flex items-baseline justify-between gap-3 text-xs">
-          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} awardedLbs={row.awardedLbs} />
+          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} installedLbs={row.installedLbs} fromBilling={row.installedSource === "billed"} awardedLbs={row.awardedLbs} />
           {typeof remaining === "number" && <span className="text-rebar shrink-0">{lbs(remaining)} remaining</span>}
         </div>
       </div>
@@ -304,6 +304,13 @@ function DetailPanel({ row, onClose, onEdit }) {
         <Row label="Bid hours" value={num(row.burn.projectedHours)} />
         <Row label="Logged hours" value={num(row.burn.actualHours)} sub={hoursEraLabel(d.hoursEra)} />
         <Row label="Consumed" value={pct(row.burn.hoursPct)} />
+        {row.pace && (
+          <Row
+            label="Pace"
+            value={`${num(row.pace.lbsPerMH)} lbs/MH`}
+            sub={row.pace.source === "matched" ? `billed ÷ hours thru ${dateStr(row.pace.throughDate)}` : row.pace.source === "total" ? "billed ÷ all hours" : "placed ÷ all hours"}
+          />
+        )}
         {row.burn.forecastable && <Row label="Forecast finish" value={`${pct(row.burn.forecastPct)} of budget`} />}
         <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
       </Section>
@@ -379,11 +386,12 @@ function Row({ label, value, sub }) {
 
 // Placed-to-date is the live progress number — editable here for the life of the
 // job (until billed lbs takes over). Same write path as the Home placement alert.
-function EditablePlacedRow({ projectId, placedLbs, awardedLbs }) {
+function EditablePlacedRow({ projectId, placedLbs, installedLbs, fromBilling, awardedLbs }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(placedLbs ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const shown = typeof installedLbs === "number" ? installedLbs : placedLbs;
 
   const save = async () => {
     const n = Number(val);
@@ -410,8 +418,9 @@ function EditablePlacedRow({ projectId, placedLbs, awardedLbs }) {
   return (
     <span className="text-rebar">
       Installed{" "}
-      <button onClick={() => { setVal(placedLbs ?? ""); setErr(null); setEditing(true); }} className="text-concrete hover:text-safety underline underline-offset-2 decoration-dotted tabular-nums" title="Tap to update placed pounds">{lbs(placedLbs)}</button>
+      <button onClick={() => { setVal(placedLbs ?? ""); setErr(null); setEditing(true); }} className="text-concrete hover:text-safety underline underline-offset-2 decoration-dotted tabular-nums" title={fromBilling ? "Billing drives this number — the edit updates the manual placed-to-date underneath" : "Tap to update placed pounds"}>{lbs(shown)}</button>
       {" "}/ {lbs(awardedLbs)} lbs
+      {fromBilling && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-safety/90 border border-safety/40 rounded px-1 py-px align-middle">from billing</span>}
     </span>
   );
 }

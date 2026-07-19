@@ -423,12 +423,12 @@ function WorkMixDonut({ mix }) {
   const segs = mix.map((m, i) => { const start = (acc / total) * 100; acc += m.count; return { ...m, color: MIX_COLORS[i % MIX_COLORS.length], start, end: (acc / total) * 100, pctv: Math.round((m.count / total) * 100) }; });
   const grad = segs.map((s) => `${s.color} ${s.start}% ${s.end}%`).join(", ");
   return (
-    <div className="flex items-center gap-5">
-      <div className="relative shrink-0" style={{ width: 116, height: 116 }}>
-        <div style={{ width: 116, height: 116, borderRadius: "50%", background: `conic-gradient(${grad})` }} />
-        <div className="absolute" style={{ inset: 22, borderRadius: "50%", background: "var(--surface)" }} />
+    <div className="flex flex-col items-center gap-4 pt-1">
+      <div className="relative shrink-0" style={{ width: 120, height: 120 }}>
+        <div style={{ width: 120, height: 120, borderRadius: "50%", background: `conic-gradient(${grad})` }} />
+        <div className="absolute" style={{ inset: 23, borderRadius: "50%", background: "var(--surface)" }} />
       </div>
-      <div className="flex flex-col gap-1.5 text-xs min-w-0">
+      <div className="w-full flex flex-col gap-2 text-xs">
         {segs.map((s) => (
           <span key={s.type} className="flex items-center gap-2 text-rebar">
             <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: s.color }} />

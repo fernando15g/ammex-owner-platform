@@ -38,6 +38,26 @@ spec's build log.
 
 ## Next up
 
+- [x] **Billed-lbs wired end to end (the interconnect)** — installed pounds now
+  resolves ONCE in getEverything: billed LBS weight the moment a job has OS
+  billing, hand-entered Rebar Placed To-Date only when it doesn't (legacy jobs
+  unchanged, still editable). placedFraction/remaining/financials/burn all key
+  off the resolved number, so Active Work, Performance, Home, and the Book read
+  the identical figure by construction. Shared paceForProject (lbs/MH): placed ÷
+  all hours (no billing) · MATCHED billed ÷ hours-thru-last-invoice (mid-job,
+  timesheet-era) · TOTAL billed ÷ all hours (≥85% billed BY POUNDS or closed —
+  fixes the punchlist-inflation bug; was 98%-by-dollars, never switched).
+  Active panel: hero shows installed w/ "from billing" tag (edit still writes
+  the manual field) + a Pace row (same resolver as Performance). Home
+  missing-placement + foreman scorecard read resolved installed. getPerformance
+  simplified (central resolution killed the duplicate billing loads). Verified
+  6/6 scenarios. EXPECT: closed-history verdicts may shift (billed now leads);
+  some needs-review jobs may move to trusted (matched-at-end fix).
+
+- [ ] **Pace alert** (hours-vs-billed-lbs watchdog) — quiet, findable, not
+  in-your-face; design to be talked through together before building.
+
+
 - [x] **Combined hours fix** — Combined now = payroll + full timesheet (e.g. 64 +
   60 = 124), no baseline subtraction. The earlier baseline-freeze made it collapse
   to payroll right after combining (added-since-combine = 0), which read as "not
