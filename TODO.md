@@ -50,9 +50,11 @@ spec's build log.
   Notion, and drops a pin; county shading is the fallback. Map card gained a
   by-county list and a subtle "N need a location" note; Home is full-width; the
   foreman scorecard right side is aligned into fixed columns.
-- [ ] **Billing draft auto-save** — while entering billing numbers, keep a local
-  draft (covers a freeze/crash); confirm on exit with unsaved input; offer to
-  restore on return. Local-only until saved — never touches the books. Next build.
+- [x] **Billing draft auto-save** — the invoice builder (CreateBillClient) now
+  continuously stashes the grid + header to a LOCAL draft (localStorage, never
+  the server) as you type; warns on hard exit (beforeunload) with unsaved input;
+  offers a "restore / discard" bar on return; clears the moment the invoice
+  saves. Never touches the books until saved.
 
 
 

@@ -11,7 +11,7 @@
 // prior bill and can undo it. Retention is a TOGGLE (off unless the job has it).
 // =============================================================================
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 
 // Local YYYY-MM-DD (NOT toISOString — that uses UTC and can shift the day).
 function todayLocal() {
@@ -58,6 +58,57 @@ export default function CreateBillClient({ data }) {
     retentionPct: data.settings.retentionPercent ?? "",
   });
   const [adot, setAdot] = useState({ open: false, lbsDone: "", lbsTotal: "", totalSqft: "", ratePerSqft: "", description: "Sq ft billing" });
+
+  // ---- draft auto-save (freeze / crash / wandering-click proof) -------------
+  // The invoice grid is the heaviest number entry in the app. We continuously
+  // stash it to a LOCAL draft (localStorage — never the server) so nothing can
+  // wipe a half-built invoice. The draft is cleared the instant the invoice
+  // actually saves, and offered back on return.
+  const draftKey = `ammex-bill-draft-${data.id}`;
+  const [draftFound, setDraftFound] = useState(null);
+  const hydrated = useRef(false);
+  const savedRef = useRef(false);
+  const hasInput = () =>
+    rows.some((r) => String(r.toDateQty ?? "").trim() !== "") ||
+    String(head.invoiceNumber || "").trim() !== "" ||
+    String(head.notes || "").trim() !== "" ||
+    String(adot.lbsDone || "").trim() !== "";
+
+  useEffect(() => {
+    try { const raw = localStorage.getItem(draftKey); if (raw) { const d = JSON.parse(raw); if (d && d.ts && d.rows) setDraftFound(d); } } catch {}
+    hydrated.current = true;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!hydrated.current) return;
+    try {
+      if (hasInput()) {
+        localStorage.setItem(draftKey, JSON.stringify({ ts: Date.now(), rows, head, adot }));
+        setDraftFound(null); // fresh typing supersedes the old offer
+      }
+    } catch {}
+  }, [rows, head, adot]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const onLeave = (e) => { if (!savedRef.current && hasInput()) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [rows, head, adot]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function restoreDraft() {
+    if (!draftFound) return;
+    setRows(draftFound.rows); setHead(draftFound.head);
+    if (draftFound.adot) setAdot(draftFound.adot);
+    setMode("grid"); setDraftFound(null);
+  }
+  function discardDraft() { try { localStorage.removeItem(draftKey); } catch {} setDraftFound(null); }
+  const draftBar = draftFound ? (
+    <div className="rounded-lg border border-info/40 bg-info/10 p-3 mb-4 flex items-center gap-3 text-sm flex-wrap">
+      <span className="text-concrete">Unsaved invoice draft from {new Date(draftFound.ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.</span>
+      <button onClick={restoreDraft} className="ml-auto text-sm px-3 py-1.5 rounded-md bg-safety text-steel font-medium">Restore it</button>
+      <button onClick={discardDraft} className="text-sm px-3 py-1.5 rounded-md border border-line text-rebar hover:text-concrete">Discard</button>
+    </div>
+  ) : null;
 
   // Total lbs and the sq ft rate are already known — they're on the bid sheet.
   // Pull them in rather than making her retype numbers the system has. Still
@@ -262,6 +313,8 @@ export default function CreateBillClient({ data }) {
         }),
       });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      try { localStorage.removeItem(draftKey); } catch {}
+      savedRef.current = true;
       window.location.href = `/billing/${data.id}`;
     } catch (e) { setState({ saving: false, genning: false, error: String(e.message || e) }); }
   }
@@ -281,6 +334,7 @@ export default function CreateBillClient({ data }) {
   if (mode === "choose") {
     return (
       <div className="max-w-3xl">
+        {draftBar}
         <p className="text-sm text-rebar mb-4">First invoice for this job — how do you want to start? The bid sheet is the proposal; weights can change, so confirm it or start from the fabricator&apos;s weight sheet.</p>
         <div className="grid sm:grid-cols-2 gap-4">
           <button onClick={() => { setRows(fromLines()); setMode("grid"); }} className="text-left rounded-lg border border-line p-5 hover:border-safety" style={{ background: "var(--surface)" }}>
@@ -323,6 +377,7 @@ export default function CreateBillClient({ data }) {
         <button onClick={saveBill} disabled={state.saving || calc.gross <= 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save invoice"}</button>
       </div>
 
+      {draftBar}
       {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{state.error}</div>}
 
       {carry.hasOpen && (
