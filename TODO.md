@@ -38,6 +38,19 @@ spec's build log.
 
 ## Next up
 
+- [x] **Active detail panel redesign + 4-stage chevron** — rebuilt the panel to
+  the approved flagship layout: hero placement-progress (big % + bar + editable
+  installed/awarded/remaining), bold section headers with real spacing, and four
+  clean sections (Hours w/ the source picker · Economics · Billing · Job detail).
+  Removed the duplicate Installed lbs and the "not yet tracked" billing stubs
+  (Billing now shows real numbers or "No invoices yet · X remaining"); empty
+  GC/Fabricator/Type/Location collapse to one "not set" line. StagePath chevron
+  reduced from 6 to 4 phase-driven stages (Awarded→Active→Billing→Closed);
+  Mobilizing/Punchlist still read as Active — no status/phase logic changed.
+  Applies everywhere the chevron shows (Active panel + Project Details modal).
+  Files: app/components/StagePath.js, app/active/ActiveWorkClient.js.
+
+
 - [x] **Hours source modes (Auto / Payroll / Combined)** — one resolver
   (actualHoursForProject) now honors a per-job Hours Mode: Auto (timecards if any,
   else payroll), Payroll (use the payroll number as-is; editable — doubles as the

@@ -258,9 +258,16 @@ function StatusPill({ status, sev }) {
   );
 }
 
+const hoursEraLabel = (era) => (era === "payroll" ? "payroll" : era === "timesheet" ? "from timecards" : era === "combined" ? "combined" : null);
+
 function DetailPanel({ row, onClose, onEdit }) {
   const d = row.detail;
-  const f = d.financials;
+  const f = d.financials || {};
+  const remaining = f.remainingContractLbs;
+  const frac = Math.min(100, Math.max(0, (row.placedFraction || 0) * 100));
+  const hasBilling = typeof f.billedLbs === "number" && f.billedLbs > 0;
+  const jobFieldsEmpty = !(d.gc?.length || d.fabricator?.length || d.projectType?.length || d.cityCounty);
+
   return (
     <div className="rounded-lg border border-line bg-graphite lg:sticky lg:top-24 overflow-hidden">
       <div className="px-6 py-5 border-b border-line flex items-start gap-3">
@@ -275,76 +282,85 @@ function DetailPanel({ row, onClose, onEdit }) {
       </div>
 
       <div className="px-6 py-4 border-b border-line">
-        <StagePath
-          status={row.status}
-          projectId={row.id}
-          compact
-          onChanged={() => window.location.reload()}
-        />
+        <StagePath status={row.status} projectId={row.id} compact onChanged={() => window.location.reload()} />
       </div>
 
-      <div className="p-6 space-y-6 text-sm">
-        <Section title="Burn">
-          <Row label="Bid hours" value={num(row.burn.projectedHours)} />
-          <Row label="Logged hours" value={num(row.burn.actualHours)} sub={d.hoursEra === "payroll" ? "payroll-era" : d.hoursEra === "timesheet" ? "from timecards" : null} />
-          <Row label="Hours consumed" value={pct(row.burn.hoursPct)} />
-          <Row label="Forecast finish" value={row.burn.forecastable ? `${pct(row.burn.forecastPct)} of budget` : "not enough placed"} />
-          <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
-        </Section>
-
-        <Section title="Placement">
-          <Row label="Awarded lbs" value={lbs(row.awardedLbs)} />
-          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} asOf={row.placementAsOf} />
-          <Row label="Placed" value={pct(row.placedFraction)} />
-          <Row label="Bid productivity" value={row.bidProductivity != null ? `${num(row.bidProductivity)} lbs/MH` : "—"} />
-        </Section>
-
-        <Section title="Contract">
-          <Row label="Contract value" value={money(row.contractValue)} />
-          <Row label="Operating profit" value={money(row.operatingProfit)} sub="expected (bid)" />
-          <Row label="Operating margin" value={pct(row.operatingMargin)} />
-          <Row label="Bid rate" value={d.bidRate != null ? `$${d.bidRate}/lb` : "—"} />
-        </Section>
-
-        <Section title="Financials (spine — fills as billing comes online)">
-          <Row label="Installed lbs" value={lbs(f.installedLbs)} />
-          <Row label="Billable lbs" value={lbs(f.billableLbs)} sub="not yet tracked" />
-          <Row label="Billed lbs" value={lbs(f.billedLbs)} sub="not yet tracked" />
-          <Row label="Unbilled in field" value={f.unbilledInstalledLbs != null ? lbs(f.unbilledInstalledLbs) : "—"} />
-          <Row label="Remaining contract lbs" value={lbs(f.remainingContractLbs)} />
-        </Section>
-
-        <Section title="Job">
-          <Row label="Actual start" value={dateStr(d.actualStartDate)} />
-          <Row label="Foreman" value={row.foreman?.length ? row.foreman.join(", ") : "—"} />
-          <Row label="GC" value={d.gc?.length ? d.gc.join(", ") : "—"} />
-          <Row label="Fabricator" value={d.fabricator?.length ? d.fabricator.join(", ") : "—"} />
-          <Row label="Type" value={d.projectType?.length ? d.projectType.join(", ") : "—"} />
-          <Row label="Location" value={d.cityCounty || "—"} />
-          <Row label="Timecards" value={num(d.timecardCount)} />
-        </Section>
-        {d.scope && (
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Scope</p>
-            <p className="text-concrete/80 text-sm leading-relaxed">{d.scope}</p>
-          </div>
-        )}
-        {row.notes && (
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Notes</p>
-            <p className="text-concrete/80 text-sm leading-relaxed whitespace-pre-wrap">{row.notes}</p>
-          </div>
-        )}
+      {/* HERO — placement progress, the "how's this job" glance */}
+      <div className="px-6 py-5 border-b border-line">
+        <div className="flex items-baseline justify-between mb-2.5">
+          <span className="text-sm text-rebar">Placement progress</span>
+          <span className="text-[28px] leading-none font-semibold text-concrete tabular-nums">{pct(row.placedFraction)}</span>
+        </div>
+        <div className="h-2 rounded-full bg-steel overflow-hidden mb-3">
+          <div className="h-full bg-safety rounded-full" style={{ width: `${frac}%` }} />
+        </div>
+        <div className="flex items-baseline justify-between gap-3 text-xs">
+          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} awardedLbs={row.awardedLbs} />
+          {typeof remaining === "number" && <span className="text-rebar shrink-0">{lbs(remaining)} remaining</span>}
+        </div>
       </div>
+
+      <Section title="Hours">
+        <Row label="Bid hours" value={num(row.burn.projectedHours)} />
+        <Row label="Logged hours" value={num(row.burn.actualHours)} sub={hoursEraLabel(d.hoursEra)} />
+        <Row label="Consumed" value={pct(row.burn.hoursPct)} />
+        {row.burn.forecastable && <Row label="Forecast finish" value={`${pct(row.burn.forecastPct)} of budget`} />}
+        <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
+      </Section>
+
+      <Section title="Economics">
+        <Row label="Contract value" value={money(row.contractValue)} />
+        <Row label="Operating profit" value={<>{money(row.operatingProfit)}{typeof row.operatingMargin === "number" && <span className="text-ok"> · {pct(row.operatingMargin)}</span>}</>} />
+        <Row label="Bid rate" value={d.bidRate != null ? `$${d.bidRate}/lb` : "—"} />
+        <Row label="Bid productivity" value={row.bidProductivity != null ? `${num(row.bidProductivity)} lbs/MH` : "—"} />
+      </Section>
+
+      <Section title="Billing">
+        {hasBilling ? (
+          <>
+            <Row label="Billed lbs" value={lbs(f.billedLbs)} />
+            <Row label="Unbilled in field" value={f.unbilledInstalledLbs != null ? lbs(f.unbilledInstalledLbs) : "—"} />
+            <Row label="Remaining to bill" value={lbs(remaining)} />
+          </>
+        ) : (
+          <p className="text-rebar text-sm">No invoices yet{typeof remaining === "number" ? ` · ${lbs(remaining)} lbs remaining to bill` : ""}</p>
+        )}
+      </Section>
+
+      <Section title="Job detail" last={!row.notes}>
+        <Row label="Actual start" value={dateStr(d.actualStartDate)} />
+        <Row label="Foreman" value={row.foreman?.length ? row.foreman.join(", ") : "—"} />
+        <Row label="Timecards" value={num(d.timecardCount)} />
+        {jobFieldsEmpty ? (
+          <div className="flex items-baseline justify-between gap-3 pt-2 mt-1 border-t border-line/50">
+            <span className="text-rebar/70 text-[13px]">GC · Fabricator · Type · Location</span>
+            <span className="text-rebar/70">not set</span>
+          </div>
+        ) : (
+          <>
+            {d.gc?.length ? <Row label="GC" value={d.gc.join(", ")} /> : null}
+            {d.fabricator?.length ? <Row label="Fabricator" value={d.fabricator.join(", ")} /> : null}
+            {d.projectType?.length ? <Row label="Type" value={d.projectType.join(", ")} /> : null}
+            {d.cityCounty ? <Row label="Location" value={d.cityCounty} /> : null}
+          </>
+        )}
+      </Section>
+
+      {row.notes && (
+        <div className="px-6 py-5">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-concrete mb-2">Notes</p>
+          <p className="text-concrete/80 text-sm leading-relaxed whitespace-pre-wrap">{row.notes}</p>
+        </div>
+      )}
     </div>
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, last }) {
   return (
-    <div>
-      <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">{title}</p>
-      <div className="space-y-1.5">{children}</div>
+    <div className={`px-6 py-5 ${last ? "" : "border-b border-line"}`}>
+      <p className="text-[12px] font-semibold uppercase tracking-wider text-concrete mb-3">{title}</p>
+      <div className="space-y-2 text-sm">{children}</div>
     </div>
   );
 }
@@ -363,7 +379,7 @@ function Row({ label, value, sub }) {
 
 // Placed-to-date is the live progress number — editable here for the life of the
 // job (until billed lbs takes over). Same write path as the Home placement alert.
-function EditablePlacedRow({ projectId, placedLbs, asOf }) {
+function EditablePlacedRow({ projectId, placedLbs, awardedLbs }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(placedLbs ?? "");
   const [busy, setBusy] = useState(false);
@@ -381,28 +397,21 @@ function EditablePlacedRow({ projectId, placedLbs, asOf }) {
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   };
 
-  if (!editing) {
+  if (editing) {
     return (
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="text-rebar">Installed lbs</span>
-        <span className="text-right tabular-nums">
-          <button onClick={() => { setVal(placedLbs ?? ""); setErr(null); setEditing(true); }} className="text-concrete hover:text-safety underline underline-offset-2 decoration-dotted">{lbs(placedLbs)}</button>
-          <span className="block text-[11px] text-rebar/70">{asOf ? `as of ${dateStr(asOf)} · tap to update` : "tap to update"}</span>
-        </span>
-      </div>
+      <span className="flex items-center gap-1.5">
+        <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }} inputMode="numeric" className="w-24 text-sm px-2 py-1 rounded border border-line bg-transparent text-concrete text-right focus:outline-none focus:border-rebar" />
+        <button onClick={save} disabled={busy} className="text-xs px-2 py-1 rounded bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
+        <button onClick={() => setEditing(false)} className="text-xs text-rebar hover:text-concrete px-1" aria-label="Cancel">✕</button>
+        {err && <span className="text-[11px] text-danger">{err}</span>}
+      </span>
     );
   }
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-rebar">Installed lbs</span>
-      <span className="text-right">
-        <span className="flex items-center gap-1.5 justify-end">
-          <input autoFocus value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }} inputMode="numeric" className="w-28 text-sm px-2 py-1 rounded border border-line bg-transparent text-concrete text-right focus:outline-none focus:border-rebar" />
-          <button onClick={save} disabled={busy} className="text-xs px-2 py-1 rounded bg-safety text-steel font-medium disabled:opacity-40">{busy ? "…" : "Save"}</button>
-          <button onClick={() => setEditing(false)} className="text-xs text-rebar hover:text-concrete px-1" aria-label="Cancel">✕</button>
-        </span>
-        {err && <span className="block text-[11px] text-danger mt-1">{err}</span>}
-      </span>
-    </div>
+    <span className="text-rebar">
+      Installed{" "}
+      <button onClick={() => { setVal(placedLbs ?? ""); setErr(null); setEditing(true); }} className="text-concrete hover:text-safety underline underline-offset-2 decoration-dotted tabular-nums" title="Tap to update placed pounds">{lbs(placedLbs)}</button>
+      {" "}/ {lbs(awardedLbs)} lbs
+    </span>
   );
 }
