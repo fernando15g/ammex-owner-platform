@@ -38,6 +38,12 @@ spec's build log.
 
 ## Next up
 
+- [x] **Stabilization audit batch** — PIN gate (middleware + /gate, env AMMEX_PIN,
+  fallback 5314; APIs 401 when locked); Bids search across stage groups; card
+  radius standardized app-wide; SCHEDULE annotated. Full deliverables in
+  AUDIT-REPORT.md (readiness: Ready for Daily Operations, 88/100).
+
+
 - [x] **Address autocomplete + Home polish** — (1) Photon (OSM) type-ahead on the
   project street field: pick a suggestion to fill street/city/state/ZIP + pin
   coords in one shot; free-typing still works (non-mandatory), pin-drop still the

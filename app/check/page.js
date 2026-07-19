@@ -59,7 +59,7 @@ export default async function SystemCheckPage() {
       </header>
 
       {fatal && (
-        <div className="rounded-xl border border-danger/50 bg-danger/10 p-4 text-sm">
+        <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm">
           <p className="font-medium text-danger mb-1">Couldn&apos;t run the check</p>
           <p className="text-concrete/80 break-words">{fatal}</p>
           <p className="text-rebar mt-2">

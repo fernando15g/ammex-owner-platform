@@ -80,7 +80,7 @@ export default function HomeClient({ data }) {
           <h3 className="text-sm font-medium text-concrete">Needs your attention</h3>
           <span className="text-xs text-rebar">live — clears itself when resolved</span>
         </div>
-        <div className="rounded-xl border border-line overflow-hidden" style={{ background: "var(--surface)" }}>
+        <div className="rounded-lg border border-line overflow-hidden" style={{ background: "var(--surface)" }}>
           {alerts.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-rebar">Nothing needs you right now. Nicely done.</div>
           ) : (
@@ -117,7 +117,7 @@ function ZoneTile({ href, label, value, unit, sub, valueTone, subTone }) {
   const vc = valueTone === "amber" ? "text-warn" : "text-concrete";
   const sc = subTone === "danger" ? "text-danger" : subTone === "ok" ? "text-ok" : "text-rebar";
   return (
-    <a href={href} className="group rounded-xl border border-line px-4 py-3.5 hover:border-rebar/60 transition-colors block" style={{ background: "var(--surface-2)" }}>
+    <a href={href} className="group rounded-lg border border-line px-4 py-3.5 hover:border-rebar/60 transition-colors block" style={{ background: "var(--surface-2)" }}>
       <div className="text-[11px] uppercase tracking-wider text-rebar mb-1.5">{label}</div>
       <div className={`text-[26px] leading-none font-semibold tabular-nums ${vc}`}>
         {value}{unit && <span className="text-xs font-normal text-rebar ml-1">{unit}</span>}
@@ -170,7 +170,7 @@ function Modal({ alert, item, onClose, onResolve }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl border border-line overflow-hidden" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-lg border border-line overflow-hidden" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start gap-3 px-5 py-4 border-b border-line">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wider text-rebar">{ALERT_META[alert.id]?.title}</div>
@@ -327,7 +327,7 @@ function NoSheetBody({ item }) {
 // ---- analytics cards ----
 function Card({ title, children }) {
   return (
-    <div className="rounded-xl border border-line p-4" style={{ background: "var(--surface)" }}>
+    <div className="rounded-lg border border-line p-4" style={{ background: "var(--surface)" }}>
       <div className="text-[11px] uppercase tracking-wider text-rebar mb-3">{title}</div>
       {children}
     </div>
@@ -349,7 +349,7 @@ function MapCard({ county, pins, needLocationJobs }) {
   const shade = (n) => (!n ? "#2b313a" : mixHex("#3a2a1c", "#ff6a13", 0.3 + 0.7 * (n / max)));
   const list = Object.entries(county).sort((a, b) => b[1] - a[1]);
   return (
-    <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
+    <div className="rounded-lg border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
       <div className="flex items-baseline justify-between mb-3">
         <div className="text-[11px] uppercase tracking-wider text-rebar">Job concentration · Arizona</div>
         {jobs.length > 0 && (
@@ -383,7 +383,7 @@ function MapCard({ county, pins, needLocationJobs }) {
       </div>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setOpen(false)}>
-          <div className="w-full max-w-md rounded-xl border border-line overflow-hidden" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-lg border border-line overflow-hidden" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-5 py-4 border-b border-line">
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-rebar">Jobs needing a location</div>
@@ -496,7 +496,7 @@ function TimesheetCard({ ts }) {
   const deltaTxt = ts.delta == null ? null : `${ts.delta > 0 ? "\u25B2" : "\u25BC"} ${Math.abs(Math.round(ts.delta * 100))}% vs last week`;
 
   return (
-    <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
+    <div className="rounded-lg border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
       <div className="text-[11px] uppercase tracking-wider text-rebar mb-3">This week in the field</div>
       <div className="grid grid-cols-3 gap-3 mb-3">
         <div>

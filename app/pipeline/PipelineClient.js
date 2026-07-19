@@ -58,8 +58,13 @@ const FILTERS = [
 export default function PipelineClient({ data }) {
   const { rows, totals } = data;
   const [filter, setFilter] = useState("flight");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
-  const filtered = rows.filter(active.test);
+  const searched = q
+    ? rows.filter((r) => [r.name, (r.gc || []).join(" "), (r.fabricator || []).join(" "), r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
+    : rows;
+  const filtered = searched.filter(active.test);
   const isFlight = filter === "flight";
   const groups = buildGroups(filtered);
   const { sorted: shown, sort, toggle } = useSort(filtered, "submissionDate", "desc", "bids");
@@ -73,7 +78,7 @@ export default function PipelineClient({ data }) {
         <Stat label="Raw weight" value={lbsStr(lbsOf(totals.rawTons))} sub={tonsStr(totals.rawTons)} />
       </div>
 
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -85,6 +90,12 @@ export default function PipelineClient({ data }) {
             {f.label} <span className="opacity-60">{countOf(f)}</span>
           </button>
         ))}
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search bids by name, GC, or fabricator"
+          className="ml-auto w-full sm:w-64 text-sm px-3 py-1.5 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
+        />
       </div>
 
       <div className="rounded-lg border border-line overflow-hidden">
