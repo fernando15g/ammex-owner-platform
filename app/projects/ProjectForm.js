@@ -24,7 +24,8 @@
 // until the bid exists.
 // =============================================================================
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import BidPicker from "@/app/projects/BidPicker";
 import ChipSelect from "@/app/components/ChipSelect";
 
@@ -62,6 +63,15 @@ export default function ProjectForm({
   const [options, setOptions] = useState({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const savedSnap = useRef(null);
+  const router = useRouter();
+
+  // Once saved, the confirmation clears the moment you change anything again —
+  // so "Saved ✓" always means "what's on screen is what's stored".
+  useEffect(() => {
+    if (saved && savedSnap.current != null && JSON.stringify(f) !== savedSnap.current) setSaved(false);
+  }, [f]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const attachedBids = f.relatedBidIds.map((id) => bidOptions.find((b) => b.id === id)).filter(Boolean);
   const bid = attachedBids[0] || null;   // the confirmation screen leads with the first
@@ -122,6 +132,12 @@ export default function ProjectForm({
       siteState: f.siteState.trim(),
       siteZip: f.siteZip.trim(),
     };
+    // If the address changed on an existing project, drop the cached coordinates
+    // so Home re-geocodes to the new spot instead of leaving the pin behind.
+    if (!isNew) {
+      const moved = ["siteStreet", "siteCity", "siteState", "siteZip"].some((k) => (project?.[k] || "") !== payload[k]);
+      if (moved) { payload.siteLat = null; payload.siteLng = null; }
+    }
     try {
       const res = await fetch(isNew ? "/api/projects" : `/api/projects/${project.id}`, {
         method: isNew ? "POST" : "PATCH",
@@ -131,7 +147,14 @@ export default function ProjectForm({
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
       if (modal) { setBusy(false); onSaved?.(); return; }
-      window.location.href = isNew ? `/billing/${d.id}` : `/projects/${project.id}`;
+      if (isNew) { window.location.href = `/billing/${d.id}`; return; }
+      // Editing an existing project: don't hard-reload to the same form (which
+      // looks like nothing happened). Confirm the save in place and soft-refresh
+      // the server data behind it.
+      setBusy(false);
+      savedSnap.current = JSON.stringify(f);
+      setSaved(true);
+      router.refresh();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
@@ -285,6 +308,7 @@ export default function ProjectForm({
           <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">
             {busy ? "Saving…" : isNew ? "Create project" : "Save changes"}
           </button>
+          {saved && !busy && <span className="text-sm text-ok">Saved ✓</span>}
           {!isNew && !modal && (
             <a href={`/billing/${project.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Billing</a>
           )}
