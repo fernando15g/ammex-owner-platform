@@ -38,6 +38,17 @@ spec's build log.
 
 ## Next up
 
+- [x] **Map streamline (one source of truth)** — location now comes ONLY from the
+  project's address/pin; dropped the bid City/County text layer entirely. County
+  shading is derived from the pins themselves (point-in-polygon via baked AZ
+  county polygons, verified against known cities), colored by job count. Pins
+  enlarged for easier hover. The "needs a location" flag = active jobs with no pin
+  and no address, and its modal is now inline-editable — add the address (with
+  autocomplete) right there, it saves to the project, pins, and drops off. Files:
+  app/home/azCounties.js (regenerated w/ polys + countyOfPoint), lib/data.js,
+  app/home/HomeClient.js.
+
+
 - [x] **Stabilization audit batch** — PIN gate (middleware + /gate, env AMMEX_PIN,
   fallback 5314; APIs 401 when locked); Bids search across stage groups; card
   radius standardized app-wide; SCHEDULE annotated. Full deliverables in

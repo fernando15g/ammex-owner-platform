@@ -10,7 +10,9 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AZ_COUNTIES, AZ_VIEWBOX, projectAZ } from "./azCounties";
+import AddressAutocomplete from "@/app/projects/AddressAutocomplete";
 
 const money = (n) =>
   typeof n !== "number" ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
@@ -343,7 +345,17 @@ function mixHex(a, b, t) {
 
 function MapCard({ county, pins, needLocationJobs }) {
   const [open, setOpen] = useState(false);
-  const jobs = needLocationJobs || [];
+  const [jobs, setJobs] = useState(needLocationJobs || []);
+  const router = useRouter();
+  useEffect(() => { setJobs(needLocationJobs || []); }, [needLocationJobs]);
+  const resolve = (id) => {
+    setJobs((prev) => {
+      const next = prev.filter((j) => j.id !== id);
+      if (next.length === 0) setOpen(false);
+      return next;
+    });
+    router.refresh(); // re-pull so the new pin + county shading appear
+  };
   const vals = Object.values(county);
   const max = Math.max(1, ...vals);
   const shade = (n) => (!n ? "#2b313a" : mixHex("#3a2a1c", "#ff6a13", 0.3 + 0.7 * (n / max)));
@@ -366,7 +378,7 @@ function MapCard({ county, pins, needLocationJobs }) {
           {(pins || []).map((p, i) => {
             const [x, y] = projectAZ(p.lng, p.lat);
             if (x < 0 || x > 420 || y < 0 || y > 280) return null;
-            return <circle key={i} cx={x} cy={y} r={3.5} fill="#f4f3f0" stroke="#1c2127" strokeWidth={1.3}><title>{p.name}</title></circle>;
+            return <circle key={i} cx={x} cy={y} r={5.5} fill="#f4f3f0" stroke="#1c2127" strokeWidth={1.6}><title>{p.name}</title></circle>;
           })}
         </svg>
         <div className="flex items-center gap-2 text-[11px] text-rebar mt-1.5 flex-wrap">
@@ -391,15 +403,9 @@ function MapCard({ county, pins, needLocationJobs }) {
               </div>
               <button onClick={() => setOpen(false)} className="ml-auto text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
             </div>
-            <div className="max-h-80 overflow-y-auto divide-y divide-line">
+            <div className="max-h-[70vh] overflow-y-auto divide-y divide-line">
               {jobs.map((j) => (
-                <a key={j.id} href={`/projects/${j.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-graphite/40">
-                  <span className="min-w-0">
-                    <span className="block text-sm text-concrete truncate">{j.name || "—"}</span>
-                    {j.projectId && <span className="text-[11px] text-rebar">{j.projectId}</span>}
-                  </span>
-                  <span className="ml-auto text-[11px] text-rebar shrink-0">add address ›</span>
-                </a>
+                <NeedsLocationRow key={j.id} job={j} onSaved={() => resolve(j.id)} />
               ))}
             </div>
           </div>
@@ -531,6 +537,61 @@ function TimesheetCard({ ts }) {
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] border-t border-line mt-3 pt-2.5">
           {ts.underReviewHours > 0 && <span className="text-warn">{ts.underReviewHours} hrs awaiting your review</span>}
           {ts.unassignedHours > 0 && <span className="text-warn">{ts.unassignedHours} hrs not tied to a job</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A single job in the "needs a location" modal — expand to add its address right
+// here (autocomplete fills + geocodes), save writes straight to the project.
+function NeedsLocationRow({ job, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ street: job.site?.street || "", city: job.site?.city || "", state: job.site?.state || "AZ", zip: job.site?.zip || "", lat: null, lng: null });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const save = async () => {
+    if (!f.street.trim()) return;
+    setBusy(true); setErr(null);
+    try {
+      const changes = {
+        siteStreet: f.street.trim(), siteCity: f.city.trim(), siteState: f.state.trim(), siteZip: f.zip.trim(),
+        ...(typeof f.lat === "number" ? { siteLat: f.lat, siteLng: f.lng } : {}),
+      };
+      const res = await fetch(`/api/projects/${job.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ changes }) });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error || "Couldn't save");
+      onSaved();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  };
+
+  return (
+    <div className="px-5 py-3">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 text-left">
+        <span className="min-w-0">
+          <span className="block text-sm text-concrete truncate">{job.name || "—"}</span>
+          {job.projectId && <span className="text-[11px] text-rebar">{job.projectId}</span>}
+        </span>
+        <span className="ml-auto text-[11px] text-rebar shrink-0">{open ? "hide" : "add address"} <span className={`inline-block transition-transform ${open ? "rotate-90" : ""}`}>›</span></span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          <AddressAutocomplete
+            value={f.street}
+            onType={(v) => setF((s) => ({ ...s, street: v }))}
+            onPick={(a) => setF((s) => ({ ...s, street: a.street || s.street, city: a.city || s.city, state: a.state || s.state, zip: a.zip || s.zip, lat: typeof a.lat === "number" ? a.lat : s.lat, lng: typeof a.lng === "number" ? a.lng : s.lng }))}
+          />
+          <div className="grid grid-cols-6 gap-2">
+            <input className="inp col-span-3" value={f.city} onChange={(e) => setF((s) => ({ ...s, city: e.target.value }))} placeholder="City" />
+            <input className="inp col-span-1" value={f.state} onChange={(e) => setF((s) => ({ ...s, state: e.target.value }))} placeholder="State" />
+            <input className="inp col-span-2" value={f.zip} onChange={(e) => setF((s) => ({ ...s, zip: e.target.value }))} placeholder="Zip" />
+          </div>
+          {err && <p className="text-[11px] text-danger">{err}</p>}
+          <div className="flex items-center gap-3">
+            <button onClick={save} disabled={busy || !f.street.trim()} className="text-sm px-3 py-1.5 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Save address"}</button>
+            <a href={`/projects/${job.id}`} className="text-[11px] text-rebar hover:text-concrete underline underline-offset-2">or open the project to drop a pin</a>
+          </div>
         </div>
       )}
     </div>
