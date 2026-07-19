@@ -38,6 +38,15 @@ spec's build log.
 
 ## Next up
 
+- [x] **Home timesheet pulse + Active Work search** — Home's top analytics row is
+  now map | "This week in the field" (middle, wide) | work mix. The timesheet card
+  shows total hours (with ▲/▼ vs last week), crew on the clock, jobs worked, an
+  hours-by-day strip, and flags for under-review + unassigned hours (counts only
+  non-voided/non-under-review, same rules as the burn engine). Active Work gained
+  a search box (name / project ID / GC / foreman). Map card restacked (counties
+  below) to fit the narrower column.
+
+
 - [x] **Manual pin-drop** — project form gained a collapsed "drop a pin on map"
   control (Leaflet + free OpenStreetMap tiles, lazy-loaded on open, no key). Click
   or drag to set exact coordinates; search a city/ZIP to zoom in. A hand-placed

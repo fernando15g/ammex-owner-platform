@@ -33,6 +33,11 @@ export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
   const { rows, counts, backlog = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc", "active");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? sorted.filter((r) => [r.name, r.detail?.projectId, (r.detail?.gc || []).join(" "), (r.detail?.foreman || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q))
+    : sorted;
   const [detailsFor, setDetailsFor] = useState(null);
 
   // Keep your place. Going to look at something and coming back shouldn't cost
@@ -118,6 +123,16 @@ export default function ActiveWorkClient({ data }) {
       <div className="lg:flex lg:gap-6">
       {/* Table — scrolls sideways when the window is too narrow for every column */}
       <div className="flex-1 min-w-0">
+        {rows.length > 0 && (
+          <div className="mb-3">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search jobs by name, ID, GC, or foreman"
+              className="w-full sm:max-w-xs text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
+            />
+          </div>
+        )}
         <div className="rounded-lg border border-line overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -129,7 +144,7 @@ export default function ActiveWorkClient({ data }) {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((r) => {
+              {filtered.map((r) => {
                 const sev = SEV[r.burn.severity] || SEV.ok;
                 const isSel = selected?.id === r.id;
                 return (
@@ -166,6 +181,9 @@ export default function ActiveWorkClient({ data }) {
               })}
               {rows.length === 0 && (
                 <tr><td colSpan={4} className="px-4 py-10 text-center text-rebar">No running jobs right now.</td></tr>
+              )}
+              {rows.length > 0 && filtered.length === 0 && (
+                <tr><td colSpan={4} className="px-4 py-10 text-center text-rebar">No jobs match &ldquo;{query}&rdquo;.</td></tr>
               )}
             </tbody>
           </table>

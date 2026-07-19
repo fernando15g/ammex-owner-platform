@@ -98,8 +98,9 @@ export default function HomeClient({ data }) {
       </div>
 
       {/* ===================== analytics canvas ===================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2"><MapCard county={analytics.county} pins={analytics.pins} needLocation={analytics.needLocation} /></div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+        <MapCard county={analytics.county} pins={analytics.pins} needLocation={analytics.needLocation} />
+        <div className="lg:col-span-2"><TimesheetCard ts={analytics.timesheet} /></div>
         <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
       </div>
       <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} /></Card>
@@ -351,41 +352,30 @@ function MapCard({ county, pins, needLocation }) {
         <div className="text-[11px] uppercase tracking-wider text-rebar">Job concentration · Arizona</div>
         {needLocation > 0 && <div className="text-[11px] text-rebar/70">{needLocation} need a location</div>}
       </div>
-      <div className="flex gap-4">
-        <div className="flex-1 min-w-0">
-          <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 260 }} role="img" aria-label="Arizona counties shaded by active job count, with pins for jobs that have an address">
-            {AZ_COUNTIES.map((c) => (
-              <path key={c.name} d={c.d} fill={shade(county[c.name] || 0)} stroke="#1c2127" strokeWidth={0.6}>
-                <title>{c.name}: {county[c.name] || 0} active</title>
-              </path>
+      <div>
+        <svg viewBox={AZ_VIEWBOX} className="w-full" style={{ maxHeight: 220 }} role="img" aria-label="Arizona counties shaded by active job count, with pins for jobs that have an address">
+          {AZ_COUNTIES.map((c) => (
+            <path key={c.name} d={c.d} fill={shade(county[c.name] || 0)} stroke="#1c2127" strokeWidth={0.6}>
+              <title>{c.name}: {county[c.name] || 0} active</title>
+            </path>
+          ))}
+          {(pins || []).map((p, i) => {
+            const [x, y] = projectAZ(p.lng, p.lat);
+            if (x < 0 || x > 420 || y < 0 || y > 280) return null;
+            return <circle key={i} cx={x} cy={y} r={3.5} fill="#f4f3f0" stroke="#1c2127" strokeWidth={1.3}><title>{p.name}</title></circle>;
+          })}
+        </svg>
+        <div className="flex items-center gap-2 text-[11px] text-rebar mt-1.5 flex-wrap">
+          <span className="inline-block w-10 h-2 rounded" style={{ background: "linear-gradient(90deg,#2b313a,#ff6a13)" }} /> fewer → more
+          {pins?.length > 0 && <span className="flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-concrete" /> pin</span>}
+        </div>
+        {list.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+            {list.map(([name, n]) => (
+              <span key={name} className="text-rebar whitespace-nowrap"><span className="text-concrete">{name}</span> {n}</span>
             ))}
-            {(pins || []).map((p, i) => {
-              const [x, y] = projectAZ(p.lng, p.lat);
-              if (x < 0 || x > 420 || y < 0 || y > 280) return null;
-              return <circle key={i} cx={x} cy={y} r={3.5} fill="#f4f3f0" stroke="#1c2127" strokeWidth={1.3}><title>{p.name}</title></circle>;
-            })}
-          </svg>
-          <div className="flex items-center gap-2 text-[11px] text-rebar mt-1.5">
-            <span className="inline-block w-10 h-2 rounded" style={{ background: "linear-gradient(90deg,#2b313a,#ff6a13)" }} /> fewer → more jobs
-            {pins?.length > 0 && <span className="ml-3 flex items-center gap-1.5"><span className="inline-block w-2 h-2 rounded-full bg-concrete" /> address pin</span>}
           </div>
-        </div>
-        <div className="w-40 shrink-0">
-          <div className="text-[10px] uppercase tracking-wider text-rebar/70 mb-2">By county</div>
-          {list.length === 0 ? (
-            <div className="text-xs text-rebar">No active jobs placed yet.</div>
-          ) : (
-            <div className="space-y-1.5">
-              {list.map(([name, n]) => (
-                <div key={name} className="flex items-center gap-2 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: shade(n) }} />
-                  <span className="text-concrete truncate">{name}</span>
-                  <span className="ml-auto tabular-nums text-rebar">{n}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );
@@ -459,6 +449,48 @@ function BookByStage({ stages }) {
         <span>{money(stages.active)} active</span>
         <span>{money(stages.closed)} closed</span>
       </div>
+    </div>
+  );
+}
+
+const DAYS = ["M", "T", "W", "T", "F", "S", "S"];
+function TimesheetCard({ ts }) {
+  if (!ts) return <Card title="This week in the field"><div className="text-sm text-rebar py-4 text-center">No timesheet data.</div></Card>;
+  const maxDay = Math.max(1, ...ts.byDay);
+  const deltaTone = ts.delta == null ? "text-rebar" : ts.delta >= 0 ? "text-ok" : "text-warn";
+  const deltaTxt = ts.delta == null ? null : `${ts.delta > 0 ? "\u25B2" : "\u25BC"} ${Math.abs(Math.round(ts.delta * 100))}% vs last week`;
+  return (
+    <div className="rounded-xl border border-line p-4 h-full" style={{ background: "var(--surface)" }}>
+      <div className="text-[11px] uppercase tracking-wider text-rebar mb-3">This week in the field</div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.totalHours}<span className="text-xs font-normal text-rebar ml-1">hrs</span></div>
+          <div className="text-[11px] text-rebar mt-1.5">total hours</div>
+          {deltaTxt && <div className={`text-[11px] mt-0.5 ${deltaTone}`}>{deltaTxt}</div>}
+        </div>
+        <div>
+          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.crew}</div>
+          <div className="text-[11px] text-rebar mt-1.5">crew on the clock</div>
+        </div>
+        <div>
+          <div className="text-[26px] leading-none font-semibold text-concrete tabular-nums">{ts.jobs}</div>
+          <div className="text-[11px] text-rebar mt-1.5">jobs worked</div>
+        </div>
+      </div>
+      <div className="flex items-end gap-1.5 h-12">
+        {ts.byDay.map((h, i) => (
+          <div key={i} className="flex-1 rounded-sm" style={{ height: `${Math.max(4, (h / maxDay) * 100)}%`, background: h > 0 ? "#ff6a13" : "#2b313a" }} title={`${DAYS[i]}: ${h} hrs`} />
+        ))}
+      </div>
+      <div className="flex gap-1.5 mt-1">
+        {DAYS.map((d, i) => <div key={i} className="flex-1 text-center text-[10px] text-rebar">{d}</div>)}
+      </div>
+      {(ts.underReviewHours > 0 || ts.unassignedHours > 0) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] border-t border-line mt-3 pt-2.5">
+          {ts.underReviewHours > 0 && <span className="text-warn">{ts.underReviewHours} hrs awaiting your review</span>}
+          {ts.unassignedHours > 0 && <span className="text-warn">{ts.unassignedHours} hrs not tied to a job</span>}
+        </div>
+      )}
     </div>
   );
 }
