@@ -159,6 +159,12 @@ export default function ProjectBillingClient({ data }) {
       {/* Log new event */}
       <div className="flex flex-wrap gap-2 mb-4">
         <a href={`/billing/${data.id}/new-bill`} className="text-sm px-4 py-2 rounded-md font-medium bg-safety text-steel">+ Invoice</a>
+        {data.events?.some((e) => e.type === "Bill") && (
+          <a href={`/api/billing/${data.id}/invoice`} title="Download the most recent invoice as an Excel file — same template you send the GC. For an earlier one, use Download on its row below." className="text-sm px-4 py-2 rounded-md font-medium bg-info text-white flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+            Download latest invoice
+          </a>
+        )}
         <button onClick={() => setDetailsOpen(true)} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete ml-auto">Project details</button>
         <AddBtn label="+ Log a payment" onClick={() => setShowAdd("Payment")} />
         <AddBtn label="+ Change order" onClick={() => setShowAdd("CO")} />
@@ -314,7 +320,7 @@ export default function ProjectBillingClient({ data }) {
                         <button onClick={() => shortPay(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-warn/50 text-warn hover:bg-warn/10 disabled:opacity-40" title="They paid less than billed — record it and roll the difference to the next invoice">Short pay</button>
                       ) : null}
                       {isInvoice && (
-                        <a href={`/api/billing/${data.id}/invoice?bill=${e.id}`} title="Download this invoice as an Excel file — same template you send the GC, ready to review and print/PDF from Excel" className="text-[11px] px-2 py-0.5 rounded border border-safety/50 text-safety hover:bg-safety/10 whitespace-nowrap">Download</a>
+                        <a href={`/api/billing/${data.id}/invoice?bill=${e.id}`} title="Download this invoice as an Excel file — same template you send the GC, ready to review and print/PDF from Excel" className="text-[11px] px-2 py-0.5 rounded border border-info/50 text-info hover:bg-info/10 whitespace-nowrap">Download</a>
                       )}
                       <button onClick={() => editEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40">Edit</button>
                       <button onClick={() => deleteEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
@@ -672,7 +678,7 @@ function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
       <div className="flex flex-wrap gap-2 mt-4 items-center">
         <button onClick={save} disabled={busy || f.amount === ""} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : `Save ${type.toLowerCase()}`}</button>
         {isBill && (
-          <span className="text-xs text-rebar/70 italic self-center">Save the invoice, then <span className="text-safety not-italic">Download</span> it as Excel from its row below.</span>
+          <span className="text-xs text-rebar/70 italic self-center">Save the invoice, then <span className="text-info not-italic">Download</span> it as Excel from its row below.</span>
         )}
         <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
       </div>
