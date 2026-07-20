@@ -48,6 +48,7 @@ export default async function SystemCheckPage() {
       <AuditSetupPanel configured={isAuditConfigured()} />
       <ReconcilePanel />
       <TemplatePanel />
+      <TemplatePanel kind="invoice" />
       <BackfillPanel />
 
       <header className="mb-8">

@@ -1,14 +1,40 @@
 "use client";
 
-// Change the proposal template without a developer.
+// Change a document template without a developer.
 //
 // Before: download a JavaScript file, drop it into GitHub, push. Which means in
 // practice the template never gets changed — it becomes a thing you ask someone
-// else for. Now: upload it here and the next proposal uses it.
+// else for. Now: upload it here and the next document uses it.
+//
+// One component, two templates. Defaults to the proposal template so the
+// existing <TemplatePanel /> renders exactly as before; pass kind="invoice" for
+// the invoice template. Each has its own storage and its own endpoints.
 
 import { useState, useEffect } from "react";
 
-export default function TemplatePanel() {
+const CONFIG = {
+  proposal: {
+    title: "Proposal template",
+    blurb:
+      "The Excel file every proposal is built from — logo, terms, licence numbers, number formats. Proposals are generated from this exact file, so they reach a GC looking the way they always have.",
+    endpoint: "/api/admin/template",
+    statusEndpoint: "/api/admin/template/status",
+    noun: "proposal",
+    nounPlural: "proposals",
+  },
+  invoice: {
+    title: "Invoice template",
+    blurb:
+      "The Excel file every invoice is built from — your progress-billing estimate with the header, the SUM() formulas, and the 10% retention rows. Invoices are generated from this exact file, so they reach the GC's AP department looking the way they always have.",
+    endpoint: "/api/admin/invoice-template",
+    statusEndpoint: "/api/admin/invoice-template/status",
+    noun: "invoice",
+    nounPlural: "invoices",
+  },
+};
+
+export default function TemplatePanel({ kind = "proposal" }) {
+  const cfg = CONFIG[kind] || CONFIG.proposal;
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -17,7 +43,7 @@ export default function TemplatePanel() {
 
   async function refresh() {
     try {
-      const d = await fetch("/api/admin/template/status").then((r) => r.json());
+      const d = await fetch(cfg.statusEndpoint).then((r) => r.json());
       setStatus(d);
     } catch {}
   }
@@ -30,9 +56,9 @@ export default function TemplatePanel() {
     try {
       const body = new FormData();
       body.append("file", file);
-      const d = await fetch("/api/admin/template", { method: "POST", body }).then((r) => r.json());
+      const d = await fetch(cfg.endpoint, { method: "POST", body }).then((r) => r.json());
       if (!d.ok) { setErr(d.error); setProblems(d.problems || []); }
-      else { setDone(`${file.name} is live${d.hasLogo ? " — logo included" : ""}. Every proposal from now on uses it.`); refresh(); }
+      else { setDone(`${file.name} is live${d.hasLogo ? " — logo included" : ""}. Every ${cfg.noun} from now on uses it.`); refresh(); }
     } catch (e2) { setErr(String(e2.message || e2)); }
     setBusy(false);
     e.target.value = "";
@@ -42,7 +68,7 @@ export default function TemplatePanel() {
     if (!window.confirm("Go back to the template built into the app?\n\nYour uploaded one is removed.")) return;
     setBusy(true); setErr(null); setDone(null);
     try {
-      const d = await fetch("/api/admin/template", { method: "DELETE" }).then((r) => r.json());
+      const d = await fetch(cfg.endpoint, { method: "DELETE" }).then((r) => r.json());
       if (!d.ok) throw new Error(d.error);
       setDone("Back to the built-in template.");
       refresh();
@@ -54,11 +80,8 @@ export default function TemplatePanel() {
 
   return (
     <div className="rounded-lg border border-line p-4 mb-6" style={{ background: "var(--surface)" }}>
-      <p className="text-sm font-medium text-concrete mb-1">Proposal template</p>
-      <p className="text-xs text-rebar mb-3">
-        The Excel file every proposal is built from — logo, terms, licence numbers, number formats. Proposals
-        are generated from this exact file, so they reach a GC looking the way they always have.
-      </p>
+      <p className="text-sm font-medium text-concrete mb-1">{cfg.title}</p>
+      <p className="text-xs text-rebar mb-3">{cfg.blurb}</p>
 
       {status && (
         <div className="rounded-md border border-line px-3 py-2 mb-3 text-xs" style={{ background: "var(--surface-2)" }}>
@@ -76,7 +99,7 @@ export default function TemplatePanel() {
         <div className="rounded border border-warn/40 bg-warn/10 p-3 text-xs mb-3">
           <p className="text-concrete font-medium mb-1.5">Uploads aren&apos;t switched on yet.</p>
           <p className="text-rebar mb-2">
-            Proposals still work — they use the built-in template. To be able to replace it from here, Vercel
+            {cfg.nounPlural.charAt(0).toUpperCase() + cfg.nounPlural.slice(1)} still work — they use the built-in template. To be able to replace it from here, Vercel
             needs somewhere to keep it:
           </p>
           <ol className="list-decimal pl-4 text-rebar space-y-1">
@@ -99,8 +122,8 @@ export default function TemplatePanel() {
                 {problems.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
               <p className="text-rebar mt-2">
-                The layout is checked on purpose. A template with a column out of place would produce proposals
-                that look right and are wrong — which you&apos;d only find out after sending one.
+                The layout is checked on purpose. A template with a column out of place would produce {cfg.nounPlural}
+                {" "}that look right and are wrong — which you&apos;d only find out after sending one.
               </p>
             </>
           )}
@@ -110,7 +133,7 @@ export default function TemplatePanel() {
       {done && <div className="rounded border border-ok/40 bg-ok/10 p-3 text-xs text-concrete mb-3">{done}</div>}
 
       <div className="flex flex-wrap gap-2">
-        <a href="/api/admin/template" className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">
+        <a href={cfg.endpoint} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">
           Download current template
         </a>
 
