@@ -61,7 +61,8 @@ export default function BillingOverviewClient({ data }) {
       )}
 
       {/* Find a project — scrollable, sorted by ID, includes closed (dimmed) */}
-      <div className="relative mb-4 max-w-md">
+      <div className="flex items-start gap-2 mb-4">
+      <div className="relative max-w-md flex-1">
         <input
           className="inp"
           value={q}
@@ -83,6 +84,11 @@ export default function BillingOverviewClient({ data }) {
             })}
           </div>
         )}
+      </div>
+      <a href="/api/billing/reports/due-billings" title="Download the DUE BILLINGS report as Excel — every job's invoices, payments, and what's still due, plus the retention billings section. Two tabs: the full ledger and open items only." className="text-sm px-3 py-2 rounded-md font-medium bg-info text-white whitespace-nowrap flex items-center gap-1.5">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
+        Due billings report
+      </a>
       </div>
 
       {/* Portfolio A/R summary */}
