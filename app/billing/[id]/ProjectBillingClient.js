@@ -85,7 +85,7 @@ export default function ProjectBillingClient({ data }) {
   }
 
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-6xl">
 
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
@@ -155,6 +155,8 @@ export default function ProjectBillingClient({ data }) {
         </button>
         {settingsOpen && <SettingsPanel data={data} setBusy={setBusy} setErr={setErr} onSaved={refresh} busy={busy} />}
       </div>
+
+      {b.retentionEnabled && <RetentionPanel data={data} b={b} refresh={refresh} setBusy={setBusy} setErr={setErr} busy={busy} />}
 
       {/* Log new event */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -281,7 +283,7 @@ export default function ProjectBillingClient({ data }) {
               <th className="text-left font-medium px-3 py-2.5 hidden sm:table-cell w-32">Date</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Amount</th>
               <th className="text-left font-medium px-3 py-2.5 hidden md:table-cell">Notes</th>
-              <th className="text-right font-medium px-4 py-2.5 w-40">Actions</th>
+              <th className="text-right font-medium px-4 py-2.5 w-64">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -300,7 +302,7 @@ export default function ProjectBillingClient({ data }) {
               return (
                 <tr key={e.id} className="border-t border-line">
                   <td className="px-4 py-2.5">
-                    <span className={`inline-block whitespace-nowrap text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : "text-concrete border-line"}`}>{label}</span>
+                    <span className={`inline-block whitespace-nowrap text-xs rounded-full px-2 py-0.5 border ${e.type === "Payment" ? "text-ok border-ok/40" : e.type === "Change Order" ? "text-info border-info/40" : e.type === "Retention Bill" || e.type === "Retention Payment" ? "text-safety border-safety/40" : "text-concrete border-line"}`}>{label}</span>
                   </td>
                   <td className="px-3 py-2.5 text-xs text-rebar whitespace-nowrap">{e.invoiceNumber || "—"}</td>
                   <td className="px-3 py-2.5 hidden sm:table-cell text-concrete/80 whitespace-nowrap">{dateStr(e.date)}</td>
@@ -308,8 +310,10 @@ export default function ProjectBillingClient({ data }) {
                     {money(e.amount)}
                     {adj && <span className="block text-[10px] text-warn">received {money(adj.received)} · {money(adj.rolledForward)} rolled</span>}
                   </td>
-                  <td className="px-3 py-2.5 hidden md:table-cell text-rebar text-xs">
-                    {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{cleanNotes ? ` ${cleanNotes}` : ""}
+                  <td className="px-3 py-2.5 hidden md:table-cell text-rebar text-xs align-top">
+                    <div className="line-clamp-2 break-words leading-snug" title={`${e.dueDate ? `due ${dateStr(e.dueDate)} ` : ""}${cleanNotes}`.trim()}>
+                      {e.dueDate ? `due ${dateStr(e.dueDate)}` : ""}{cleanNotes ? ` ${cleanNotes}` : ""}
+                    </div>
                   </td>
                   <td className="px-4 py-2.5 whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1.5">
@@ -728,3 +732,109 @@ function InfoDot({ text }) {
   );
 }
 const inpStyle = `.inp { width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 11px; font-size: 14px; color: var(--text); outline: none; } .inp:focus { border-color: var(--accent); }`;
+
+// -----------------------------------------------------------------------------
+// Retention billing — the OTHER track. Retention was already counted as billed
+// on the progress invoices and held back; this is where you collect it at
+// closeout. Bill retention → draws down the held balance. Log retention payment
+// → records the check. Both are their own event types, so they never touch the
+// contract's billed / remaining totals (that would double-count the money).
+function RetentionPanel({ data, b, refresh, setBusy, setErr, busy }) {
+  const [mode, setMode] = useState(null); // "bill" | "payment" | null
+  const [amt, setAmt] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [inv, setInv] = useState("");
+  const [note, setNote] = useState("");
+
+  const held = b.retention || 0;
+  const billed = b.retentionBilled || 0;
+  const received = b.retentionReceived || 0;
+  const due = b.retentionDue || 0;
+  const toBill = b.retentionToBill || 0;
+
+  function open(m) {
+    setMode(m);
+    setAmt(String(Math.round((m === "bill" ? toBill : due) || 0)));
+    setDate(todayISO());
+    setInv("");
+    setNote("");
+  }
+
+  async function submit() {
+    const amount = Number(amt);
+    if (!amount || amount <= 0) { setErr("Enter a retention amount greater than zero."); return; }
+    setBusy(true); setErr(null);
+    try {
+      const type = mode === "bill" ? "Retention Bill" : "Retention Payment";
+      const event = {
+        projectId: data.id, type, amount, date,
+        invoiceNumber: inv || "",
+        name: mode === "bill" ? "Retention billing" : "Retention payment",
+        notes: note || (mode === "bill" ? "Retention billed" : "Retention payment received"),
+      };
+      const res = await fetch("/api/billing/event", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event }),
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error);
+      setMode(null);
+      refresh();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
+
+  return (
+    <div className="rounded-lg border border-line mb-6 p-4" style={{ background: "var(--surface)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-concrete font-medium">Retention billing</span>
+        <span className="text-[11px] text-rebar hidden sm:block">held all job · billed & collected at closeout</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+        <RetStat label="Held" value={money(held)} tip="Total withheld across the progress invoices — earned, held back." />
+        <RetStat label="Billed" value={money(billed)} tip="Retention you've invoiced to collect." />
+        <RetStat label="Received" value={money(received)} tip="Retention checks received." />
+        <RetStat label="Still due" value={money(due)} tone={due > 0.5 ? "warn" : null} tip="Billed but not yet collected." />
+        <RetStat label="Left to bill" value={money(toBill)} tone={toBill > 0.5 ? "info" : null} tip="Held retention not yet invoiced." />
+      </div>
+      {mode ? (
+        <div className="rounded-md border border-line p-3 space-y-2" style={{ background: "var(--surface-2)" }}>
+          <p className="text-xs text-concrete font-medium">{mode === "bill" ? "Bill retention" : "Log retention payment"}</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <input type="number" className="inp" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="Amount" />
+            <input type="date" className="inp" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input className="inp" value={inv} onChange={(e) => setInv(e.target.value)} placeholder="Invoice # (optional)" />
+            <input className="inp" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" />
+          </div>
+          <p className="text-[11px] text-rebar">{mode === "bill"
+            ? "Records a retention invoice. It draws down held retention and never touches the contract's billed or remaining totals."
+            : "Records a retention check against what you've billed."}</p>
+          <div className="flex gap-2">
+            <button onClick={submit} disabled={busy} className="text-sm px-3 py-1.5 rounded-md font-medium bg-safety text-steel disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+            <button onClick={() => setMode(null)} disabled={busy} className="text-sm px-3 py-1.5 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => open("bill")} disabled={busy || toBill <= 0.5} title={toBill <= 0.5 ? "No held retention left to bill" : "Invoice the held retention"} className="text-sm px-3 py-1.5 rounded-md font-medium bg-safety text-steel disabled:opacity-40">Bill retention</button>
+          <button onClick={() => open("payment")} disabled={busy || billed <= 0.5} title={billed <= 0.5 ? "Bill retention first" : "Record a retention check"} className="text-sm px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite disabled:opacity-40">Log retention payment</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RetStat({ label, value, tone, tip }) {
+  const tc = tone === "warn" ? "text-warn" : tone === "info" ? "text-info" : "text-concrete";
+  return (
+    <div className="rounded-md border border-line px-3 py-2" style={{ background: "var(--surface-2)" }} title={tip || ""}>
+      <p className="text-[10px] uppercase tracking-wider text-rebar mb-0.5">{label}</p>
+      <p className={`text-base font-semibold tabular-nums ${tc}`}>{value}</p>
+    </div>
+  );
+}
+
+function todayISO() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
