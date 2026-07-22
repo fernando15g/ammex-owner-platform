@@ -33,7 +33,15 @@ export default function BidSheetClient({ data, linkedProject = null }) {
   const tableRef = useRef(null);
 
   const setCell = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v, _dirty: true } : r)));
-  const addRow = () => setRows((rs) => [...rs, blankRow()]);
+  // Furn/Inst is almost always one value for a whole job. Track a default so new
+  // rows inherit it, and "set all" stamps every row at once (the fill-down move).
+  const [furnDefault, setFurnDefault] = useState(() => {
+    const counts = {};
+    for (const li of items) { const f = li.furnInst; if (f) counts[f] = (counts[f] || 0) + 1; }
+    return Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || "";
+  });
+  const setAllFurnInst = (v) => { setFurnDefault(v); setRows((rs) => rs.map((r) => ({ ...r, furnInst: v, _dirty: true }))); };
+  const addRow = () => setRows((rs) => [...rs, { ...blankRow(), furnInst: furnDefault }]);
   const removeRow = (i) => setRows((rs) => rs.filter((_, j) => j !== i));
 
   async function deleteSavedRow(i) {
@@ -191,7 +199,21 @@ export default function BidSheetClient({ data, linkedProject = null }) {
               <th className="text-left font-medium px-3 py-2.5 w-20">Unit</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Unit Price</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Extended</th>
-              <th className="text-left font-medium px-3 py-2.5 w-36">Furn/Inst</th>
+              <th className="text-left font-medium px-3 py-2.5 w-36">
+                Furn/Inst
+                {editing && rows.length > 1 && (
+                  <select
+                    value=""
+                    onChange={(e) => { if (e.target.value !== "__") setAllFurnInst(e.target.value === "__blank" ? "" : e.target.value); }}
+                    title="Set every line to one value"
+                    className="ml-2 text-[10px] bg-transparent border border-line rounded px-1 py-0.5 text-rebar hover:text-concrete cursor-pointer normal-case tracking-normal font-normal"
+                  >
+                    <option value="__">set all…</option>
+                    {FURN_OPTIONS.filter(Boolean).map((o) => <option key={o} value={o}>{o}</option>)}
+                    <option value="__blank">— (clear)</option>
+                  </select>
+                )}
+              </th>
               <th className="w-10"></th>
             </tr>
           </thead>

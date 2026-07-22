@@ -18,9 +18,10 @@ const STATUS_TONE = {
 };
 
 export default function BillingOverviewClient({ data }) {
-  const { rows, totals, health } = data;
+  const { rows, totals, health, allProjects = [] } = data;
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [invoicePick, setInvoicePick] = useState(false);
   const active = rows.filter((r) => r.hasBilling);
   const { sorted: activeSorted, sort, toggle } = useSort(active, "name", "asc", "billing");
   const sortById = (a, b) => String(a.projectId || "~").localeCompare(String(b.projectId || "~"), undefined, { numeric: true });
@@ -31,6 +32,7 @@ export default function BillingOverviewClient({ data }) {
   });
   return (
     <div>
+      {invoicePick && <InvoicePickerModal projects={allProjects} onClose={() => setInvoicePick(false)} />}
       {health?.ok && health.counts.warnings > 0 && (
         <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 mb-4">
           <p className="text-sm text-concrete">
@@ -85,6 +87,7 @@ export default function BillingOverviewClient({ data }) {
           </div>
         )}
       </div>
+      <button onClick={() => setInvoicePick(true)} className="text-sm px-3 py-2 rounded-md font-medium bg-safety text-steel whitespace-nowrap">+ Invoice</button>
       <a href="/api/billing/reports/due-billings" title="Download the DUE BILLINGS report as Excel — every job's invoices, payments, and what's still due, plus the retention billings section. Two tabs: the full ledger and open items only." className="text-sm px-3 py-2 rounded-md font-medium bg-info text-white whitespace-nowrap flex items-center gap-1.5">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" /></svg>
         Due billings report
@@ -145,6 +148,60 @@ export default function BillingOverviewClient({ data }) {
         </table>
       </div>
       <p className="text-xs text-rebar mt-3">Showing projects with billing activity. To start billing a new project, find it with the search above. All totals computed live.</p>
+    </div>
+  );
+}
+
+// The "+ Invoice" picker: all projects, searchable. Selecting one routes to the
+// invoice flow if it has a bid sheet, or to CREATE the sheet first if it doesn't
+// — so a missing sheet is a detour, never a dead-end.
+function routeForInvoice(p) {
+  if (p.hasSheet) return `/billing/${p.id}/new-bill`;
+  if (p.bidId) return `/pipeline/${p.bidId}/sheet`;
+  return `/projects/${p.id}`;
+}
+
+function InvoicePickerModal({ projects, onClose }) {
+  const [q, setQ] = useState("");
+  const list = projects.filter((p) => {
+    if (q.trim() === "") return true;
+    const hay = `${p.name || ""} ${p.projectId || ""} ${(p.gc || []).join(" ")}`.toLowerCase();
+    return hay.includes(q.trim().toLowerCase());
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-10 overflow-y-auto" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
+          <p className="text-sm font-medium text-concrete">Start an invoice</p>
+          <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>
+        </div>
+        <div className="p-4">
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search projects…"
+            className="w-full text-sm px-3 py-2 rounded-md border border-line bg-transparent text-concrete focus:outline-none focus:border-rebar mb-2"
+          />
+          <div className="rounded-lg border border-line overflow-y-auto" style={{ maxHeight: "22rem" }}>
+            {list.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { window.location.href = routeForInvoice(p); }}
+                className="w-full text-left px-3 py-2.5 hover:bg-graphite/60 border-b border-line last:border-b-0 flex items-baseline gap-2"
+              >
+                <span className="text-sm text-concrete">{p.name || "—"}</span>
+                <span className="text-xs text-rebar">{p.projectId || ""}{p.gc?.length ? ` · ${p.gc.join(", ")}` : ""}</span>
+                {!p.hasSheet && (
+                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full border border-warn/50 text-warn whitespace-nowrap shrink-0">needs bid sheet</span>
+                )}
+              </button>
+            ))}
+            {list.length === 0 && <div className="px-3 py-6 text-center text-sm text-rebar">No projects match.</div>}
+          </div>
+          <p className="text-[11px] text-rebar mt-2">Pick a project to invoice. One without a bid sheet takes you to create it first.</p>
+        </div>
+      </div>
     </div>
   );
 }
