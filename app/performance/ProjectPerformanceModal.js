@@ -175,7 +175,12 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             </div>
             <div className="rounded-md border border-line p-3">
               <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">Runway</p>
-              {runwayMH != null ? (
+              {r.closed ? (
+                <>
+                  <p className="text-xl font-semibold text-ok">Closed</p>
+                  <p className="text-xs text-rebar mt-0.5">placed weight is final</p>
+                </>
+              ) : runwayMH != null ? (
                 <>
                   <p className="text-xl font-semibold text-concrete tabular-nums">{num(runwayMH)} <span className="text-sm font-normal text-rebar">MH</span></p>
                   <p className="text-xs text-rebar mt-0.5">{lbs(r.remainingLbs)} lbs left at pace</p>
@@ -194,8 +199,34 @@ export default function ProjectPerformanceModal({ row, onClose }) {
             </div>
           </div>
 
-          {/* profit + margin sensitivity — two cards, bid → at this pace */}
-          {r.sensitivity && (
+          {/* profit + margin — realized (closed) or projected (in-progress) */}
+          {r.closed && r.realizedEcon ? (
+            <div>
+              <p className="text-xs text-rebar mb-2">
+                Realized on <span className="text-concrete">{lbs(r.placedLbs)} lbs</span> placed at <span className="text-concrete">{rate(r.realized)} lbs/MH</span> <span className="text-rebar">(bid {rate(r.bidProductivity)})</span>
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <SensCard
+                  label="Realized profit"
+                  now={money(r.realizedEcon.realizedProfit)}
+                  was={`bid ${money(r.realizedEcon.bidProfitAtScope)} for this scope`}
+                  delta={`${r.realizedEcon.realizedProfit - r.realizedEcon.bidProfitAtScope >= 0 ? "▲" : "▼"} ${money(Math.abs(r.realizedEcon.realizedProfit - r.realizedEcon.bidProfitAtScope))}`}
+                  good={r.realizedEcon.realizedProfit - r.realizedEcon.bidProfitAtScope >= 0}
+                />
+                <SensCard
+                  label="Realized margin"
+                  now={pct(r.realizedEcon.realizedMargin)}
+                  was={`bid ${pct(r.realizedEcon.bidMargin)}`}
+                  delta={`${r.realizedEcon.marginDeltaPts >= 0 ? "▲" : "▼"} ${Math.abs(r.realizedEcon.marginDeltaPts).toFixed(1)} pts`}
+                  good={r.realizedEcon.marginDeltaPts >= 0}
+                />
+              </div>
+              <p className="text-[11px] text-rebar mt-1.5">
+                Revenue = placed × bid rate ({money(r.realizedEcon.rate)}/lb){!r.realizedEcon.fullScope && <> · {pct(r.realizedEcon.scopeFraction)} of awarded weight</>}.
+                {r.noOsBilling && <> No OS invoices — revenue derived from placed weight, not billed dollars.</>}
+              </p>
+            </div>
+          ) : !r.closed && r.sensitivity ? (
             <div>
               <p className="text-xs text-rebar mb-2">
                 At {r.state === "in-progress" ? "today\u2019s pace" : "the realized pace"} — <span className="text-concrete">{rate(r.sensitivity.pace)} lbs/MH</span> <span className="text-rebar">(bid {rate(r.sensitivity.bidProductivity)})</span>
@@ -218,7 +249,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
               </div>
               {r.state === "in-progress" && <p className="text-[11px] text-rebar mt-1.5">Projection if this pace holds — not a verdict.</p>}
             </div>
-          )}
+          ) : null}
 
           {/* exceptions + one quiet source line */}
           {r.state === "needs-review" && (
