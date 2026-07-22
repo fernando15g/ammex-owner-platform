@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    const { eventId, paidAmount, paymentDate } = await req.json();
+    const { eventId, paidAmount, paymentDate, allocation } = await req.json();
     if (!eventId || paidAmount == null) throw new Error("eventId and paidAmount are required.");
     const paid = Number(paidAmount);
 
@@ -41,7 +41,7 @@ export async function POST(req) {
       });
 
       const applied = await applyShortPay({
-        invoice, lines, paidAmount: paid, paymentId: payment.id,
+        invoice, lines, paidAmount: paid, paymentId: payment.id, allocation,
         tx, updateLineItem, updateBillingEvent,
       });
       return { rolledForward: applied?.rolledForward || 0 };

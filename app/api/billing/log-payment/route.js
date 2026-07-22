@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    const { projectId, billEventId, paidAmount, paymentDate } = await req.json();
+    const { projectId, billEventId, paidAmount, paymentDate, allocation } = await req.json();
     if (paidAmount == null || isNaN(Number(paidAmount))) throw new Error("A valid payment amount is required.");
     const paid = Number(paidAmount);
     const date = paymentDate || todayLocal();
@@ -65,7 +65,7 @@ export async function POST(req) {
       tx.onRollback("payment", () => archiveSafely(payment.id));
 
       const applied = await applyShortPay({
-        invoice, lines, paidAmount: paid, paymentId: payment.id,
+        invoice, lines, paidAmount: paid, paymentId: payment.id, allocation,
         tx, updateLineItem, updateBillingEvent,
       });
       return { mode: "short", rolledForward: applied?.rolledForward || 0 };

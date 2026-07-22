@@ -37,8 +37,26 @@ export default function ProjectBillingClient({ data }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [resolver, setResolver] = useState(null); // { invoice, paid, via, billEventId }
 
   async function refresh() { window.location.reload(); }
+
+  // Confirm the short-pay resolver: post to the right route with the chosen
+  // allocation (null = Auto/proportional, array = Manual per-line).
+  async function confirmResolver(allocation) {
+    if (!resolver) return;
+    setBusy(true); setErr(null);
+    try {
+      const body = resolver.via === "short-pay"
+        ? { eventId: resolver.invoice.id, paidAmount: resolver.paid, allocation }
+        : { projectId: data.id, billEventId: resolver.billEventId, paidAmount: resolver.paid, paymentDate: resolver.date, allocation };
+      const url = resolver.via === "short-pay" ? "/api/billing/short-pay" : "/api/billing/log-payment";
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const d = await res.json(); if (!d.ok) throw new Error(d.error);
+      setResolver(null);
+      refresh();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  }
 
   async function deleteEvent(ev) {
     const label = ev.type === "Bill" ? `invoice ${ev.invoiceNumber || ""}` : ev.type.toLowerCase();
@@ -70,22 +88,29 @@ export default function ProjectBillingClient({ data }) {
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
-  async function shortPay(ev) {
+  function shortPay(ev) {
     const expected = (ev.amount || 0) - (ev.retentionWithheld || 0);
     const input = window.prompt(`Short pay on ${ev.invoiceNumber || "this bill"}\nExpected (net of retention): $${expected.toFixed(2)}\n\nEnter the amount ACTUALLY received:`);
     if (input == null) return;
     const paid = Number(String(input).replace(/[$,]/g, ""));
     if (isNaN(paid) || paid < 0) { setErr("Enter a valid dollar amount."); return; }
-    setBusy(true); setErr(null);
-    try {
-      const res = await fetch("/api/billing/short-pay", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: ev.id, paidAmount: paid }) });
-      const d = await res.json(); if (!d.ok) throw new Error(d.error);
-      refresh();
-    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+    if (paid >= expected - 0.005) { setErr(`$${paid.toFixed(2)} covers the expected net — log it as a normal payment instead.`); return; }
+    setErr(null);
+    setResolver({ invoice: ev, paid, via: "short-pay" });
   }
 
   return (
     <div className="max-w-6xl">
+      {resolver && (
+        <ShortPayResolver
+          invoice={resolver.invoice}
+          projectLines={data.lines || []}
+          paid={resolver.paid}
+          busy={busy}
+          onCancel={() => setResolver(null)}
+          onConfirm={confirmResolver}
+        />
+      )}
 
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
@@ -172,7 +197,7 @@ export default function ProjectBillingClient({ data }) {
         <AddBtn label="+ Change order" onClick={() => setShowAdd("CO")} />
       </div>
       {showAdd === "Payment" ? (
-        <PaymentForm projectId={data.id} bills={data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0)} events={data.events} onClose={() => setShowAdd(null)} onSaved={refresh} />
+        <PaymentForm projectId={data.id} bills={data.events.filter((e) => e.type === "Bill" && (e.amount || 0) > 0)} events={data.events} onClose={() => setShowAdd(null)} onSaved={refresh} onShort={({ invoice, paid, date, billEventId }) => { setShowAdd(null); setResolver({ invoice, paid, date, billEventId, via: "log-payment" }); }} />
       ) : showAdd === "CO" ? (
         <ChangeOrderForm projectId={data.id} relatedBidId={data.relatedBidId} onClose={() => setShowAdd(null)} onSaved={refresh} />
       ) : showAdd ? (
@@ -572,7 +597,7 @@ function ChangeOrderForm({ projectId, relatedBidId, onClose, onSaved }) {
   );
 }
 
-function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
+function PaymentForm({ projectId, bills, events, onClose, onSaved, onShort }) {
   const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
   // outstanding per invoice = (gross - retention) - payments already tied to it
   const paidByInvoice = {};
@@ -595,6 +620,12 @@ function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
 
   async function save() {
     if (amtNum == null || isNaN(amtNum)) { setErr("Enter a valid amount."); return; }
+    // Short pay against a selected invoice → hand off to the resolver to place
+    // the rolled-back weight. Full payments (or unattached) post directly.
+    if (isShort && billEventId && onShort) {
+      const fullBill = bills.find((b) => b.id === billEventId);
+      if (fullBill) { onShort({ invoice: fullBill, paid: amtNum, date, billEventId }); return; }
+    }
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/billing/log-payment", {
@@ -624,7 +655,7 @@ function PaymentForm({ projectId, bills, events, onClose, onSaved }) {
       {selected && (
         <p className="text-xs mt-2 text-rebar">
           {selected.invoiceNumber || "Invoice"} · expected net {money(selected.net)}{" "}
-          {isShort ? <span className="text-warn">· short pay — the ${(selected.net - amtNum).toFixed(2)} difference will roll to the next invoice automatically.</span> : <span className="text-ok">· full payment.</span>}
+          {isShort ? <span className="text-warn">· short pay — next you&apos;ll choose how the ${(selected.net - amtNum).toFixed(2)} difference rolls back across the lines.</span> : <span className="text-ok">· full payment.</span>}
         </p>
       )}
       <div className="flex gap-2 mt-4">
@@ -837,4 +868,148 @@ function todayISO() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// -----------------------------------------------------------------------------
+// SHORT-PAY RESOLVER — where does the rolled-back weight land?
+//
+// Auto spreads the shortfall proportionally across the invoice's lines (fine when
+// the whole invoice was underpaid). Manual lets you place it on the specific
+// lines the GC disputed, so your rolled-back pounds match their sheet. Lines that
+// weren't on this invoice are grayed/locked (you can't re-bill what wasn't billed).
+// lbs and $ per line stay in sync; the allocation must reconcile to the shortfall
+// dollars (the money that actually hit the bank) before you can save.
+function parseSnapClient(notes) {
+  const s = String(notes || "");
+  const at = s.indexOf("[snap]");
+  if (at === -1) return null;
+  const rest = s.slice(at + 6);
+  const start = rest.indexOf("{");
+  if (start === -1) return null;
+  let d = 0, end = -1;
+  for (let i = start; i < rest.length; i++) { const c = rest[i]; if (c === "{") d++; else if (c === "}") { d--; if (d === 0) { end = i; break; } } }
+  if (end === -1) return null;
+  try { return JSON.parse(rest.slice(start, end + 1)); } catch { return null; }
+}
+
+function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, busy }) {
+  const money = (n) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const lbsFmt = (n) => (n || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
+
+  const snap = parseSnapClient(invoice.notes);
+  const gross = invoice.amount || 0;
+  const retention = invoice.retentionWithheld || 0;
+  const expectedNet = gross - retention;
+  const shortNet = expectedNet - paid;
+  const r = (snap?.r || 0) / 100;
+  const grossCut = r < 1 ? shortNet / (1 - r) : shortNet;
+
+  const billed = (snap?.lines || []).map((l) => {
+    const key = l.lid || l.id;
+    const pl = projectLines.find((x) => (l.lid && x.lineId === l.lid) || (l.id && x.id === l.id)) || {};
+    return { key, itemNo: pl.itemNo || "", description: pl.description || "(line)", unitPrice: l.u || 0, maxQty: l.q || 0 };
+  });
+  const billedKeys = new Set(billed.map((b) => b.key));
+  const grayRows = projectLines.filter((pl) => (pl.description || pl.itemNo) && !billedKeys.has(pl.lineId) && !billedKeys.has(pl.id));
+
+  const totalThis = billed.reduce((s, b) => s + b.maxQty * b.unitPrice, 0) || 1;
+  const autoAlloc = {};
+  { let rem = grossCut; billed.forEach((b, i) => { const share = (b.maxQty * b.unitPrice) / totalThis; let dc = i === billed.length - 1 ? rem : Math.min(grossCut * share, rem); dc = Math.min(dc, b.maxQty * b.unitPrice); rem -= dc; autoAlloc[b.key] = b.unitPrice > 0 ? dc / b.unitPrice : 0; }); }
+
+  const [mode, setMode] = useState("auto");
+  const [alloc, setAlloc] = useState({});
+  const current = mode === "auto" ? autoAlloc : alloc;
+  const allocTotal = billed.reduce((s, b) => s + (current[b.key] || 0) * b.unitPrice, 0);
+  const reconciled = Math.abs(allocTotal - grossCut) <= 0.02;
+  const overMax = billed.some((b) => (current[b.key] || 0) > b.maxQty + 1e-4);
+
+  const setLbs = (key, v) => setAlloc((a) => ({ ...a, [key]: Math.max(Number(v) || 0, 0) }));
+  const setDol = (key, v, price) => setAlloc((a) => ({ ...a, [key]: price > 0 ? Math.max(Number(v) || 0, 0) / price : 0 }));
+  const distributeAuto = () => { setAlloc({ ...autoAlloc }); setMode("manual"); };
+
+  function confirm() {
+    const allocation = mode === "auto" ? null : billed.filter((b) => (alloc[b.key] || 0) > 0).map((b) => ({ key: b.key, qty: alloc[b.key] }));
+    onConfirm(allocation);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto" style={{ background: "rgba(0,0,0,0.6)" }}>
+      <div className="w-full max-w-2xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
+          <p className="text-sm font-medium text-concrete">Short pay — {invoice.invoiceNumber || "invoice"}</p>
+          <button onClick={onCancel} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>
+        </div>
+
+        <div className="p-5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
+            <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Billed</p><p className="text-concrete font-medium tabular-nums">{money(gross)}</p></div>
+            <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Expected net</p><p className="text-concrete font-medium tabular-nums">{money(expectedNet)}</p></div>
+            <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Received</p><p className="text-concrete font-medium tabular-nums">{money(paid)}</p></div>
+            <div className="rounded-md border border-warn/40 px-2.5 py-1.5"><p className="text-rebar">Short by</p><p className="text-warn font-medium tabular-nums">{money(shortNet)}</p></div>
+          </div>
+
+          <p className="text-xs text-rebar mb-3">Roll back <span className="text-concrete font-medium">{money(grossCut)}</span> of work to re-bill next cycle{r > 0 && <> (grossed up for retention; nets to {money(shortNet)})</>}. Choose where it lands:</p>
+
+          {/* mode */}
+          <div className="flex flex-col sm:flex-row gap-2 mb-4">
+            <button onClick={() => setMode("auto")} className={`flex-1 text-left rounded-md border px-3 py-2 ${mode === "auto" ? "border-safety bg-safety/10" : "border-line hover:bg-graphite/40"}`}>
+              <p className="text-sm text-concrete font-medium">Auto</p>
+              <p className="text-[11px] text-rebar">Spread across all lines on this invoice. Use when the whole invoice was underpaid.</p>
+            </button>
+            <button onClick={distributeAuto} className={`flex-1 text-left rounded-md border px-3 py-2 ${mode === "manual" ? "border-safety bg-safety/10" : "border-line hover:bg-graphite/40"}`}>
+              <p className="text-sm text-concrete font-medium">Manual</p>
+              <p className="text-[11px] text-rebar">Put it on the specific lines the GC disputed. Use when they held certain items.</p>
+            </button>
+          </div>
+
+          {/* grid */}
+          <div className="rounded-lg border border-line overflow-hidden mb-3">
+            <table className="w-full text-sm">
+              <thead className="text-[10px] uppercase tracking-wider text-rebar border-b border-line">
+                <tr><th className="text-left font-medium px-3 py-2">Line</th><th className="text-right font-medium px-2 py-2">Billed lbs</th><th className="text-right font-medium px-2 py-2">Roll back lbs</th><th className="text-right font-medium px-3 py-2">$</th></tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {billed.map((b) => (
+                  <tr key={b.key}>
+                    <td className="px-3 py-2 text-concrete">{b.itemNo ? `${b.itemNo} · ` : ""}{b.description}</td>
+                    <td className="px-2 py-2 text-right text-rebar tabular-nums">{lbsFmt(b.maxQty)}</td>
+                    <td className="px-2 py-2 text-right">
+                      {mode === "auto"
+                        ? <span className="text-concrete tabular-nums">{lbsFmt(current[b.key] || 0)}</span>
+                        : <input type="text" inputMode="decimal" value={alloc[b.key] != null ? Number(alloc[b.key].toFixed(2)) : ""} onChange={(e) => setLbs(b.key, e.target.value)} className={`w-24 text-right text-sm px-2 py-1 rounded border bg-transparent text-concrete ${(alloc[b.key] || 0) > b.maxQty + 1e-4 ? "border-danger" : "border-line"}`} placeholder="0" />}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {mode === "auto"
+                        ? <span className="text-concrete/80 tabular-nums">{money((current[b.key] || 0) * b.unitPrice)}</span>
+                        : <input type="text" inputMode="decimal" value={alloc[b.key] != null ? Number((alloc[b.key] * b.unitPrice).toFixed(2)) : ""} onChange={(e) => setDol(b.key, e.target.value, b.unitPrice)} className="w-24 text-right text-sm px-2 py-1 rounded border border-line bg-transparent text-concrete" placeholder="0.00" />}
+                    </td>
+                  </tr>
+                ))}
+                {grayRows.map((pl) => (
+                  <tr key={pl.id} className="opacity-40">
+                    <td className="px-3 py-2 text-rebar">{pl.itemNo ? `${pl.itemNo} · ` : ""}{pl.description || "(line)"} <span className="text-[10px]">— not on this invoice</span></td>
+                    <td className="px-2 py-2 text-right text-rebar tabular-nums">—</td>
+                    <td className="px-2 py-2 text-right text-rebar">locked</td>
+                    <td className="px-3 py-2 text-right text-rebar">—</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* reconciliation */}
+          <div className={`text-xs mb-4 ${reconciled && !overMax ? "text-ok" : "text-warn"}`}>
+            Allocated <span className="tabular-nums font-medium">{money(allocTotal)}</span> of <span className="tabular-nums font-medium">{money(grossCut)}</span>
+            {overMax ? " · a line exceeds what it was billed" : reconciled ? " · matches ✓" : ` · ${money(Math.abs(grossCut - allocTotal))} ${allocTotal > grossCut ? "over" : "to go"}`}
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={confirm} disabled={busy || (mode === "manual" && (!reconciled || overMax))} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Apply short pay"}</button>
+            <button onClick={onCancel} disabled={busy} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
+            {mode === "auto" && <span className="text-[11px] text-rebar self-center ml-1">Auto spreads it proportionally across the invoice&apos;s lines.</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
