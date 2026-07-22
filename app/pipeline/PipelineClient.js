@@ -51,11 +51,12 @@ const STATUS_COLOR = {
   "No Bid": "#5b6470",      // muted
 };
 
-function buildGroups(rows) {
+function buildGroups(rows, orderBy = null) {
   return GROUPS
     .map((g) => {
       const items = rows.filter((r) => g.statuses.includes(r.status));
-      if (g.key === "live") items.sort((a, b) => (LIVE_ORDER[a.status] - LIVE_ORDER[b.status]) || ((b.contractValue || 0) - (a.contractValue || 0)));
+      if (orderBy) items.sort((a, b) => (orderBy.get(a.id) ?? 0) - (orderBy.get(b.id) ?? 0));
+      else if (g.key === "live") items.sort((a, b) => (LIVE_ORDER[a.status] - LIVE_ORDER[b.status]) || ((b.contractValue || 0) - (a.contractValue || 0)));
       else if (g.key === "submitted") items.sort(bySubmittedDesc);
       else items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       return { ...g, items };
@@ -81,8 +82,15 @@ export default function PipelineClient({ data }) {
     : rows;
   const filtered = searched.filter(active.test);
   const isFlight = filter === "flight";
-  const groups = buildGroups(filtered);
-  const { sorted: shown, sort, toggle } = useSort(filtered, "submissionDate", "desc", "bids");
+  const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc", "bids");
+  // Sorting the grouped in-flight view sorts WITHIN each stage (keeps hottest on
+  // top). Until a header is clicked, groups keep their default order. We reuse
+  // the exact useSort comparator by ordering group items to match `shown`.
+  const [sortTouched, setSortTouched] = useState(false);
+  const toggleSort = (key) => { setSortTouched(true); toggle(key); };
+  const orderBy = sortTouched ? new Map(shown.map((r, i) => [r.id, i])) : null;
+  const groups = buildGroups(filtered, orderBy);
+  const flightSort = sortTouched ? sort : { key: null, dir: "asc" };
   const countOf = (f) => rows.filter(f.test).length;
 
   return (
@@ -119,17 +127,17 @@ export default function PipelineClient({ data }) {
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
               {isFlight ? (
                 <>
-                  <th className="px-4 py-2.5 text-left font-medium">Bid</th>
-                  <th className="px-3 py-2.5 text-left font-medium hidden sm:table-cell">Status</th>
-                  <th className="px-3 py-2.5 text-left font-medium hidden md:table-cell">Submitted</th>
-                  <th className="px-3 py-2.5 text-right font-medium">Value</th>
-                  <th className="px-4 py-2.5 text-right font-medium hidden lg:table-cell">Margin</th>
+                  <SortHeader label="Bid" sortKey="name" sort={flightSort} toggle={toggleSort} className="px-4" />
+                  <SortHeader label="Status" sortKey="status" sort={flightSort} toggle={toggleSort} className="hidden sm:table-cell" />
+                  <SortHeader label="Bid due" sortKey="bidDueDate" sort={flightSort} toggle={toggleSort} className="hidden md:table-cell" />
+                  <SortHeader label="Value" sortKey="contractValue" sort={flightSort} toggle={toggleSort} align="right" />
+                  <SortHeader label="Margin" sortKey="operatingMargin" sort={flightSort} toggle={toggleSort} align="right" className="hidden lg:table-cell px-4" />
                 </>
               ) : (
                 <>
                   <SortHeader label="Bid" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
                   <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
-                  <SortHeader label="Submitted" sortKey="submissionDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
+                  <SortHeader label="Bid due" sortKey="bidDueDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
                   <SortHeader label="Value" sortKey="contractValue" sort={sort} toggle={toggle} align="right" />
                   <SortHeader label="Margin" sortKey="operatingMargin" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell px-4" />
                 </>
@@ -191,7 +199,7 @@ function BidRow({ r }) {
           <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok">{r.project.projectId || "project"}</span>
         )}
       </td>
-      <td className="px-3 py-3 hidden md:table-cell text-concrete/80">{dateStr(r.submissionDate)}</td>
+      <td className="px-3 py-3 hidden md:table-cell text-concrete/80">{dateStr(r.bidDueDate)}</td>
       <td className="px-3 py-3 text-right tabular-nums text-concrete">{money(r.contractValue)}</td>
       <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/80">{pct(r.operatingMargin)}</td>
     </tr>
