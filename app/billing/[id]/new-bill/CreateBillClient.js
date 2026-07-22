@@ -20,6 +20,18 @@ function todayLocal() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Net 30: 30 days after a YYYY-MM-DD bill date, kept in local time. Net 30 is the
+// construction default; the field stays editable per invoice (terms vary by
+// contract, and public jobs run on statutory clocks).
+function net30(dateStr) {
+  const m = String(dateStr || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  d.setDate(d.getDate() + 30);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const qf = (n) => (typeof n !== "number" || isNaN(n) ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 const num = (v) => (v === "" || v == null ? null : Number(v));
@@ -53,11 +65,13 @@ export default function CreateBillClient({ data }) {
   }));
   const [rows, setRows] = useState(() => { const base = isFirstInvoice && hasBidLines ? [] : fromLines(); return base.length === 0 && !(isFirstInvoice && hasBidLines) ? [{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }] : base; });
   const [head, setHead] = useState({
-    invoiceNumber: "", date: todayLocal(), dueDate: "", notes: "",
+    invoiceNumber: "", date: todayLocal(), dueDate: net30(todayLocal()), notes: "",
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPct: data.settings.retentionPercent ?? "",
   });
   const [adot, setAdot] = useState({ open: false, lbsDone: "", lbsTotal: "", totalSqft: "", ratePerSqft: "", description: "Sq ft billing" });
+  // Due date auto-follows the bill date at Net 30 until you edit it by hand.
+  const [dueDateTouched, setDueDateTouched] = useState(false);
 
   // ---- draft auto-save (freeze / crash / wandering-click proof) -------------
   // The invoice grid is the heaviest number entry in the app. We continuously
@@ -432,8 +446,8 @@ export default function CreateBillClient({ data }) {
           <span className="text-xs text-rebar mb-1 block">Invoice number</span>
           <input className="inp" value={head.invoiceNumber} onChange={(e) => setHead({ ...head, invoiceNumber: e.target.value })} placeholder={`${data.projectId || "26-XX"}-INV-${priorBills.length + 1}`} />
         </label>
-        <label className="block"><span className="text-xs text-rebar mb-1 block">Bill date</span><input type="date" className="inp" value={head.date} onChange={(e) => setHead({ ...head, date: e.target.value })} /></label>
-        <label className="block"><span className="text-xs text-rebar mb-1 block">Due date</span><input type="date" className="inp" value={head.dueDate} onChange={(e) => setHead({ ...head, dueDate: e.target.value })} /></label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Bill date</span><input type="date" className="inp" value={head.date} onChange={(e) => { const v = e.target.value; setHead((h) => ({ ...h, date: v, dueDate: dueDateTouched ? h.dueDate : net30(v) })); }} /></label>
+        <label className="block"><span className="text-xs text-rebar mb-1 block">Due date {!dueDateTouched && head.dueDate === net30(head.date) && <span className="text-rebar/60">· Net 30</span>}{dueDateTouched && <button type="button" onClick={() => { setDueDateTouched(false); setHead((h) => ({ ...h, dueDate: net30(h.date) })); }} className="text-safety hover:underline ml-1">reset to Net 30</button>}</span><input type="date" className="inp" value={head.dueDate} onChange={(e) => { setDueDateTouched(true); setHead({ ...head, dueDate: e.target.value }); }} /></label>
         <div className="block">
           <span className="text-xs text-rebar mb-1 block">Retention</span>
           <div className="flex items-center gap-2 pt-1.5">

@@ -91,17 +91,19 @@ export default function BillingOverviewClient({ data }) {
       </a>
       </div>
 
-      {/* Portfolio A/R summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        <Stat label="Outstanding (owed to you)" value={money(totals.outstanding)} accent />
+      {/* Portfolio A/R summary — retention is split out so nothing double-counts:
+          collect-now + retention held = total owed. */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+        <Stat label="Outstanding (collect now)" value={money(Math.max(totals.outstanding - totals.retention, 0))} accent />
+        <Stat label="Retention held" value={money(totals.retention)} />
+        <Stat label="Total owed to you" value={money(totals.outstanding)} />
         <Stat label="Overdue" value={money(totals.overdueTotal)} tone={totals.overdueTotal > 0 ? "danger" : "ok"} />
         <Stat label="Remaining to bill" value={money(totals.remainingToBill)} />
-        <Stat label="Retention held" value={money(totals.retention)} />
       </div>
 
       {/* Aging strip */}
       <div className="rounded-lg border border-line p-4 mb-6" style={{ background: "var(--surface)" }}>
-        <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Aging — outstanding by age</p>
+        <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Aging — total owed by age (includes retention)</p>
         <div className="grid grid-cols-5 gap-2 text-center">
           <Age label="Current" value={money(totals.aging.current)} />
           <Age label="1–30" value={money(totals.aging.d1_30)} warn={totals.aging.d1_30 > 0} />
@@ -119,7 +121,7 @@ export default function BillingOverviewClient({ data }) {
               <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
               <SortHeader label="Contract" sortKey="billing.revisedContract" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
               <SortHeader label="Billed" sortKey="billing.billedToDate" sort={sort} toggle={toggle} align="right" />
-              <SortHeader label="Outstanding" sortKey="billing.outstanding" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Owed" sortKey="billing.outstanding" sort={sort} toggle={toggle} align="right" />
               <SortHeader label="Remaining" sortKey="billing.remainingToBill" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell" />
               <SortHeader label="Status" sortKey="billing.status" sort={sort} toggle={toggle} className="px-4" />
             </tr>

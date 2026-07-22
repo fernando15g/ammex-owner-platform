@@ -33,7 +33,7 @@ const SEV = {
 
 export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
-  const { rows, counts, backlog = [] } = data;
+  const { rows, counts, backlog = [], closed = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc", "active");
   const [query, setQuery] = useState("");
   const [bulk, setBulk] = useState(false);
@@ -63,6 +63,7 @@ export default function ActiveWorkClient({ data }) {
     } catch {}
   }, [selected]);
   const [backlogOpen, setBacklogOpen] = useState(false);
+  const [closedOpen, setClosedOpen] = useState(false);
 
   return (
     <div>
@@ -215,6 +216,48 @@ export default function ActiveWorkClient({ data }) {
       </div>
       </div>
 
+      {/* CLOSED — finished jobs. Out of the active list, but not gone: a collapsed
+          section so you can still pull up a completed job's data or its bid. */}
+      {closed.length > 0 && (() => {
+        const value = closed.reduce((a, c) => a + (c.contractValue || 0), 0);
+        return (
+          <div className="rounded-lg border border-line mt-6 overflow-hidden" style={{ background: "var(--surface)" }}>
+            <button
+              onClick={() => setClosedOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-graphite/30"
+            >
+              <span className={`text-rebar text-xs transition-transform ${closedOpen ? "rotate-90" : ""}`}>▸</span>
+              <span className="text-sm text-concrete font-medium">Closed projects</span>
+              <span className="text-xs text-rebar">finished & billed</span>
+              <span className="ml-auto flex items-center gap-3 text-xs">
+                <span className="text-rebar">{closed.length} job{closed.length === 1 ? "" : "s"}</span>
+                {value > 0 && <span className="text-concrete tabular-nums font-medium">${Math.round(value).toLocaleString()}</span>}
+              </span>
+            </button>
+
+            {closedOpen && (
+              <div className="border-t border-line divide-y divide-line" style={{ background: "var(--surface-2)" }}>
+                {closed.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/40">
+                    <a href={`/projects/${c.id}`} className="text-sm text-concrete hover:text-safety truncate">{c.name}</a>
+                    <span className="text-xs text-rebar truncate">
+                      {[c.projectId, c.status, c.gc?.length ? c.gc.join(", ") : null].filter(Boolean).join(" · ")}
+                    </span>
+                    <span className="ml-auto flex items-center gap-2 shrink-0">
+                      {typeof c.contractValue === "number" && (
+                        <span className="text-xs text-concrete/70 tabular-nums">${Math.round(c.contractValue).toLocaleString()}</span>
+                      )}
+                      {c.bidId && <a href={`/pipeline/${c.bidId}`} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete">Bid</a>}
+                      <button onClick={() => setDetailsFor(c.id)} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete">Details</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {detailsFor && (
         <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />
       )}
@@ -279,6 +322,9 @@ function DetailPanel({ row, onClose, onEdit }) {
           <p className="text-sm text-rebar mt-1">{row.projectId} · {row.status}</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          {row.bidId && (
+            <a href={`/pipeline/${row.bidId}`} title="Open this job's bid" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to bid →</a>
+          )}
           <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
           <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
         </div>
@@ -298,7 +344,7 @@ function DetailPanel({ row, onClose, onEdit }) {
           <div className="h-full bg-safety rounded-full" style={{ width: `${frac}%` }} />
         </div>
         <div className="flex items-baseline justify-between gap-3 text-xs">
-          <EditablePlacedRow projectId={row.id} placedLbs={row.placedLbs} installedLbs={row.installedLbs} fromBilling={row.installedSource === "billed"} awardedLbs={row.awardedLbs} />
+          <EditablePlacedRow key={row.id} projectId={row.id} placedLbs={row.placedLbs} installedLbs={row.installedLbs} fromBilling={row.installedSource === "billed"} awardedLbs={row.awardedLbs} />
           {typeof remaining === "number" && <span className="text-rebar shrink-0">{lbs(remaining)} remaining</span>}
         </div>
         {row.pace?.source === "matched" && (
