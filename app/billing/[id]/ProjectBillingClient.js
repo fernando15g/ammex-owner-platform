@@ -975,8 +975,16 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
   const reconciled = Math.abs(allocTotal - grossCut) <= 0.02;
   const overMax = billed.some((b) => (current[b.key] || 0) > b.maxQty + 1e-4);
 
+  // The three columns are one number seen three ways. `alloc` holds the ROLLBACK
+  // quantity; billed-lbs is derived (billed = as-billed − rolled back), so
+  // whichever field you type in, the other two follow. Usually you'll edit the
+  // billed column — that's what the customer's remittance tells you they took.
   const setLbs = (key, v) => setAlloc((a) => ({ ...a, [key]: Math.max(Number(v) || 0, 0) }));
   const setDol = (key, v, price) => setAlloc((a) => ({ ...a, [key]: price > 0 ? Math.max(Number(v) || 0, 0) / price : 0 }));
+  const setBilled = (key, v, maxQty) => setAlloc((a) => {
+    const kept = Math.min(Math.max(Number(v) || 0, 0), maxQty);   // can't accept more than was billed
+    return { ...a, [key]: maxQty - kept };
+  });
   const distributeAuto = () => { setAlloc((a) => (Object.keys(a).length ? a : { ...autoAlloc })); setMode("manual"); };
 
   function confirm() {
@@ -1043,13 +1051,20 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
           <div className="rounded-lg border border-line overflow-hidden mb-3">
             <table className="w-full text-sm">
               <thead className="text-[10px] uppercase tracking-wider text-rebar border-b border-line">
-                <tr><th className="text-left font-medium px-3 py-2">Line</th><th className="text-right font-medium px-2 py-2">Billed lbs</th><th className="text-right font-medium px-2 py-2">Roll back lbs</th><th className="text-right font-medium px-3 py-2">$</th></tr>
+                <tr><th className="text-left font-medium px-3 py-2">Line</th><th className="text-right font-medium px-2 py-2" title="What the customer accepted on this line. Lower it and the difference rolls back.">Billed lbs</th><th className="text-right font-medium px-2 py-2">Roll back lbs</th><th className="text-right font-medium px-3 py-2">$</th></tr>
               </thead>
               <tbody className="divide-y divide-line">
                 {billed.map((b) => (
                   <tr key={b.key}>
                     <td className="px-3 py-2 text-concrete">{b.itemNo ? `${b.itemNo} · ` : ""}{b.description}</td>
-                    <td className="px-2 py-2 text-right text-rebar tabular-nums">{lbsFmt(b.maxQty)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      {mode === "auto"
+                        ? <span className="text-rebar">{lbsFmt(b.maxQty - (current[b.key] || 0))}</span>
+                        : <input type="text" inputMode="decimal" value={Number((b.maxQty - (alloc[b.key] || 0)).toFixed(2))} onChange={(e) => setBilled(b.key, e.target.value, b.maxQty)} className="w-24 text-right text-sm px-2 py-1 rounded border border-line bg-transparent text-concrete" />}
+                      {(alloc[b.key] || 0) > 1e-6 && mode === "manual" && (
+                        <span className="block text-[10px] text-rebar">was {lbsFmt(b.maxQty)}</span>
+                      )}
+                    </td>
                     <td className="px-2 py-2 text-right">
                       {mode === "auto"
                         ? <span className="text-concrete tabular-nums">{lbsFmt(current[b.key] || 0)}</span>
