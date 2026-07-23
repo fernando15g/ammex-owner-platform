@@ -17,7 +17,9 @@ export async function GET(req, { params }) {
     const estimatedLbs = d.lines.reduce((a, l) => a + (l.quantity || 0), 0) || d.bid?.estimatedLbs || null;
 
     // The productivity indicator: is the job beating the bid, or losing to it?
-    const payrollHours = d.payrollHours ?? null;
+    // Use the RESOLVED hours (timesheet / payroll / combined), the same figure
+    // Active Work shows — not the raw payroll number, or the two would disagree.
+    const payrollHours = d.hours?.hours ?? d.payrollHours ?? null;
     const actualLbsPerMH = payrollHours > 0 ? billedLbs / payrollHours : null;
     const estimatedLbsPerMH = d.bid?.productivity ?? null;
     const productivityDelta =
