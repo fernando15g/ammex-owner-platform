@@ -11,6 +11,7 @@
 // the invoice template. Each has its own storage and its own endpoints.
 
 import { useState, useEffect } from "react";
+import { confirmDialog } from "@/app/components/Dialog";
 
 const CONFIG = {
   proposal: {
@@ -65,7 +66,7 @@ export default function TemplatePanel({ kind = "proposal" }) {
   }
 
   async function revert() {
-    if (!window.confirm("Go back to the template built into the app?\n\nYour uploaded one is removed.")) return;
+    if (!(await confirmDialog({ title: "Go back to the built-in template?", message: "Your uploaded one is removed.", confirmLabel: "Revert" }))) return;
     setBusy(true); setErr(null); setDone(null);
     try {
       const d = await fetch(cfg.endpoint, { method: "DELETE" }).then((r) => r.json());

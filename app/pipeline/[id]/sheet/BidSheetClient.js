@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "@/app/components/Dialog";
 
 import ProposalButton from "@/app/pipeline/ProposalButton";
 
@@ -47,13 +48,13 @@ export default function BidSheetClient({ data, linkedProject = null }) {
   async function deleteSavedRow(i) {
     const r = rows[i];
     if (!r.id) { removeRow(i); return; }
-    if (!window.confirm(`Delete "${r.description || r.itemNo || "this line"}" from the bid sheet?\n\nUnbilled lines delete cleanly. Billed lines will be blocked (close them instead).`)) return;
+    if (!(await confirmDialog({ title: `Delete "${r.description || r.itemNo || "this line"}"?`, message: "Unbilled lines delete cleanly. Billed lines will be blocked (close them instead).", confirmLabel: "Delete line", danger: true }))) return;
     setState((st) => ({ ...st, saving: true, error: null }));
     try {
       let res = await fetch(`/api/line-items/${r.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
       let d = await res.json();
       if (!d.ok && d.blocked) {
-        if (window.confirm(`${d.error}\n\nClose this line instead?`)) {
+        if (await confirmDialog({ title: "Close this line instead?", message: d.error, confirmLabel: "Close line" })) {
           res = await fetch(`/api/line-items/${r.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "close" }) });
           d = await res.json();
           if (!d.ok) throw new Error(d.error);

@@ -20,13 +20,22 @@ export async function POST(req, { params }) {
     const bid = data.bids.find((b) => b.id === params.id);
     if (!bid) throw new Error("Bid not found.");
 
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const force = !!body.force;
+
     const plan = planBidDelete(bid, data.projects, lines);
-    if (!plan.canDelete) {
-      return NextResponse.json({ ok: false, blocked: true, error: plan.reason }, { status: 409 });
+    if (!plan.canDelete && !force) {
+      return NextResponse.json({ ok: false, blocked: true, error: plan.reason, forceable: true }, { status: 409 });
     }
 
+    // force = delete anyway, taking ALL of the bid's line items with it (not just
+    // the unbilled ones). For clearing out test data without opening Notion; the
+    // type-DELETE confirmation is the safeguard.
+    const toArchive = force ? lines.filter((l) => l.bidId === params.id).map((l) => l.id) : plan.lineItemsToArchive;
+
     await withTransaction(async () => {
-      for (const lineId of plan.lineItemsToArchive) await archivePage(lineId);
+      for (const lineId of toArchive) await archivePage(lineId);
       await archivePage(params.id);
     });
 
@@ -36,9 +45,9 @@ export async function POST(req, { params }) {
       entity: "Bid",
       entityName: bid.name || bid.projectName || "",
       entityId: params.id,
-      changes: `deleted, with ${plan.lineItemsToArchive.length} unbilled line item(s)`,
+      changes: `deleted, with ${toArchive.length} line item(s)${force ? " (forced)" : ""}`,
     });
-    return NextResponse.json({ ok: true, deleted: true, linesArchived: plan.lineItemsToArchive.length });
+    return NextResponse.json({ ok: true, deleted: true, linesArchived: toArchive.length });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });
   }

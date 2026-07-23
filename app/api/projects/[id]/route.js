@@ -10,6 +10,19 @@ import { mapProjectLite } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
+// GET — the project plus the bid options its form needs (used by the edit modal
+// so it can show the same fields as the project page without navigating away).
+export async function GET(req, { params }) {
+  try {
+    const { getProjectAdmin } = await import("@/lib/data");
+    const data = await getProjectAdmin(params.id);
+    if (!data?.project) throw new Error("Project not found.");
+    return NextResponse.json({ ok: true, ...data });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e.message || e) }, { status: 400 });
+  }
+}
+
 export async function PATCH(req, { params }) {
   try {
     const body = await req.json();

@@ -15,6 +15,7 @@
 
 import { useState } from "react";
 import { phaseOf } from "@/lib/rules/phase";
+import { confirmDialog } from "@/app/components/Dialog";
 
 export const STAGES = [
   { label: "Awarded", status: "Awarded", phase: "backlog" },
@@ -35,7 +36,7 @@ export default function StagePath({ status, projectId, onChanged, compact = fals
 
     // Moving BACKWARDS is nearly always a mistake — a job doesn't un-happen.
     if (current >= 0 && index < current) {
-      const ok = window.confirm(`Move this job back to ${stage.label}?\n\nIt's currently ${status}.`);
+      const ok = await confirmDialog({ title: `Move this job back to ${stage.label}?`, message: `It's currently ${status}.`, confirmLabel: "Move back" });
       if (!ok) return;
     }
 

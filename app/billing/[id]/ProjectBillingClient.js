@@ -8,6 +8,7 @@
 // =============================================================================
 
 import { useState, useRef } from "react";
+import { confirmDialog } from "@/app/components/Dialog";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -70,11 +71,11 @@ export default function ProjectBillingClient({ data }) {
 
   async function deleteEvent(ev) {
     const label = ev.type === "Bill" ? `invoice ${ev.invoiceNumber || ""}` : ev.type.toLowerCase();
-    const warn = ev.type === "Bill"
-      ? `Delete ${label}?\n\nThis REVERSES its effects: the line quantities it billed roll back, so totals stay correct. The record is archived (recoverable in Notion).\n\nType DELETE to confirm.`
-      : `Delete this ${label} (${money(ev.amount)})?\n\nThe record is archived (recoverable in Notion).\n\nType DELETE to confirm.`;
-    const typed = window.prompt(warn);
-    if (typed !== "DELETE") { if (typed != null) setErr("Delete cancelled - you must type DELETE exactly."); return; }
+    const message = ev.type === "Bill"
+      ? "This REVERSES its effects: the line quantities it billed roll back, so totals stay correct.\nThe record is archived (recoverable in Notion)."
+      : `Amount ${money(ev.amount)}.\nThe record is archived (recoverable in Notion).`;
+    const ok = await confirmDialog({ title: `Delete ${label}?`, message, confirmLabel: "Delete", danger: true, typeToConfirm: "DELETE" });
+    if (!ok) return;
     setBusy(true); setErr(null);
     try {
       const res = await fetch("/api/billing/delete-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: ev.id }) });
@@ -967,6 +968,7 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
   { let rem = grossCut; billed.forEach((b, i) => { const share = (b.maxQty * b.unitPrice) / totalThis; let dc = i === billed.length - 1 ? rem : Math.min(grossCut * share, rem); dc = Math.min(dc, b.maxQty * b.unitPrice); rem -= dc; autoAlloc[b.key] = b.unitPrice > 0 ? dc / b.unitPrice : 0; }); }
 
   const [mode, setMode] = useState(initialMode || "auto");
+  const [showOthers, setShowOthers] = useState(false);
   const [alloc, setAlloc] = useState(initialAlloc || {});
   const current = mode === "auto" ? autoAlloc : alloc;
   const allocTotal = billed.reduce((s, b) => s + (current[b.key] || 0) * b.unitPrice, 0);
@@ -983,14 +985,14 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div className="w-full max-w-2xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }}>
+      <div className="w-full max-w-2xl rounded-lg border border-line shadow-2xl flex flex-col" style={{ background: "var(--surface)", maxHeight: "90vh" }}>
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-line shrink-0">
           <p className="text-sm font-medium text-concrete">{editMode ? "Edit rollback" : "Short pay"} — {invoice.invoiceNumber || "invoice"}</p>
           <button onClick={onCancel} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 overflow-y-auto">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
             <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Billed</p><p className="text-concrete font-medium tabular-nums">{money(gross)}</p></div>
             <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Expected net</p><p className="text-concrete font-medium tabular-nums">{money(expectedNet)}</p></div>
@@ -1060,14 +1062,23 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
                     </td>
                   </tr>
                 ))}
-                {grayRows.map((pl) => (
-                  <tr key={pl.id} className="opacity-40">
-                    <td className="px-3 py-2 text-rebar">{pl.itemNo ? `${pl.itemNo} · ` : ""}{pl.description || "(line)"} <span className="text-[10px]">— not on this invoice</span></td>
-                    <td className="px-2 py-2 text-right text-rebar tabular-nums">—</td>
-                    <td className="px-2 py-2 text-right text-rebar">locked</td>
-                    <td className="px-3 py-2 text-right text-rebar">—</td>
-                  </tr>
-                ))}
+                {grayRows.length > 0 && (
+                  showOthers ? grayRows.map((pl) => (
+                    <tr key={pl.id} className="opacity-40">
+                      <td className="px-3 py-2 text-rebar">{pl.itemNo ? `${pl.itemNo} · ` : ""}{pl.description || "(line)"} <span className="text-[10px]">— not on this invoice</span></td>
+                      <td className="px-2 py-2 text-right text-rebar tabular-nums">—</td>
+                      <td className="px-2 py-2 text-right text-rebar">locked</td>
+                      <td className="px-3 py-2 text-right text-rebar">—</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-2 text-[11px] text-rebar">
+                        {grayRows.length} other line{grayRows.length === 1 ? "" : "s"} on this job {grayRows.length === 1 ? "isn't" : "aren't"} on this invoice{" "}
+                        <button type="button" onClick={() => setShowOthers(true)} className="text-safety hover:underline">show</button>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>

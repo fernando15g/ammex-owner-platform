@@ -12,6 +12,7 @@ import { useSort, SortHeader } from "@/app/components/Sortable";
 import BulkUpdate from "@/app/active/BulkUpdate";
 import HoursControl from "@/app/components/HoursControl";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
+import ProjectEditModal from "@/app/projects/ProjectEditModal";
 import { useEffect } from "react";
 import StagePath from "@/app/components/StagePath";
 
@@ -42,6 +43,7 @@ export default function ActiveWorkClient({ data }) {
     ? sorted.filter((r) => [r.name, r.detail?.projectId, (r.detail?.gc || []).join(" "), (r.detail?.foreman || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q))
     : sorted;
   const [detailsFor, setDetailsFor] = useState(null);
+  const [editFor, setEditFor] = useState(null);
 
   // Keep your place. Going to look at something and coming back shouldn't cost
   // you the project you were already reading. Session-scoped on purpose: a fresh
@@ -207,7 +209,7 @@ export default function ActiveWorkClient({ data }) {
       {/* Detail panel */}
       <div className="lg:w-[30rem] xl:w-[34rem] shrink-0 mt-6 lg:mt-0">
         {selected ? (
-          <DetailPanel row={selected} onClose={() => setSelected(null)} onEdit={() => setDetailsFor(selected.id)} />
+          <DetailPanel row={selected} onClose={() => setSelected(null)} onEdit={() => setEditFor(selected.id)} />
         ) : (
           <div className="rounded-lg border border-dashed border-line p-6 text-sm text-rebar text-center lg:sticky lg:top-24">
             Select a job to inspect its full data.
@@ -257,6 +259,10 @@ export default function ActiveWorkClient({ data }) {
           </div>
         );
       })()}
+
+      {editFor && (
+        <ProjectEditModal projectId={editFor} onClose={() => setEditFor(null)} />
+      )}
 
       {detailsFor && (
         <ProjectDetailsModal projectId={detailsFor} onClose={() => setDetailsFor(null)} />

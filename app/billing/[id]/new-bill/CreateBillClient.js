@@ -12,6 +12,7 @@
 // =============================================================================
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { confirmDialog } from "@/app/components/Dialog";
 
 // Local YYYY-MM-DD (NOT toISOString — that uses UTC and can shift the day).
 function todayLocal() {
@@ -335,7 +336,7 @@ export default function CreateBillClient({ data }) {
 
   async function undoLast() {
     if (!lastBill) return;
-    if (!window.confirm(`Undo ${lastBill.invoiceNumber || "the last invoice"}? Quantities reverse and the invoice is voided (kept for the record).`)) return;
+    if (!(await confirmDialog({ title: `Undo ${lastBill.invoiceNumber || "the last invoice"}?`, message: "Quantities reverse and the invoice is voided (kept for the record).", confirmLabel: "Undo invoice", danger: true }))) return;
     setState((s) => ({ ...s, saving: true, error: null }));
     try {
       const res = await fetch("/api/billing/undo-bill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: lastBill.id }) });

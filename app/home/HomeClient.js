@@ -11,6 +11,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { confirmDialog } from "@/app/components/Dialog";
 import { AZ_COUNTIES, AZ_VIEWBOX, projectAZ } from "./azCounties";
 import AddressAutocomplete from "@/app/projects/AddressAutocomplete";
 
@@ -270,7 +271,7 @@ function OverPaceBody({ item }) {
 function ColdBody({ item, onDone }) {
   const { busy, err, run } = useMutation();
   const snooze = async () => { if (await run(`/api/bids/${item.id}`, { changes: { lastFollowUp: new Date().toISOString().slice(0, 10) } }, "PATCH")) onDone(); };
-  const markLost = async () => { if (window.confirm(`Mark "${item.name}" as lost?`) && await run(`/api/bids/${item.id}`, { changes: { status: "Lost" } }, "PATCH")) onDone(); };
+  const markLost = async () => { if (!(await confirmDialog({ title: `Mark "${item.name}" as lost?`, confirmLabel: "Mark lost", danger: true }))) return; if (await run(`/api/bids/${item.id}`, { changes: { status: "Lost" } }, "PATCH")) onDone(); };
   return (
     <div>
       <Field label="Stage" value={item.status} />

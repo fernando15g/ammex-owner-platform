@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
 // BID DETAIL — view + amend-in-place. Edit any driver (LBS, productivity, wage,
@@ -97,14 +98,32 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   const dirty = editing && JSON.stringify(w) !== JSON.stringify(w0);
 
   async function deleteBid() {
-    const typed = window.prompt(
-      `Delete "${bid.projectName}"?\n\nIts unbilled line items go with it. Blocked if it became a project or its lines have been billed — mark it Lost / No Bid instead.\n\nType DELETE to confirm.`
-    );
-    if (typed !== "DELETE") return;
+    const ok = await confirmDialog({
+      title: `Delete "${bid.projectName}"?`,
+      message: "Its line items go with it. All records are archived (recoverable in Notion).",
+      confirmLabel: "Delete bid",
+      danger: true,
+      typeToConfirm: "DELETE",
+    });
+    if (!ok) return;
     setState({ saving: true, saved: false, error: null });
     try {
-      const res = await fetch(`/api/bids/${bid.id}/delete`, { method: "POST" });
-      const d = await res.json();
+      let res = await fetch(`/api/bids/${bid.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      let d = await res.json();
+      // Blocked (it became a project, or its lines were billed). Offer to force —
+      // useful for clearing test data without opening Notion.
+      if (!d.ok && d.blocked && d.forceable) {
+        const forced = await confirmDialog({
+          title: "Delete anyway?",
+          message: `${d.error}\nForcing removes the bid and ALL of its line items.`,
+          confirmLabel: "Force delete",
+          danger: true,
+          typeToConfirm: "DELETE",
+        });
+        if (!forced) { setState({ saving: false, saved: false, error: null }); return; }
+        res = await fetch(`/api/bids/${bid.id}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: true }) });
+        d = await res.json();
+      }
       if (!d.ok) throw new Error(d.error);
       window.location.href = "/pipeline";
     } catch (e) { setState({ saving: false, saved: false, error: String(e.message || e) }); }

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
 // CREATE / EDIT A PROJECT
@@ -47,7 +48,7 @@ const cents = (n) => (typeof n === "number" ? `${(n * 100).toFixed(2)}¢/lb` : "
 
 export default function ProjectForm({
   project = null, bidOptions = [], presetBidId = null, presetName = "",
-  modal = false, onSaved = null, onClose = null,
+  modal = false, onSaved = null, onClose = null, readOnly = false,
 }) {
   const isNew = !project;
 
@@ -127,7 +128,7 @@ export default function ProjectForm({
     // Site street + city are the "sweet spot" for a map pin. Not required — but
     // if they're blank on a new project, confirm rather than silently skip.
     if (isNew && (!f.siteStreet.trim() || !f.siteCity.trim())) {
-      if (!window.confirm("No site address yet — the job map needs a street and city to drop a pin.\n\nCreate the project without it? You can add it later.")) return;
+      if (!(await confirmDialog({ title: "No site address yet", message: "The job map needs a street and city to drop a pin.\nCreate the project without it? You can add it later.", confirmLabel: "Create anyway" }))) return;
     }
     setBusy(true); setErr(null);
     const payload = {
@@ -176,13 +177,21 @@ export default function ProjectForm({
   }
 
   async function remove() {
-    const typed = window.prompt(
-      `Delete "${project.name}"?\n\nOnly projects with no billing history can be deleted. The record is archived (recoverable).\n\nType DELETE to confirm.`
-    );
-    if (typed !== "DELETE") { if (typed != null) setErr("Delete cancelled — you must type DELETE exactly."); return; }
+    const res0 = await confirmDialog({
+      title: `Delete "${project.name}"?`,
+      message: "Everything tied to this project goes with it: its invoices, payments, change orders and line items.\nAll records are archived (recoverable in Notion).",
+      confirmLabel: "Delete project",
+      danger: true,
+      typeToConfirm: "DELETE",
+      checkbox: project.relatedBidId ? { key: "deleteBid", label: "Also delete this project's bid", defaultChecked: false } : null,
+    });
+    if (!res0) return;
     setBusy(true); setErr(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}/delete`, { method: "POST" });
+      const res = await fetch(`/api/projects/${project.id}/delete`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deleteBid: !!res0.deleteBid }),
+      });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
       window.location.href = "/active";
@@ -190,7 +199,7 @@ export default function ProjectForm({
   }
 
   return (
-    <div className={modal ? "" : "max-w-3xl"}>
+    <fieldset disabled={readOnly} className={`${modal ? "" : "max-w-3xl"} ${readOnly ? "opacity-60" : ""} block min-w-0`}>
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
       {/* ---- WHAT THE BID BRINGS (this is the confirmation) -------------------- */}
@@ -388,7 +397,7 @@ export default function ProjectForm({
           )}
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
