@@ -48,15 +48,16 @@ export default function ProjectBillingClient({ data }) {
 
   // Confirm the short-pay resolver: post to the right route with the chosen
   // allocation (null = Auto/proportional, array = Manual per-line).
-  async function confirmResolver(allocation) {
+  async function confirmResolver(allocation, enteredPaid) {
     if (!resolver) return;
+    const paidAmt = enteredPaid != null ? enteredPaid : resolver.paid;
     setBusy(true); setErr(null);
     try {
       const body = resolver.via === "short-pay"
-        ? { eventId: resolver.invoice.id, paidAmount: resolver.paid, allocation }
+        ? { eventId: resolver.invoice.id, paidAmount: paidAmt, allocation }
         : resolver.via === "edit"
         ? { invoiceId: resolver.invoice.id, paymentId: resolver.paymentId, allocation }
-        : { projectId: data.id, billEventId: resolver.billEventId, paidAmount: resolver.paid, paymentDate: resolver.date, allocation };
+        : { projectId: data.id, billEventId: resolver.billEventId, paidAmount: paidAmt, paymentDate: resolver.date, allocation };
       const url = resolver.via === "short-pay" ? "/api/billing/short-pay"
         : resolver.via === "edit" ? "/api/billing/edit-rollback"
         : "/api/billing/log-payment";
@@ -98,14 +99,8 @@ export default function ProjectBillingClient({ data }) {
   }
 
   function shortPay(ev) {
-    const expected = (ev.amount || 0) - (ev.retentionWithheld || 0);
-    const input = window.prompt(`Short pay on ${ev.invoiceNumber || "this bill"}\nExpected (net of retention): $${expected.toFixed(2)}\n\nEnter the amount ACTUALLY received:`);
-    if (input == null) return;
-    const paid = Number(String(input).replace(/[$,]/g, ""));
-    if (isNaN(paid) || paid < 0) { setErr("Enter a valid dollar amount."); return; }
-    if (paid >= expected - 0.005) { setErr(`$${paid.toFixed(2)} covers the expected net — log it as a normal payment instead.`); return; }
     setErr(null);
-    setResolver({ invoice: ev, paid, via: "short-pay" });
+    setResolver({ invoice: ev, paid: null, via: "short-pay" });
   }
 
   // Reopen the resolver on a short-paid invoice to re-place the rollback (before
@@ -945,7 +940,17 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
   const gross = invoice.amount || 0;
   const retention = invoice.retentionWithheld || 0;
   const expectedNet = gross - retention;
-  const shortNet = expectedNet - paid;
+
+  // The amount received is entered right here (no browser prompt) — when opened
+  // from the invoice row it starts empty; from a logged payment it's prefilled.
+  const [paidInput, setPaidInput] = useState(paid != null ? String(paid) : "");
+  const paidNum = paidInput.trim() === "" ? null : Number(String(paidInput).replace(/[$,]/g, ""));
+  const amountBad = paidNum == null || isNaN(paidNum) || paidNum < 0;
+  const notShort = !amountBad && paidNum >= expectedNet - 0.005;
+  const amountOk = !amountBad && !notShort;
+  const effPaid = amountOk ? paidNum : 0;
+
+  const shortNet = amountOk ? expectedNet - effPaid : 0;
   const r = (snap?.r || 0) / 100;
   const grossCut = r < 1 ? shortNet / (1 - r) : shortNet;
 
@@ -974,7 +979,7 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
 
   function confirm() {
     const allocation = mode === "auto" ? null : billed.filter((b) => (alloc[b.key] || 0) > 0).map((b) => ({ key: b.key, qty: alloc[b.key] }));
-    onConfirm(allocation);
+    onConfirm(allocation, effPaid);
   }
 
   return (
@@ -989,9 +994,34 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-xs">
             <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Billed</p><p className="text-concrete font-medium tabular-nums">{money(gross)}</p></div>
             <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Expected net</p><p className="text-concrete font-medium tabular-nums">{money(expectedNet)}</p></div>
-            <div className="rounded-md border border-line px-2.5 py-1.5"><p className="text-rebar">Received</p><p className="text-concrete font-medium tabular-nums">{money(paid)}</p></div>
-            <div className="rounded-md border border-warn/40 px-2.5 py-1.5"><p className="text-rebar">Short by</p><p className="text-warn font-medium tabular-nums">{money(shortNet)}</p></div>
+            <div className={`rounded-md border px-2.5 py-1.5 ${amountOk ? "border-line" : "border-safety/60"}`}>
+              <p className="text-rebar">Received</p>
+              {editMode ? (
+                <p className="text-concrete font-medium tabular-nums">{money(paid)}</p>
+              ) : (
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  value={paidInput}
+                  onChange={(ev) => setPaidInput(ev.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-transparent text-concrete font-medium tabular-nums text-sm focus:outline-none"
+                />
+              )}
+            </div>
+            <div className={`rounded-md border px-2.5 py-1.5 ${amountOk ? "border-warn/40" : "border-line"}`}><p className="text-rebar">Short by</p><p className="text-warn font-medium tabular-nums">{amountOk ? money(shortNet) : "—"}</p></div>
           </div>
+
+          {!amountOk && (
+            <p className="text-xs mb-4 text-rebar">
+              {notShort
+                ? <span className="text-warn">{money(paidNum)} covers the expected net of {money(expectedNet)} — that&apos;s a full payment, not a short pay.</span>
+                : "Enter the amount actually received to continue."}
+            </p>
+          )}
+
+          {amountOk && (<>
 
           <p className="text-xs text-rebar mb-3">Roll back <span className="text-concrete font-medium">{money(grossCut)}</span> of work to re-bill next cycle{r > 0 && <> (grossed up for retention; nets to {money(shortNet)})</>}. Choose where it lands:</p>
 
@@ -1048,8 +1078,10 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
             {overMax ? " · a line exceeds what it was billed" : reconciled ? " · matches ✓" : ` · ${money(Math.abs(grossCut - allocTotal))} ${allocTotal > grossCut ? "over" : "to go"}`}
           </div>
 
+          </>)}
+
           <div className="flex gap-2">
-            <button onClick={confirm} disabled={busy || (mode === "manual" && (!reconciled || overMax))} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : editMode ? "Save rollback" : "Apply short pay"}</button>
+            <button onClick={confirm} disabled={busy || !amountOk || (mode === "manual" && (!reconciled || overMax))} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : editMode ? "Save rollback" : "Apply short pay"}</button>
             <button onClick={onCancel} disabled={busy} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
             {mode === "auto" && <span className="text-[11px] text-rebar self-center ml-1">Auto spreads it proportionally across the invoice&apos;s lines.</span>}
           </div>
