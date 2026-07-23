@@ -1,5 +1,6 @@
 "use client";
 import { confirmDialog } from "@/app/components/Dialog";
+import { createPortal } from "react-dom";
 
 // =============================================================================
 // CREATE / EDIT A PROJECT
@@ -48,7 +49,7 @@ const cents = (n) => (typeof n === "number" ? `${(n * 100).toFixed(2)}¢/lb` : "
 
 export default function ProjectForm({
   project = null, bidOptions = [], presetBidId = null, presetName = "",
-  modal = false, onSaved = null, onClose = null, readOnly = false,
+  modal = false, onSaved = null, onClose = null, readOnly = false, actionsSlot = null,
 }) {
   const isNew = !project;
 
@@ -200,7 +201,13 @@ export default function ProjectForm({
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
+  // In a modal the actions live in the pinned footer (always visible, never
+  // scrolled off) — portaled there so the save/delete logic stays in one place.
+  const actionsEl = renderActions();
+  const actionsBar = actionsSlot ? createPortal(actionsEl, actionsSlot) : <div className="mt-5">{actionsEl}</div>;
+
   return (
+    <>
     <fieldset disabled={readOnly} className={`${modal ? "" : "max-w-3xl"} ${readOnly ? "opacity-60" : ""} block min-w-0`}>
       {err && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">{err}</div>}
 
@@ -384,8 +391,16 @@ export default function ProjectForm({
             </>
           )}
         </div>
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2 mt-5">
+      {actionsBar}
+    </fieldset>
+    </>
+  );
+
+  function renderActions() {
+    return (
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={save} disabled={busy} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">
             {busy ? "Saving…" : isNew ? "Create project" : "Save changes"}
           </button>
@@ -404,9 +419,8 @@ export default function ProjectForm({
             </button>
           )}
         </div>
-      </div>
-    </fieldset>
-  );
+    );
+  }
 }
 
 function Inherited({ label, value, lead }) {

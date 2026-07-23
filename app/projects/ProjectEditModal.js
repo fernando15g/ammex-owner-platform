@@ -21,6 +21,7 @@ export default function ProjectEditModal({ projectId, onClose }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
   const [locked, setLocked] = useState(true);
+  const [footerSlot, setFooterSlot] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -75,20 +76,26 @@ export default function ProjectEditModal({ projectId, onClose }) {
                 bidOptions={data.bidOptions || []}
                 modal
                 readOnly={locked}
+                actionsSlot={locked ? null : footerSlot}
                 onSaved={() => window.location.reload()}
-                onClose={onClose}
+                onClose={() => setLocked(true)}
               />
             </>
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-line shrink-0 flex gap-2">
+        {/* Pinned footer: view mode shows Edit project; editing swaps in the
+            form's own Save / Cancel / Delete (portaled here so they're always
+            visible instead of scrolling off the bottom of a long form). */}
+        <div className="px-5 py-3 border-t border-line shrink-0 flex items-center gap-2">
           {locked ? (
-            <button onClick={() => setLocked(false)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit project</button>
+            <>
+              <button onClick={() => setLocked(false)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit project</button>
+              <button onClick={onClose} className="ml-auto text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
+            </>
           ) : (
-            <button onClick={() => setLocked(true)} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Stop editing</button>
+            <div ref={setFooterSlot} className="w-full" />
           )}
-          <button onClick={onClose} className="ml-auto text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>
         </div>
       </div>
     </div>
