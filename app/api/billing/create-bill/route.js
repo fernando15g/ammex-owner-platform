@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
-    const { projectId, relatedBidId, relatedBidIds, invoiceNumber, date, dueDate, notes, retentionEnabled = false, retentionPct = 0, rows = [] } = await req.json();
+    const { projectId, relatedBidId, relatedBidIds, invoiceNumber, date, dueDate, notes, retentionEnabled = false, retentionPct = 0, rows = [], billingJobReference = "" } = await req.json();
     if (!projectId) throw new Error("projectId required");
     if (!rows.length) throw new Error("No rows to bill.");
     const pct = retentionEnabled ? Number(retentionPct) || 0 : 0;
@@ -109,8 +109,11 @@ export async function POST(req) {
     // The snapshot references the APPLICATION-OWNED Line ID. The Notion page id
     // rides along only as a bridge for records written before IDs existed; it can
     // be dropped once the backfill has swept through.
+    // ref: the customer's job reference AS BILLED, frozen with the invoice — a
+    // reprint matches the paper they have even if the project's changes later.
     const snap = {
       r: pct,
+      ...(billingJobReference ? { ref: String(billingJobReference).trim() } : {}),
       lines: inv.rows.filter((x) => x.thisQty !== 0).map((x) => ({
         lid: appIdOf(x.id),
         id: realId(x.id),

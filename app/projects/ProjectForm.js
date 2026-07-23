@@ -55,6 +55,7 @@ export default function ProjectForm({
   const [f, setF] = useState({
     name: project?.name || presetName || "",
     projectId: project?.projectId || "",
+    billingJobReference: project?.billingJobReference || "",
     status: project?.status || "Awarded",
     actualStartDate: (project?.actualStartDate || "").slice(0, 10),
     foreman: project?.foreman || [],
@@ -134,6 +135,7 @@ export default function ProjectForm({
     const payload = {
       name: f.name.trim(),
       projectId: f.projectId.trim(),
+      billingJobReference: f.billingJobReference.trim(),
       status: f.status,
       actualStartDate: f.actualStartDate || null,
       foreman: f.foreman,
@@ -259,6 +261,12 @@ export default function ProjectForm({
           <label className="block">
             <span className="text-xs text-rebar mb-1 block">Project ID</span>
             <input className="inp" value={f.projectId} onChange={(e) => setF({ ...f, projectId: e.target.value })} placeholder="26-13" />
+          </label>
+
+          <label className="block">
+            <span className="text-xs text-rebar mb-1 block">Billing job reference</span>
+            <input className="inp" value={f.billingJobReference} onChange={(e) => setF({ ...f, billingJobReference: e.target.value })} placeholder="their job name / number" />
+            <span className="text-[11px] text-rebar mt-1 block">What the GC or fabricator calls this job. Prints on the invoice so their AP can match it. Blank uses our project name.</span>
           </label>
 
           <label className="block">

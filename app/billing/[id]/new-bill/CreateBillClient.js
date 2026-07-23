@@ -67,6 +67,7 @@ export default function CreateBillClient({ data }) {
   const [rows, setRows] = useState(() => { const base = isFirstInvoice && hasBidLines ? [] : fromLines(); return base.length === 0 && !(isFirstInvoice && hasBidLines) ? [{ lineId: null, itemNo: "", description: "", estimateQty: "", unit: "LBS", unitPrice: "", prevQty: 0, toDateQty: "", furnInst: null }] : base; });
   const [head, setHead] = useState({
     invoiceNumber: "", date: todayLocal(), dueDate: net30(todayLocal()), notes: "",
+    billingJobReference: data.billingJobReference || "",
     retentionEnabled: !!data.settings.retentionEnabled,
     retentionPct: data.settings.retentionPercent ?? "",
   });
@@ -323,6 +324,7 @@ export default function CreateBillClient({ data }) {
         body: JSON.stringify({
           projectId: data.id, relatedBidId: data.relatedBidId, relatedBidIds: data.relatedBidIds || [],
           invoiceNumber: head.invoiceNumber, date: head.date, dueDate: head.dueDate || null, notes: head.notes,
+          billingJobReference: head.billingJobReference,
           retentionEnabled: head.retentionEnabled, retentionPct: num(head.retentionPct) || 0,
           rows: rows.map((r) => ({ lineId: r.lineId, itemNo: r.itemNo, description: r.description, unit: r.unit, unitPrice: num(r.unitPrice), estimateQty: num(r.estimateQty), toDateQty: num(r.toDateQty) })),
         }),
@@ -449,6 +451,7 @@ export default function CreateBillClient({ data }) {
         </label>
         <label className="block"><span className="text-xs text-rebar mb-1 block">Bill date</span><input type="date" className="inp" value={head.date} onChange={(e) => { const v = e.target.value; setHead((h) => ({ ...h, date: v, dueDate: dueDateTouched ? h.dueDate : net30(v) })); }} /></label>
         <label className="block"><span className="text-xs text-rebar mb-1 block">Due date {!dueDateTouched && head.dueDate === net30(head.date) && <span className="text-rebar/60">· Net 30</span>}{dueDateTouched && <button type="button" onClick={() => { setDueDateTouched(false); setHead((h) => ({ ...h, dueDate: net30(h.date) })); }} className="text-safety hover:underline ml-1">reset to Net 30</button>}</span><input type="date" className="inp" value={head.dueDate} onChange={(e) => { setDueDateTouched(true); setHead({ ...head, dueDate: e.target.value }); }} /></label>
+        <label className="block sm:col-span-2"><span className="text-xs text-rebar mb-1 block">Billing job reference {data.billingJobReference && head.billingJobReference !== data.billingJobReference && <button type="button" onClick={() => setHead((h) => ({ ...h, billingJobReference: data.billingJobReference }))} className="text-safety hover:underline ml-1">reset</button>}</span><input className="inp" value={head.billingJobReference} onChange={(e) => setHead({ ...head, billingJobReference: e.target.value })} placeholder="their job name / number" /><span className="text-[11px] text-rebar mt-1 block">Prints as the PROJECT NAME on this invoice. Prefilled from the project — change it here for this invoice only.</span></label>
         <div className="block">
           <span className="text-xs text-rebar mb-1 block">Retention</span>
           <div className="flex items-center gap-2 pt-1.5">
