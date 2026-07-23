@@ -7,7 +7,7 @@
 // bills/payments/change-orders. Everything computed live from events.
 // =============================================================================
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import InfoTip from "@/app/components/InfoTip";
 
@@ -37,6 +37,7 @@ export default function ProjectBillingClient({ data }) {
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [evaOpen, setEvaOpen] = useState(true);
+  const [evaExpanded, setEvaExpanded] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -262,11 +263,18 @@ export default function ProjectBillingClient({ data }) {
                     title="Open this project's bid sheet to view or edit the line items"
                   >view bid sheet →</span>
                 )}
+                {rows.length > 6 && evaOpen && (
+                  <span
+                    onClick={(e) => { e.stopPropagation(); setEvaExpanded((x) => !x); }}
+                    className="text-safety hover:underline underline-offset-2 cursor-pointer whitespace-nowrap"
+                    title={evaExpanded ? "Show only the first few lines" : "Show every line without scrolling"}
+                  >{evaExpanded ? "collapse" : `expand (${rows.length})`}</span>
+                )}
                 <span>{evaOpen ? "hide" : "show"}</span>
               </span>
             </button>
             {evaOpen && (
-              <div className="px-4 pb-4 border-t border-line pt-3 overflow-x-auto">
+              <div className="px-4 pb-4 border-t border-line pt-3 overflow-x-auto overflow-y-auto" style={!evaExpanded && rows.length > 6 ? { maxHeight: "15rem" } : undefined}>
                 <table className="w-full text-sm" style={{ minWidth: 620 }}>
                   <thead><tr className="text-rebar text-[11px] uppercase tracking-wider">
                     {data.multiPhase && <th className="text-left font-medium px-2 py-1.5">Phase</th>}
@@ -1053,20 +1061,37 @@ function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMo
 
 // Compact "⋯" actions menu for an event row — keeps the row uncluttered while
 // tucking Edit rollback / Edit / Delete out of the way.
+//
+// Positioned FIXED off the button's rect: the events table clips its contents
+// (overflow-hidden), so an absolutely-positioned menu would be cut off at the
+// row edge. Fixed positioning escapes the clip entirely.
 function RowMenu({ items, busy }) {
-  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
   if (!items.length) return null;
+
+  function toggle() {
+    if (pos) { setPos(null); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = 150;
+    const height = items.length * 30 + 8;
+    // flip up if there isn't room below
+    const top = r.bottom + height > window.innerHeight - 8 ? r.top - height - 4 : r.bottom + 4;
+    setPos({ top, left: Math.max(8, r.right - width) });
+  }
+
   return (
-    <div className="relative">
-      <button onClick={() => setOpen((o) => !o)} disabled={busy} className="text-[13px] leading-none px-2 py-1 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40" aria-label="More actions">⋯</button>
-      {open && (
+    <>
+      <button ref={btnRef} onClick={toggle} disabled={busy} className="text-[13px] leading-none px-2 py-1 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40" aria-label="More actions">⋯</button>
+      {pos && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-1 z-20 min-w-[9rem] rounded-md border border-line shadow-xl py-1" style={{ background: "var(--surface)" }}>
+          <div className="fixed inset-0 z-40" onClick={() => setPos(null)} />
+          <div className="fixed z-50 min-w-[9.375rem] rounded-md border border-line shadow-xl py-1" style={{ top: pos.top, left: pos.left, background: "var(--surface)" }}>
             {items.map((it, i) => (
               <button
                 key={i}
-                onClick={() => { setOpen(false); it.onClick(); }}
+                onClick={() => { setPos(null); it.onClick(); }}
                 disabled={busy}
                 className={`block w-full text-left text-xs px-3 py-1.5 hover:bg-graphite/60 disabled:opacity-40 ${it.danger ? "text-danger" : "text-concrete"}`}
               >
@@ -1076,6 +1101,6 @@ function RowMenu({ items, busy }) {
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }
