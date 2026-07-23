@@ -29,6 +29,10 @@ const dateStr = (s) => {
 
 export default function ProjectBillingClient({ data }) {
   const b = data.billing;
+  // A short-paid invoice's rollback is editable only while it's the LATEST
+  // invoice — once you bill again, the rolled weight has re-billed and it locks.
+  const invoiceOrderStr = (e) => `${e.date || ""}|${e.invoiceNumber || ""}`;
+  const latestInvoiceOrder = (data.events || []).filter((e) => e.type === "Bill").reduce((mx, e) => { const o = invoiceOrderStr(e); return o > mx ? o : mx; }, "");
   const carry = data.carryover || { open: 0, items: [], hasOpen: false };
   const [showAdd, setShowAdd] = useState(null); // 'Bill' | 'Payment' | 'Change Order' | null
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -49,8 +53,12 @@ export default function ProjectBillingClient({ data }) {
     try {
       const body = resolver.via === "short-pay"
         ? { eventId: resolver.invoice.id, paidAmount: resolver.paid, allocation }
+        : resolver.via === "edit"
+        ? { invoiceId: resolver.invoice.id, paymentId: resolver.paymentId, allocation }
         : { projectId: data.id, billEventId: resolver.billEventId, paidAmount: resolver.paid, paymentDate: resolver.date, allocation };
-      const url = resolver.via === "short-pay" ? "/api/billing/short-pay" : "/api/billing/log-payment";
+      const url = resolver.via === "short-pay" ? "/api/billing/short-pay"
+        : resolver.via === "edit" ? "/api/billing/edit-rollback"
+        : "/api/billing/log-payment";
       const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
       setResolver(null);
@@ -99,6 +107,19 @@ export default function ProjectBillingClient({ data }) {
     setResolver({ invoice: ev, paid, via: "short-pay" });
   }
 
+  // Reopen the resolver on a short-paid invoice to re-place the rollback (before
+  // it re-bills). Pre-fills the current allocation from the payment's carry.
+  function openEditRollback(invoice) {
+    const adj = parseTagClient(invoice.notes, "adjust");
+    const payment = (data.events || []).find((p) => p.type === "Payment" && p.invoiceNumber === invoice.invoiceNumber && parseTagClient(p.notes, "carry"));
+    if (!adj || !payment) { setErr("Couldn't find this invoice's rollback to edit."); return; }
+    const carry = parseTagClient(payment.notes, "carry");
+    const initialAlloc = {};
+    (carry?.lines || []).forEach((l) => { const key = l.lid || l.id; initialAlloc[key] = (initialAlloc[key] || 0) + (l.qty || 0); });
+    setErr(null);
+    setResolver({ invoice, paid: adj.received, via: "edit", paymentId: payment.id, initialAlloc, initialMode: adj.mode || "manual" });
+  }
+
   return (
     <div className="max-w-6xl">
       {resolver && (
@@ -106,6 +127,9 @@ export default function ProjectBillingClient({ data }) {
           invoice={resolver.invoice}
           projectLines={data.lines || []}
           paid={resolver.paid}
+          initialAlloc={resolver.initialAlloc}
+          initialMode={resolver.initialMode}
+          editMode={resolver.via === "edit"}
           busy={busy}
           onCancel={() => setResolver(null)}
           onConfirm={confirmResolver}
@@ -351,8 +375,14 @@ export default function ProjectBillingClient({ data }) {
                       {isInvoice && (
                         <a href={`/api/billing/${data.id}/invoice?bill=${e.id}`} title="Download this invoice as an Excel file — same template you send the GC, ready to review and print/PDF from Excel" className="text-[11px] px-2 py-0.5 rounded border border-info/50 text-info hover:bg-info/10 whitespace-nowrap">Download</a>
                       )}
-                      <button onClick={() => editEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40">Edit</button>
-                      <button onClick={() => deleteEvent(e)} disabled={busy} className="text-[11px] px-2 py-0.5 rounded border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete</button>
+                      <RowMenu
+                        busy={busy}
+                        items={[
+                          wasShortPaid && invoiceOrderStr(e) === latestInvoiceOrder && { label: "Edit rollback", onClick: () => openEditRollback(e) },
+                          { label: "Edit", onClick: () => editEvent(e) },
+                          { label: "Delete", onClick: () => deleteEvent(e), danger: true },
+                        ].filter(Boolean)}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -892,7 +922,14 @@ function parseSnapClient(notes) {
   try { return JSON.parse(rest.slice(start, end + 1)); } catch { return null; }
 }
 
-function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, busy }) {
+// Read a [tag]{json} record from an event's notes (adjust / carry).
+function parseTagClient(notes, tag) {
+  const m = String(notes || "").match(new RegExp(`\\[${tag}\\](\\{.*?\\})\\s*(?:\\n|$)`, "s"));
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
+}
+
+function ShortPayResolver({ invoice, projectLines, paid, initialAlloc, initialMode, editMode, onCancel, onConfirm, busy }) {
   const money = (n) => `$${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const lbsFmt = (n) => (n || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
 
@@ -916,8 +953,8 @@ function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, bu
   const autoAlloc = {};
   { let rem = grossCut; billed.forEach((b, i) => { const share = (b.maxQty * b.unitPrice) / totalThis; let dc = i === billed.length - 1 ? rem : Math.min(grossCut * share, rem); dc = Math.min(dc, b.maxQty * b.unitPrice); rem -= dc; autoAlloc[b.key] = b.unitPrice > 0 ? dc / b.unitPrice : 0; }); }
 
-  const [mode, setMode] = useState("auto");
-  const [alloc, setAlloc] = useState({});
+  const [mode, setMode] = useState(initialMode || "auto");
+  const [alloc, setAlloc] = useState(initialAlloc || {});
   const current = mode === "auto" ? autoAlloc : alloc;
   const allocTotal = billed.reduce((s, b) => s + (current[b.key] || 0) * b.unitPrice, 0);
   const reconciled = Math.abs(allocTotal - grossCut) <= 0.02;
@@ -925,7 +962,7 @@ function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, bu
 
   const setLbs = (key, v) => setAlloc((a) => ({ ...a, [key]: Math.max(Number(v) || 0, 0) }));
   const setDol = (key, v, price) => setAlloc((a) => ({ ...a, [key]: price > 0 ? Math.max(Number(v) || 0, 0) / price : 0 }));
-  const distributeAuto = () => { setAlloc({ ...autoAlloc }); setMode("manual"); };
+  const distributeAuto = () => { setAlloc((a) => (Object.keys(a).length ? a : { ...autoAlloc })); setMode("manual"); };
 
   function confirm() {
     const allocation = mode === "auto" ? null : billed.filter((b) => (alloc[b.key] || 0) > 0).map((b) => ({ key: b.key, qty: alloc[b.key] }));
@@ -936,7 +973,7 @@ function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, bu
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 overflow-y-auto" style={{ background: "rgba(0,0,0,0.6)" }}>
       <div className="w-full max-w-2xl rounded-lg border border-line shadow-2xl" style={{ background: "var(--surface)" }}>
         <div className="flex items-center gap-3 px-5 py-3 border-b border-line">
-          <p className="text-sm font-medium text-concrete">Short pay — {invoice.invoiceNumber || "invoice"}</p>
+          <p className="text-sm font-medium text-concrete">{editMode ? "Edit rollback" : "Short pay"} — {invoice.invoiceNumber || "invoice"}</p>
           <button onClick={onCancel} className="ml-auto text-rebar hover:text-concrete" aria-label="Close">✕</button>
         </div>
 
@@ -1004,12 +1041,41 @@ function ShortPayResolver({ invoice, projectLines, paid, onCancel, onConfirm, bu
           </div>
 
           <div className="flex gap-2">
-            <button onClick={confirm} disabled={busy || (mode === "manual" && (!reconciled || overMax))} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : "Apply short pay"}</button>
+            <button onClick={confirm} disabled={busy || (mode === "manual" && (!reconciled || overMax))} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{busy ? "Saving…" : editMode ? "Save rollback" : "Apply short pay"}</button>
             <button onClick={onCancel} disabled={busy} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
             {mode === "auto" && <span className="text-[11px] text-rebar self-center ml-1">Auto spreads it proportionally across the invoice&apos;s lines.</span>}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Compact "⋯" actions menu for an event row — keeps the row uncluttered while
+// tucking Edit rollback / Edit / Delete out of the way.
+function RowMenu({ items, busy }) {
+  const [open, setOpen] = useState(false);
+  if (!items.length) return null;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} disabled={busy} className="text-[13px] leading-none px-2 py-1 rounded border border-line text-rebar hover:text-concrete disabled:opacity-40" aria-label="More actions">⋯</button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 z-20 min-w-[9rem] rounded-md border border-line shadow-xl py-1" style={{ background: "var(--surface)" }}>
+            {items.map((it, i) => (
+              <button
+                key={i}
+                onClick={() => { setOpen(false); it.onClick(); }}
+                disabled={busy}
+                className={`block w-full text-left text-xs px-3 py-1.5 hover:bg-graphite/60 disabled:opacity-40 ${it.danger ? "text-danger" : "text-concrete"}`}
+              >
+                {it.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
