@@ -19,7 +19,7 @@ const money = (n) => (typeof n !== "number" ? "—" : `$${n.toLocaleString("en-U
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 
-export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null }) {
+export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null, specialty = null }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [w0, setW0] = useState(null);   // pristine copy, to detect real changes
@@ -277,6 +277,8 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           )}
           <p className="text-[11px] text-rebar mt-4 leading-relaxed">Same math as the calculator — amendments recompute and save to this bid, never a new one.</p>
         </div>
+
+        {specialty && <SpecialtyPanel specialty={specialty} econ={econ} />}
       </div>
     </div>
   );
@@ -381,3 +383,73 @@ function FChips({ label, edit, items, onChange, options = [] }) {
   );
 }
 
+
+// -----------------------------------------------------------------------------
+// SPECIALTY SCOPE — PT and mesh, priced labor-only alongside the rebar.
+// Shown beside (not inside) the rebar economics: PT runs ~98 lb/MH against
+// rebar's 180-330, so blending them would misread both. The combined line is
+// what the job is actually worth.
+function SpecialtyPanel({ specialty, econ }) {
+  const money = (v) => (typeof v === "number" ? `$${Math.round(v).toLocaleString()}` : "—");
+  const pct = (v) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—");
+  const rebarRev = econ?.contractValue != null ? econ.contractValue - (specialty.revenue || 0) : null;
+  const rebarCost = econ?.fullyLoadedCost ?? null;
+  const specProfit = specialty.cost > 0 ? specialty.revenue - specialty.cost : null;
+  const specMargin = specProfit != null && specialty.revenue > 0 ? specProfit / specialty.revenue : null;
+  const combRev = econ?.contractValue ?? null;
+  const combCost = rebarCost != null ? rebarCost + (specialty.cost || 0) : null;
+  const combProfit = combRev != null && combCost != null ? combRev - combCost : null;
+  const combMargin = combProfit != null && combRev > 0 ? combProfit / combRev : null;
+
+  const srcLabel = specialty.source === "lines" ? "from this bid\u2019s line items"
+    : specialty.source === "calc" ? "from the bid calculator"
+    : "legacy PT/Specialty column";
+
+  return (
+    <div className="rounded-lg border border-line p-5 mt-4" style={{ background: "var(--surface)" }}>
+      <div className="flex items-baseline gap-2 mb-3">
+        <p className="text-[11px] uppercase tracking-wider text-rebar">Specialty scope</p>
+        {specialty.types?.length > 0 && (
+          <span className="text-[10px] text-concrete/70">{specialty.types.join(" \u00b7 ")}</span>
+        )}
+      </div>
+
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-wider text-rebar">
+            <th className="text-left font-medium pb-1"></th>
+            <th className="text-right font-medium pb-1">Revenue</th>
+            <th className="text-right font-medium pb-1">Margin</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          <tr>
+            <td className="py-1.5 text-rebar">Rebar</td>
+            <td className="py-1.5 text-right text-concrete tabular-nums">{money(rebarRev)}</td>
+            <td className="py-1.5 text-right text-concrete/80 tabular-nums">{pct(econ?.operatingMargin)}</td>
+          </tr>
+          <tr>
+            <td className="py-1.5 text-rebar">Specialty</td>
+            <td className="py-1.5 text-right text-concrete tabular-nums">{money(specialty.revenue)}</td>
+            <td className="py-1.5 text-right tabular-nums">
+              {specMargin != null ? <span className="text-concrete/80">{pct(specMargin)}</span> : <span className="text-warn text-xs">no cost basis</span>}
+            </td>
+          </tr>
+          <tr>
+            <td className="py-1.5 text-concrete font-medium">Combined</td>
+            <td className="py-1.5 text-right text-concrete font-medium tabular-nums">{money(combRev)}</td>
+            <td className="py-1.5 text-right font-medium tabular-nums text-concrete">{pct(combMargin)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="mt-3 pt-2 border-t border-line text-[11px] text-rebar leading-relaxed">
+        {specialty.hours > 0 && <>Specialty adds {Math.round(specialty.hours).toLocaleString()} man-hours at {money(specialty.cost)} cost. </>}
+        {specialty.missingBasis > 0 && (
+          <span className="text-warn">\u25b2 {specialty.missingBasis} line{specialty.missingBasis === 1 ? "" : "s"} book revenue with no cost basis \u2014 combined margin reads high until productivity is entered. </span>
+        )}
+        <span className="text-rebar/70">Labor only, material rides in the price \u2014 {srcLabel}. Kept out of the rebar lbs/MH figures.</span>
+      </div>
+    </div>
+  );
+}

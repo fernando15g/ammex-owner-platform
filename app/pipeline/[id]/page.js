@@ -3,15 +3,19 @@
 import { getBidSheet, getEverything } from "@/lib/data";
 import AppShell from "@/app/components/AppShell";
 import BidDetailClient from "./BidDetailClient";
+import { specialtyForBid } from "@/lib/rules/specialty";
 
 export const dynamic = "force-dynamic";
 
 export default async function BidDetailPage({ params }) {
-  let bid = null, lineItemCount = 0, linkedProject = null, error = null;
+  let bid = null, lineItemCount = 0, linkedProject = null, specialty = null, error = null;
   try {
     const [sheet, all] = await Promise.all([getBidSheet(params.id), getEverything()]);
     bid = sheet.bid;
     lineItemCount = sheet.items.length;
+    // Specialty scope (PT + mesh): the bid's own lines win, else what the
+    // calculator stored — one source, so the money is never counted twice.
+    specialty = specialtyForBid(bid, sheet.items);
     const proj = all.projects.find((p) => (p.relatedBidIds || []).includes(params.id));
     linkedProject = proj ? { id: proj.id, name: proj.name, projectId: proj.projectId } : null;
   } catch (e) { error = String(e.message || e); }
@@ -20,7 +24,7 @@ export default async function BidDetailPage({ params }) {
       {error ? (
         <div className="rounded-lg border border-danger/50 bg-danger/10 p-4 text-sm text-concrete/80">Couldn&apos;t load bid: {error}</div>
       ) : (
-        <BidDetailClient bid={bid} lineItemCount={lineItemCount} linkedProject={linkedProject} />
+        <BidDetailClient bid={bid} lineItemCount={lineItemCount} linkedProject={linkedProject} specialty={specialty} />
       )}
     </AppShell>
   );

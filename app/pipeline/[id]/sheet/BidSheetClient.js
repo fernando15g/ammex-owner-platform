@@ -16,7 +16,9 @@ import { useState, useRef } from "react";
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
 const FURN_OPTIONS = ["", "Furnish", "Install", "Furnish+Install"];
-const UNIT_OPTIONS = ["LBS", "SF", "LF", "EA", "LS"];
+// PT LBS is deliberately its own unit: it bills by weight like rebar, but the
+// weight test matches only "LBS" exactly, so PT stays out of the lbs/MH numbers.
+const UNIT_OPTIONS = ["LBS", "PT LBS", "SF", "HRS", "LF", "EA", "LS"];
 // column order for keyboard nav + Excel paste (matches her template order)
 const COLS = ["itemNo", "description", "quantity", "unit", "unitPrice", "furnInst"];
 
