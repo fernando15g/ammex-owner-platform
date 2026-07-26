@@ -80,7 +80,16 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     if (!n(w.estimatedLbs)) return null;
     // CRITICAL: only pass fields that HAVE values — blanks must fall back to
     // the engine defaults, never override them to zero.
-    const inputs = { weightLb: n(w.estimatedLbs), ptSpecialty: n(w.ptSpecialty) ?? 0 };
+    // Specialty rides along so the profit/margin SAVED back to the bid are the
+    // combined rebar+specialty totals — otherwise editing a PT bid here would
+    // overwrite the calculator's combined figures with rebar-only ones.
+    const inputs = {
+      weightLb: n(w.estimatedLbs),
+      ptSpecialty: n(w.ptSpecialty) ?? 0,
+      specialtyRevenue: specialty?.revenue ?? 0,
+      specialtyCost: specialty?.cost ?? 0,
+      specialtyHours: specialty?.hours ?? 0,
+    };
     const add = (k, v) => { if (v != null) inputs[k] = v; };
     add("outputLbPerMH", n(w.productivity));
     add("crewSize", n(w.crewSize));
@@ -159,6 +168,13 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         changes.contingencyPct = econ.assumptions.contingencyPct;
         changes.mobilizationHrs = econ.assumptions.mobilizationHrs;
         changes.targetMarginPct = econ.assumptions.targetMarginPct;
+        // Keep the bid's specialty rollup in step with its line items, so
+        // performance and realized economics read the same figure the bid shows.
+        changes.rebarRevenue = econ.rebarRevenue;
+        changes.specialtyRevenue = econ.specialtyRevenue;
+        changes.specialtyCost = econ.specialtyCost;
+        changes.specialtyHours = econ.specialtyHours;
+        if (specialty?.types?.length) changes.specialtyTypes = specialty.types;
       } else if (n(w.bidRate) != null) {
         changes.bidRate = n(w.bidRate);
       }
