@@ -20,7 +20,12 @@ export async function GET(req, { params }) {
     // Use the RESOLVED hours (timesheet / payroll / combined), the same figure
     // Active Work shows — not the raw payroll number, or the two would disagree.
     const payrollHours = d.hours?.hours ?? d.payrollHours ?? null;
-    const actualLbsPerMH = payrollHours > 0 ? billedLbs / payrollHours : null;
+    // lbs/MH measures rebar output, so the bid's specialty (PT/mesh) hours come
+    // out of the denominator — same correction performance.js applies. Labour
+    // hours DISPLAY stays total (that's real time worked).
+    const specH = Number(d.bid?.specialtyHours) || 0;
+    const prodHours = payrollHours != null && specH > 0 && payrollHours > specH ? payrollHours - specH : payrollHours;
+    const actualLbsPerMH = prodHours > 0 ? billedLbs / prodHours : null;
     const estimatedLbsPerMH = d.bid?.productivity ?? null;
     const productivityDelta =
       actualLbsPerMH != null && estimatedLbsPerMH > 0
