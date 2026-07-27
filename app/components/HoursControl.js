@@ -3,7 +3,7 @@
 // =============================================================================
 // HOURS SOURCE — the one control that decides which labor-hours source a job
 // uses. Auto (timecards if any, else payroll) · Payroll (use the payroll number
-// as-is; editable — also the close-out "final") · Combined (frozen payroll
+// as-is; editable — also the close-out "final")
 //
 // It writes Hours Mode (+
 // the payroll number in Payroll mode) — the SAME fields the resolver reads, so
@@ -22,7 +22,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
   const [open, setOpen] = useState(false);
   const [val, setVal] = useState(payroll ?? "");
 
-  const modeLabel = mode === "payroll" ? "Payroll" : mode === "combined" ? "Combined" : "Auto";
+  const modeLabel = mode === "payroll" || mode === "combined" ? "Payroll" : "Auto"; // legacy "combined" now reads/acts as Payroll
 
   const patch = async (changes) => {
     setBusy(true); setErr(null);
@@ -36,7 +36,7 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
 
   const pick = (m) => {
     if (m === mode || busy) return;
-    patch({ hoursMode: m === "payroll" ? "Payroll" : m === "combined" ? "Combined" : "Auto" });
+    patch({ hoursMode: m === "payroll" ? "Payroll" : "Auto" });
   };
 
   const savePayroll = () => {
@@ -51,8 +51,6 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
       {label}
     </button>
   );
-
-  const combinedTotal = (typeof payroll === "number" ? payroll : 0) + (typeof timesheet === "number" ? timesheet : 0);
 
   if (!open) {
     return (
@@ -70,13 +68,11 @@ export default function HoursControl({ projectId, mode = "auto", timesheet, payr
         <span className="text-[10px] uppercase tracking-wider text-rebar/70">hours source</span>
         <span>timesheet <span className="text-concrete tabular-nums">{n0(timesheet)}</span></span>
         <span>payroll <span className="text-concrete tabular-nums">{n0(payroll)}</span></span>
-        {mode === "combined" && <span>combined <span className="text-concrete tabular-nums">{n0(combinedTotal)}</span></span>}
         <button onClick={() => setOpen(false)} className="ml-auto text-rebar hover:text-concrete underline underline-offset-2">hide</button>
       </div>
       <div className="flex items-center gap-1.5">
         <Btn m="auto" label="Auto" />
         <Btn m="payroll" label="Payroll" />
-        <Btn m="combined" label="Combined" />
       </div>
       {mode === "payroll" && (
         <div className="mt-2.5 flex items-center gap-2">
