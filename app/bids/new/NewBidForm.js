@@ -230,6 +230,22 @@ export default function NewBidForm() {
             <div className="space-y-2.5 text-sm">
               <PRow label={Number(form.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={`$${econ.bidRatePerLb}/lb`} big />
               <PRow label="Contract value" value={`$${econ.contractValue.toLocaleString()}`} />
+              {specRollup.specRevenue > 0 && (
+                <div className="pt-1.5 mt-1.5 border-t border-line space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-rebar text-[11px] uppercase tracking-wide">Rebar</span>
+                    <span className="text-concrete/80 text-xs tabular-nums">${Math.round(econ.contractValue - specRollup.specRevenue).toLocaleString()} · {(((econ.operatingProfit - (specRollup.specRevenue - specRollup.specCost)) / (econ.contractValue - specRollup.specRevenue)) * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-rebar text-[11px] uppercase tracking-wide">Specialty</span>
+                    <span className="text-concrete/80 text-xs tabular-nums">${Math.round(specRollup.specRevenue).toLocaleString()} · {specRollup.specRevenue > 0 ? (specRollup.specMargin * 100).toFixed(1) : "0"}%</span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 pt-0.5">
+                    <span className="text-concrete text-[11px] uppercase tracking-wide font-medium">Combined</span>
+                    <span className="text-concrete text-xs tabular-nums font-medium">${Math.round(econ.contractValue).toLocaleString()} · {(econ.operatingMargin * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              )}
               <PRow label="Operating profit" value={`$${econ.operatingProfit.toLocaleString()}`} tone="ok" />
               <PRow label="Operating margin" value={`${(econ.operatingMargin * 100).toFixed(1)}%`} tone="ok" />
               <PRow label="Fully-loaded cost" value={`$${econ.fullyLoadedCost.toLocaleString()}`} />
