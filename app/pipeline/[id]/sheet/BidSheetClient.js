@@ -24,6 +24,25 @@ const COLS = ["itemNo", "description", "quantity", "unit", "unitPrice", "furnIns
 
 const blankRow = () => ({ id: null, itemNo: "", description: "", quantity: "", unit: "LBS", unitPrice: "", furnInst: "", _dirty: true });
 
+// Numbers pasted or typed from Excel arrive dressed up: "$0.4175", "296,593",
+// "1,234.56", stray spaces. Number() chokes on all of them and returns NaN,
+// which the extended-price math reads as 0 — so a whole line silently drops out
+// of the bid total (a real underpricing risk, not cosmetic). cleanNumStr strips
+// the currency symbol, thousands commas and spaces, leaving a clean parseable
+// value; kept as a STRING so the field still shows what the user has and an
+// in-progress entry like "0." or "-" isn't clobbered mid-type.
+const NUMERIC_COLS = new Set(["quantity", "unitPrice"]);
+const cleanNumStr = (v) => {
+  if (typeof v !== "string") return v;
+  const stripped = v.replace(/[$,\s]/g, "");
+  const m = stripped.match(/^-?\d*\.?\d*/);
+  return m ? m[0] : "";
+};
+const num = (v) => {
+  const c = typeof v === "string" ? cleanNumStr(v) : v;
+  return c === "" || c == null ? null : Number(c);
+};
+
 export default function BidSheetClient({ data, linkedProject = null }) {
   const { bid, items } = data;
   const [rows, setRows] = useState(() =>
@@ -35,7 +54,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
   const [editing, setEditing] = useState(items.length === 0); // no sheet yet -> straight to entry
   const tableRef = useRef(null);
 
-  const setCell = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: v, _dirty: true } : r)));
+  const setCell = (i, k, v) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, [k]: NUMERIC_COLS.has(k) ? cleanNumStr(v) : v, _dirty: true } : r)));
   // Furn/Inst is almost always one value for a whole job. Track a default so new
   // rows inherit it, and "set all" stamps every row at once (the fill-down move).
   const [furnDefault, setFurnDefault] = useState(() => {
@@ -71,11 +90,11 @@ export default function BidSheetClient({ data, linkedProject = null }) {
     } catch (e) { setState((st) => ({ ...st, saving: false, error: String(e.message || e) })); }
   }
 
-  const ext = (r) => (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0);
+  const ext = (r) => (num(r.quantity) || 0) * (num(r.unitPrice) || 0);
   const filled = rows.filter((r) => r.description.trim() !== "" || r.itemNo.trim() !== "");
   const savedLineCount = rows.filter((r) => r.id).length;
   const total = filled.reduce((a, r) => a + ext(r), 0);
-  const totalQty = filled.reduce((a, r) => a + (Number(r.quantity) || 0), 0);
+  const totalQty = filled.reduce((a, r) => a + (num(r.quantity) || 0), 0);
 
   // ---- Excel-like: keyboard navigation --------------------------------------
   function focusCell(row, col) {
@@ -110,7 +129,9 @@ export default function BidSheetClient({ data, linkedProject = null }) {
         vals.forEach((v, vi) => {
           const col = COLS[ci + vi];
           if (!col) return;
-          updated[col] = col === "furnInst" && !FURN_OPTIONS.includes(v.trim()) ? updated.furnInst : v.trim();
+          if (col === "furnInst") { updated[col] = FURN_OPTIONS.includes(v.trim()) ? v.trim() : updated.furnInst; }
+          else if (NUMERIC_COLS.has(col)) { updated[col] = cleanNumStr(v.trim()); }
+          else { updated[col] = v.trim(); }
         });
         next[r] = updated;
       });
@@ -121,13 +142,12 @@ export default function BidSheetClient({ data, linkedProject = null }) {
   async function saveSheet() {
     setState({ saving: true, saved: false, error: null });
     try {
-      const n = (v) => (v === "" || v == null ? null : Number(v));
       const toCreate = [], toUpdate = [];
       for (const r of filled) {
         if (!r._dirty) continue;
         const payload = {
           description: r.description, itemNo: r.itemNo,
-          quantity: n(r.quantity), unit: r.unit, unitPrice: n(r.unitPrice),
+          quantity: num(r.quantity), unit: r.unit, unitPrice: num(r.unitPrice),
           furnInst: r.furnInst || null, lineType: "Standard",
         };
         if (r.id) toUpdate.push({ id: r.id, changes: payload });
@@ -159,9 +179,14 @@ export default function BidSheetClient({ data, linkedProject = null }) {
         {state.saved && (
           <>
             <span className="text-xs text-ok">Saved ✓</span>
+            {/* Always offer the way back to the bid — the sheet is a detour from it.
+                The project link only appears when there's a project to go to. */}
+            <a href={`/pipeline/${data.bid.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">
+              ← Back to bid
+            </a>
             {linkedProject ? (
               <a href={`/billing/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
-                Go to billing →
+                Go to project →
               </a>
             ) : data.bid?.status === "Awarded" ? (
               <a href={`/projects/new?fromBid=${data.bid.id}&name=${encodeURIComponent(data.bid.name || "")}`} className="text-sm px-4 py-2 rounded-md border border-ok/50 text-ok hover:bg-ok/10 font-medium">
@@ -171,7 +196,13 @@ export default function BidSheetClient({ data, linkedProject = null }) {
           </>
         )}
         {!editing ? (
-          <button onClick={() => setEditing(true)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
+          <>
+            <a href={`/pipeline/${data.bid.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">← Back to bid</a>
+            {linkedProject && (
+              <a href={`/billing/${linkedProject.id}`} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Go to project →</a>
+            )}
+            <button onClick={() => setEditing(true)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Edit</button>
+          </>
         ) : (
           <>
             <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
@@ -225,9 +256,9 @@ export default function BidSheetClient({ data, linkedProject = null }) {
               <tr key={"v" + i} className="border-t border-line">
                 <td className="px-3 py-2.5 text-concrete/80">{r.itemNo || "—"}</td>
                 <td className="px-3 py-2.5 text-concrete">{r.description}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{r.quantity === "" ? "—" : Number(r.quantity).toLocaleString()}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-concrete">{r.quantity === "" ? "—" : (num(r.quantity) ?? 0).toLocaleString()}</td>
                 <td className="px-3 py-2.5 text-concrete/70">{r.unit}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-concrete/80">{r.unitPrice === "" ? "—" : `$${Number(r.unitPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}</td>
+                <td className="px-3 py-2.5 text-right tabular-nums text-concrete/80">{r.unitPrice === "" ? "—" : `$${(num(r.unitPrice) ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-concrete/80">{money(ext(r))}</td>
                 <td className="px-3 py-2.5 text-concrete/70">{r.furnInst || "—"}</td>
                 <td></td>
