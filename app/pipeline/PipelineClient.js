@@ -75,12 +75,39 @@ export default function PipelineClient({ data }) {
   const { rows, totals } = data;
   const [filter, setFilter] = useState("flight");
   const [query, setQuery] = useState("");
+  // Advanced filters: pick what you want on screen, and export EXACTLY that —
+  // what you see is what you export, no separate export dialog to keep in sync.
+  const BLANK_ADV = { gc: "", fabricator: "", detailer: "", cityCounty: "", dueFrom: "", dueTo: "", subFrom: "", subTo: "", valMin: "", valMax: "" };
+  const [adv, setAdv] = useState(BLANK_ADV);
+  const [advOpen, setAdvOpen] = useState(false);
+  const advActive = Object.values(adv).some((v) => v !== "");
+  const setA = (k, v) => setAdv((a) => ({ ...a, [k]: v }));
+  const distinct = (get) => [...new Set(rows.flatMap(get).filter(Boolean))].sort();
+  const opts = {
+    gc: distinct((r) => r.gc || []),
+    fabricator: distinct((r) => r.fabricator || []),
+    detailer: distinct((r) => (r.detailer ? [r.detailer] : [])),
+    cityCounty: distinct((r) => (r.cityCounty ? [r.cityCounty] : [])),
+  };
+  const advTest = (r) => {
+    if (adv.gc && !(r.gc || []).includes(adv.gc)) return false;
+    if (adv.fabricator && !(r.fabricator || []).includes(adv.fabricator)) return false;
+    if (adv.detailer && r.detailer !== adv.detailer) return false;
+    if (adv.cityCounty && r.cityCounty !== adv.cityCounty) return false;
+    if (adv.dueFrom && (!r.bidDueDate || r.bidDueDate < adv.dueFrom)) return false;
+    if (adv.dueTo && (!r.bidDueDate || r.bidDueDate > adv.dueTo)) return false;
+    if (adv.subFrom && (!r.submissionDate || r.submissionDate < adv.subFrom)) return false;
+    if (adv.subTo && (!r.submissionDate || r.submissionDate > adv.subTo)) return false;
+    if (adv.valMin && !(Number(r.contractValue) >= Number(adv.valMin))) return false;
+    if (adv.valMax && !(Number(r.contractValue) <= Number(adv.valMax))) return false;
+    return true;
+  };
   const q = query.trim().toLowerCase();
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
   const searched = q
     ? rows.filter((r) => [r.name, (r.gc || []).join(" "), (r.fabricator || []).join(" "), r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
     : rows;
-  const filtered = searched.filter(active.test);
+  const filtered = searched.filter(active.test).filter(advTest);
   const isFlight = filter === "flight";
   const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc", "bids");
   // Sorting the grouped in-flight view sorts WITHIN each stage (keeps hottest on
@@ -92,6 +119,11 @@ export default function PipelineClient({ data }) {
   const groups = buildGroups(filtered, orderBy);
   const flightSort = sortTouched ? sort : { key: null, dir: "asc" };
   const countOf = (f) => rows.filter(f.test).length;
+  // Export what is on screen, in the on-screen order.
+  const visibleOrdered = isFlight ? groups.flatMap((g) => g.items) : shown;
+  const exportIds = visibleOrdered.map((r) => r.id).join(",");
+  const exportExcel = () => { window.location.href = `/api/bids/export?ids=${exportIds}`; };
+  const exportPrint = () => { window.open(`/pipeline/print?ids=${exportIds}`, "_blank"); };
 
   return (
     <div>
@@ -119,7 +151,34 @@ export default function PipelineClient({ data }) {
           placeholder="Search bids by name, GC, or fabricator"
           className="ml-auto w-full sm:w-64 text-sm px-3 py-1.5 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar"
         />
+        <button onClick={() => setAdvOpen((o) => !o)} className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${advActive ? "border-safety text-safety" : "border-line text-rebar hover:text-concrete"}`}>
+          Filters{advActive ? " ·" : ""}
+        </button>
+        <button onClick={exportExcel} className="text-xs px-3 py-1.5 rounded-md border border-line text-rebar hover:text-concrete" title="Excel of exactly the rows shown, in this order">Excel</button>
+        <button onClick={exportPrint} className="text-xs px-3 py-1.5 rounded-md border border-line text-rebar hover:text-concrete" title="Print-ready view — save as PDF from the print dialog">Print / PDF</button>
       </div>
+
+      {advOpen && (
+        <div className="rounded-lg border border-line p-3 mb-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5" style={{ background: "var(--surface)" }}>
+          <AdvSelect label="GC" value={adv.gc} options={opts.gc} onChange={(v) => setA("gc", v)} />
+          <AdvSelect label="Fabricator" value={adv.fabricator} options={opts.fabricator} onChange={(v) => setA("fabricator", v)} />
+          <AdvSelect label="Detailer" value={adv.detailer} options={opts.detailer} onChange={(v) => setA("detailer", v)} />
+          <AdvSelect label="City / County" value={adv.cityCounty} options={opts.cityCounty} onChange={(v) => setA("cityCounty", v)} />
+          <div className="block">
+            <span className="text-[10px] text-rebar block mb-1">Value $ (min – max)</span>
+            <div className="flex gap-1.5">
+              <input type="text" inputMode="numeric" value={adv.valMin} onChange={(e) => setA("valMin", e.target.value)} placeholder="min" className="inp-sm w-full" />
+              <input type="text" inputMode="numeric" value={adv.valMax} onChange={(e) => setA("valMax", e.target.value)} placeholder="max" className="inp-sm w-full" />
+            </div>
+          </div>
+          <AdvDates label="Bid due" from={adv.dueFrom} to={adv.dueTo} onFrom={(v) => setA("dueFrom", v)} onTo={(v) => setA("dueTo", v)} />
+          <AdvDates label="Submitted" from={adv.subFrom} to={adv.subTo} onFrom={(v) => setA("subFrom", v)} onTo={(v) => setA("subTo", v)} />
+          <div className="flex items-end gap-2 col-span-2 sm:col-span-1">
+            <span className="text-xs text-rebar pb-1.5">{filtered.length} of {rows.length} shown</span>
+            {advActive && <button onClick={() => setAdv(BLANK_ADV)} className="text-xs text-safety hover:underline pb-1.5">Clear</button>}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-line overflow-hidden">
         <table className="w-full text-sm">
@@ -214,6 +273,30 @@ function Stat({ label, value, sub, accent }) {
         <span className="text-rebar text-sm ml-2">{label}</span>
       </div>
       {sub && <div className="text-xs text-rebar/70 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function AdvSelect({ label, value, options, onChange }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] text-rebar block mb-1">{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="inp-sm w-full">
+        <option value="">All</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function AdvDates({ label, from, to, onFrom, onTo }) {
+  return (
+    <div className="block">
+      <span className="text-[10px] text-rebar block mb-1">{label} (from – to)</span>
+      <div className="flex gap-1.5">
+        <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} className="inp-sm w-full" />
+        <input type="date" value={to} onChange={(e) => onTo(e.target.value)} className="inp-sm w-full" />
+      </div>
     </div>
   );
 }

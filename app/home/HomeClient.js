@@ -106,7 +106,7 @@ export default function HomeClient({ data }) {
         <div className="lg:col-span-2"><TimesheetCard ts={analytics.timesheet} /></div>
         <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
       </div>
-      <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} /></Card>
+      <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} excluded={analytics.foremanExclusionSummary} /></Card>
       <Card title="The Book · contract by stage"><BookByStage stages={analytics.bookStages} /></Card>
 
       {modal && (
@@ -442,8 +442,22 @@ function WorkMixDonut({ mix }) {
   );
 }
 
-function ForemanScorecard({ foremen }) {
-  if (!foremen.length) return <div className="text-sm text-rebar py-4 text-center">No completed jobs with a foreman yet — assign foremen and this fills in.</div>;
+function ForemanScorecard({ foremen, excluded = null }) {
+  // The trust gate filters silently, which reads as "where are my other foremen?"
+  // — so the card says out loud how many completed jobs it's NOT counting and why.
+  const exclusionNote = excluded && excluded.count > 0 && (
+    <div className="text-[11px] text-rebar pt-2 mt-1 border-t border-line" title={(excluded.jobs || []).map((j) => `${j.name}: ${(j.problems || []).join("; ")}`).join("\n")}>
+      {foremen.length} foreman{foremen.length === 1 ? "" : "s"} shown · {excluded.count} completed job{excluded.count === 1 ? "" : "s"} excluded ({excluded.reasons.join(", ")}) — hover for details
+    </div>
+  );
+  if (!foremen.length) return (
+    <div className="text-sm text-rebar py-4 text-center">
+      No completed jobs with a foreman pass the data checks yet.
+      {excluded && excluded.count > 0
+        ? ` ${excluded.count} completed job${excluded.count === 1 ? "" : "s"} excluded (${excluded.reasons.join(", ")}).`
+        : " Assign foremen and this fills in."}
+    </div>
+  );
   const max = Math.max(...foremen.map((f) => Math.max(f.realized || 0, f.bid || 0))) * 1.12 || 1;
   return (
     <div className="space-y-2.5">
@@ -464,6 +478,7 @@ function ForemanScorecard({ foremen }) {
         );
       })}
       <p className="text-[10px] text-rebar pt-1">White line = bid target · color = beating / on / behind bid.</p>
+      {exclusionNote}
     </div>
   );
 }

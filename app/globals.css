@@ -96,3 +96,8 @@ textarea::placeholder {
   color: var(--text-muted, #6b7280);
   opacity: 0.45;
 }
+
+/* compact input for the bids filter bar */
+.inp-sm {
+  @apply text-xs px-2 py-1.5 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar;
+}

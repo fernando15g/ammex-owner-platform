@@ -21,7 +21,7 @@ const DEFAULTS = {
 export default function NewBidForm() {
   const [form, setForm] = useState({
     projectName: "", gc: [], fabricator: [], projectType: [],
-    cityCounty: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
+    cityCounty: "", detailer: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
     estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS,
   });
   const [specialtyLines, setSpecialtyLines] = useState([]);
@@ -92,7 +92,7 @@ export default function NewBidForm() {
       const n = (v) => (v === "" ? null : Number(v));
       const metadata = {
         projectName: form.projectName, gc: form.gc, fabricator: form.fabricator, projectType: form.projectType,
-        cityCounty: form.cityCounty, submissionDate: form.submissionDate || null, bidDueDate: form.bidDueDate || null, status: form.status,
+        cityCounty: form.cityCounty, detailer: form.detailer || null, submissionDate: form.submissionDate || null, bidDueDate: form.bidDueDate || null, status: form.status,
         scope: form.scope, notes: form.notes,
         estimatedLbs: n(form.estimatedLbs), productivity: n(form.productivity), crewSize: n(form.crewSize),
         baseWage: n(form.baseWage), ptSpecialty: n(form.ptSpecialty),
@@ -147,7 +147,7 @@ export default function NewBidForm() {
         <p className="text-concrete/80 text-sm">&ldquo;{form.projectName}&rdquo; added to the Bid Tracker{econ ? " with economics." : "."}</p>
         {state.result.softDuplicate && <p className="text-warn text-sm mt-3">Heads up: a similar bid already exists ({state.result.softDuplicate.name}).</p>}
         <div className="mt-5 flex gap-3">
-          <button onClick={() => { setState({ saving: false, result: null, error: null }); setForm({ projectName: "", gc: [], fabricator: [], projectType: [], cityCounty: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "", estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS }); }} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Add another</button>
+          <button onClick={() => { setState({ saving: false, result: null, error: null }); setForm({ projectName: "", gc: [], fabricator: [], projectType: [], cityCounty: "", detailer: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "", estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS }); }} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Add another</button>
           {state.result?.id && (
             <a href={`/pipeline/${state.result.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to the bid →</a>
           )}
@@ -173,6 +173,7 @@ export default function NewBidForm() {
         <ChipSelect label="Fabricator" items={form.fabricator} options={options["Fabricator"] || []} onChange={(v) => set("fabricator", v)} />
         <ChipSelect label="Project type" items={form.projectType} options={options["Project Type"] || []} onChange={(v) => set("projectType", v)} />
         <Field label="City / County"><input className="inp" value={form.cityCounty} onChange={(e) => set("cityCounty", e.target.value)} placeholder="Phoenix" /></Field>
+          <Field label="Detailer"><input className="inp" value={form.detailer} onChange={(e) => set("detailer", e.target.value)} placeholder="who detailed it" /></Field>
 
         <div className="pt-2"><SectionTitle>Numbers <span className="text-rebar font-normal text-xs">— blue fields drive economics; defaults pre-filled</span></SectionTitle></div>
         <div className="grid sm:grid-cols-2 gap-5">

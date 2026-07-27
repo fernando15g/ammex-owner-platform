@@ -45,6 +45,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     status: bid.status || "Reviewing",
     bidDueDate: bid.bidDueDate || "",
     cityCounty: bid.cityCounty || "",
+    detailer: bid.detailer || "",
     gc: bid.gc || [],
     fabricator: bid.fabricator || [],
     projectType: bid.projectType || [],
@@ -184,6 +185,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         bidDueDate: w.bidDueDate || null,
         submissionDate: w.submissionDate || null,
         cityCounty: w.cityCounty,
+        detailer: w.detailer || null,
         gc: w.gc, fabricator: w.fabricator, projectType: w.projectType,
         scope: w.scope, notes: w.notes,
         estimatedLbs: n(w.estimatedLbs),
@@ -283,6 +285,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FDate label="Submitted" edit={editing} value={w.submissionDate} onChange={(v) => set("submissionDate", v)} />
             <FDate label="Bid due date" edit={editing} value={w.bidDueDate} onChange={(v) => set("bidDueDate", v)} />
             <F label="City / County" edit={editing} value={w.cityCounty} onChange={(v) => set("cityCounty", v)} />
+            <F label="Detailer" edit={editing} value={w.detailer} onChange={(v) => set("detailer", v)} />
             <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} options={options["GC"]} />
             <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} options={options["Fabricator"]} />
             <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} options={options["Project Type"]} />
