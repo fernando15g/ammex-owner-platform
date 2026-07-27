@@ -21,7 +21,7 @@ const DEFAULTS = {
 export default function NewBidForm() {
   const [form, setForm] = useState({
     projectName: "", gc: [], fabricator: [], projectType: [],
-    cityCounty: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
+    cityCounty: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
     estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS,
   });
   const [specialtyLines, setSpecialtyLines] = useState([]);
@@ -92,7 +92,7 @@ export default function NewBidForm() {
       const n = (v) => (v === "" ? null : Number(v));
       const metadata = {
         projectName: form.projectName, gc: form.gc, fabricator: form.fabricator, projectType: form.projectType,
-        cityCounty: form.cityCounty, bidDueDate: form.bidDueDate || null, status: form.status,
+        cityCounty: form.cityCounty, submissionDate: form.submissionDate || null, bidDueDate: form.bidDueDate || null, status: form.status,
         scope: form.scope, notes: form.notes,
         estimatedLbs: n(form.estimatedLbs), productivity: n(form.productivity), crewSize: n(form.crewSize),
         baseWage: n(form.baseWage), ptSpecialty: n(form.ptSpecialty),
@@ -147,7 +147,7 @@ export default function NewBidForm() {
         <p className="text-concrete/80 text-sm">&ldquo;{form.projectName}&rdquo; added to the Bid Tracker{econ ? " with economics." : "."}</p>
         {state.result.softDuplicate && <p className="text-warn text-sm mt-3">Heads up: a similar bid already exists ({state.result.softDuplicate.name}).</p>}
         <div className="mt-5 flex gap-3">
-          <button onClick={() => { setState({ saving: false, result: null, error: null }); setForm({ projectName: "", gc: [], fabricator: [], projectType: [], cityCounty: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "", estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS }); }} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Add another</button>
+          <button onClick={() => { setState({ saving: false, result: null, error: null }); setForm({ projectName: "", gc: [], fabricator: [], projectType: [], cityCounty: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "", estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS }); }} className="text-sm px-4 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Add another</button>
           {state.result?.id && (
             <a href={`/pipeline/${state.result.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to the bid →</a>
           )}
@@ -166,6 +166,7 @@ export default function NewBidForm() {
         <Field label="Project name" required><input className="inp" value={form.projectName} onChange={(e) => set("projectName", e.target.value)} placeholder="SR96 Santa Maria Bridge" /></Field>
         <div className="grid sm:grid-cols-2 gap-5">
           <Field label="Bid status"><select className="inp" value={form.status} onChange={(e) => set("status", e.target.value)}>{BID_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
+          <Field label="Submitted"><input type="date" className="inp" value={form.submissionDate} onChange={(e) => set("submissionDate", e.target.value)} /></Field>
           <Field label="Bid due date"><input type="date" className="inp" value={form.bidDueDate} onChange={(e) => set("bidDueDate", e.target.value)} /></Field>
         </div>
         <ChipSelect label="GC" items={form.gc} options={options["GC"] || []} onChange={(v) => set("gc", v)} />

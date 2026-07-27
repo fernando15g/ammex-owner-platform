@@ -341,7 +341,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
               <Row label="Operating margin" value={pctFmt(econ.operatingMargin)} tone="ok" />
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />
-              <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMH))} />
+              <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMHCombined ?? econ.totalMH))} sub={econ.specialtyHours > 0 ? `rebar ${lbsFmt(Math.round(econ.totalMH))} + specialty ${lbsFmt(Math.round(econ.specialtyHours))}` : null} />
               <div className="pt-2 mt-2 border-t border-line text-xs text-rebar leading-relaxed">
                 {Number(w.bidRate) > 0 ? (
                   <>Using your rate of {(Number(w.bidRate) * 100).toFixed(2)}¢/lb. Clear the bid rate to use the recommended rate.</>
@@ -356,19 +356,22 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           <p className="text-[11px] text-rebar mt-4 leading-relaxed">Same math as the calculator — amendments recompute and save to this bid, never a new one.</p>
         </div>
 
-        {specialty && <SpecialtyPanel specialty={specialty} econ={econ} />}
+        {specRollup.specRevenue > 0 && <SpecialtyLive rollup={specRollup} />}
       </div>
     </div>
   );
 }
 
 // ---- field components: render text in view mode, inputs in edit mode --------
-function Row({ label, value, big, tone }) {
+function Row({ label, value, big, tone, sub }) {
   const c = tone === "ok" ? "text-ok" : "text-concrete";
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-rebar text-xs">{label}</span>
-      <span className={`${big ? "text-lg font-semibold" : "text-sm"} ${c} tabular-nums text-right`}>{value}</span>
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-rebar text-xs">{label}</span>
+        <span className={`${big ? "text-lg font-semibold" : "text-sm"} ${c} tabular-nums text-right`}>{value}</span>
+      </div>
+      {sub && <div className="text-right text-[10px] text-rebar/70 tabular-nums">{sub}</div>}
     </div>
   );
 }
@@ -461,76 +464,6 @@ function FChips({ label, edit, items, onChange, options = [] }) {
   );
 }
 
-
-// -----------------------------------------------------------------------------
-// SPECIALTY SCOPE — PT and mesh, priced labor-only alongside the rebar.
-// Shown beside (not inside) the rebar economics: PT runs ~98 lb/MH against
-// rebar's 180-330, so blending them would misread both. The combined line is
-// what the job is actually worth.
-function SpecialtyPanel({ specialty, econ }) {
-  const money = (v) => (typeof v === "number" ? `$${Math.round(v).toLocaleString()}` : "—");
-  const pct = (v) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—");
-  const rebarRev = econ?.contractValue != null ? econ.contractValue - (specialty.revenue || 0) : null;
-  const rebarCost = econ?.fullyLoadedCost ?? null;
-  const specProfit = specialty.cost > 0 ? specialty.revenue - specialty.cost : null;
-  const specMargin = specProfit != null && specialty.revenue > 0 ? specProfit / specialty.revenue : null;
-  const combRev = econ?.contractValue ?? null;
-  const combCost = rebarCost != null ? rebarCost + (specialty.cost || 0) : null;
-  const combProfit = combRev != null && combCost != null ? combRev - combCost : null;
-  const combMargin = combProfit != null && combRev > 0 ? combProfit / combRev : null;
-
-  const srcLabel = specialty.source === "lines" ? "from this bid\u2019s line items"
-    : specialty.source === "calc" ? "from the bid calculator"
-    : "legacy PT/Specialty column";
-
-  return (
-    <div className="rounded-lg border border-line p-5 mt-4" style={{ background: "var(--surface)" }}>
-      <div className="flex items-baseline gap-2 mb-3">
-        <p className="text-[11px] uppercase tracking-wider text-rebar">Specialty scope</p>
-        {specialty.types?.length > 0 && (
-          <span className="text-[10px] text-concrete/70">{specialty.types.join(" \u00b7 ")}</span>
-        )}
-      </div>
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-[10px] uppercase tracking-wider text-rebar">
-            <th className="text-left font-medium pb-1"></th>
-            <th className="text-right font-medium pb-1">Revenue</th>
-            <th className="text-right font-medium pb-1">Margin</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          <tr>
-            <td className="py-1.5 text-rebar">Rebar</td>
-            <td className="py-1.5 text-right text-concrete tabular-nums">{money(rebarRev)}</td>
-            <td className="py-1.5 text-right text-concrete/80 tabular-nums">{pct(econ?.operatingMargin)}</td>
-          </tr>
-          <tr>
-            <td className="py-1.5 text-rebar">Specialty</td>
-            <td className="py-1.5 text-right text-concrete tabular-nums">{money(specialty.revenue)}</td>
-            <td className="py-1.5 text-right tabular-nums">
-              {specMargin != null ? <span className="text-concrete/80">{pct(specMargin)}</span> : <span className="text-warn text-xs">no cost basis</span>}
-            </td>
-          </tr>
-          <tr>
-            <td className="py-1.5 text-concrete font-medium">Combined</td>
-            <td className="py-1.5 text-right text-concrete font-medium tabular-nums">{money(combRev)}</td>
-            <td className="py-1.5 text-right font-medium tabular-nums text-concrete">{pct(combMargin)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="mt-3 pt-2 border-t border-line text-[11px] text-rebar leading-relaxed">
-        {specialty.hours > 0 && <>Specialty adds {Math.round(specialty.hours).toLocaleString()} man-hours at {money(specialty.cost)} cost. </>}
-        {specialty.missingBasis > 0 && (
-          <span className="text-warn">\u25b2 {specialty.missingBasis} line{specialty.missingBasis === 1 ? "" : "s"} book revenue with no cost basis \u2014 combined margin reads high until productivity is entered. </span>
-        )}
-        <span className="text-rebar/70">Labor only, material rides in the price \u2014 {srcLabel}. Kept out of the rebar lbs/MH figures.</span>
-      </div>
-    </div>
-  );
-}
 
 // -----------------------------------------------------------------------------
 // SPECIALTY EDITOR — price PT and mesh right here, like the calculator, so a bid
@@ -670,5 +603,38 @@ function SF({ label, value, onChange, prefix, suffix, hint }) {
       </div>
       {hint && <span className="text-[10px] text-rebar/70 block mt-0.5">{hint}</span>}
     </label>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// SPECIALTY (live) — reads the same live rollup the editor prices from, so it
+// can never disagree with the form. Specialty only: the rebar side lives in the
+// Economics card, and the combined figures are already there too.
+function SpecialtyLive({ rollup }) {
+  const usd = (v) => `$${Math.round(v || 0).toLocaleString()}`;
+  const pct = (v) => `${((v || 0) * 100).toFixed(1)}%`;
+  return (
+    <div className="rounded-lg border border-line p-5 mt-4" style={{ background: "var(--surface)" }}>
+      <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Specialty scope</p>
+      <div className="space-y-1.5 text-sm">
+        {rollup.rows.map((r) => (
+          <div key={r.id} className="flex items-baseline gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-safety">{r.type}</span>
+            <span className="text-rebar text-xs">{r.qtyLabel}</span>
+            <span className="ml-auto text-concrete tabular-nums">{usd(r.revenue)}</span>
+            <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{r.hasCostBasis ? pct(r.margin) : "—"}</span>
+          </div>
+        ))}
+        <div className="flex items-baseline gap-2 pt-1.5 border-t border-line">
+          <span className="text-concrete font-medium text-xs">Specialty total</span>
+          <span className="text-rebar text-[11px]">{Math.round(rollup.specHours).toLocaleString()} MH · cost {usd(rollup.specCost)}</span>
+          <span className="ml-auto text-concrete font-medium tabular-nums">{usd(rollup.specRevenue)}</span>
+          <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{pct(rollup.specMargin)}</span>
+        </div>
+        {rollup.missingBasis > 0 && (
+          <p className="text-[11px] text-warn pt-1">\u25b2 {rollup.missingBasis} line{rollup.missingBasis === 1 ? "" : "s"} book revenue with no cost basis \u2014 add productivity.</p>
+        )}
+      </div>
+    </div>
   );
 }
