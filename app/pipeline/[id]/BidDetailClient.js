@@ -65,6 +65,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     submissionDate: bid.submissionDate ?? "",
   });
   const [w, setW] = useState(initialW);
+  const num0 = (v) => (v === "" || v == null ? null : Number(v)); // component-scope numeric coerce (render-safe)
   // Rebuild editable specialty lines from the bid's saved scope so an existing
   // PT bid opens ready to edit. Guarded: no specialty → empty, panel stays off.
   const seedSpecialty = (specialty?.rows || []).map((r) => {
@@ -297,7 +298,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FNum label="Bid rate ($/lb)" edit={editing} value={w.bidRate} onChange={(v) => set("bidRate", v)} step="0.0001" hint="blank = use recommended" />
             <FNum label="Crew size" edit={editing} value={w.crewSize} onChange={(v) => set("crewSize", v)} />
             <FNum label="Base wage" edit={editing} value={w.baseWage} onChange={(v) => set("baseWage", v)} placeholder={String(CALC_DEFAULTS.wageRate)} />
-            {!editing && n(w.ptSpecialty) ? <FNum label="PT / Specialty revenue (legacy)" edit={false} value={w.ptSpecialty} onChange={() => {}} /> : null}
+            {!editing && num0(w.ptSpecialty) ? <FNum label="PT / Specialty revenue (legacy)" edit={false} value={w.ptSpecialty} onChange={() => {}} /> : null}
           </Grid>
           {editing && (
             <details className="mt-3">
@@ -319,7 +320,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             setOn={setSpecialtyOn}
             lines={specialtyLines}
             rows={specRollup.rows}
-            targetMargin={n(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct}
+            targetMargin={num0(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct}
             toggleType={toggleType}
             updLine={updLine}
             removeLine={removeLine}
