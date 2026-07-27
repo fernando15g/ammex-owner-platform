@@ -11,7 +11,7 @@
 // the most recent Bill event on the project.
 import { NextResponse } from "next/server";
 import { getProjectBillingWithLines } from "@/lib/data";
-import { buildInvoice, invoiceFilename } from "@/lib/documents/invoice";
+import { buildInvoice, invoiceBuffer, invoiceFilename } from "@/lib/documents/invoice";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,7 @@ export async function GET(req, { params }) {
       bills,
       lines: data.lines,
     });
-    const buf = await wb.xlsx.writeBuffer();
+    const buf = await invoiceBuffer(wb); // schema-order fix baked in — see invoice.js
 
     return new NextResponse(buf, {
       headers: {
