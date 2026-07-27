@@ -93,7 +93,7 @@ export default function PipelineClient({ data }) {
     if (adv.gc && !(r.gc || []).includes(adv.gc)) return false;
     if (adv.fabricator && !(r.fabricator || []).includes(adv.fabricator)) return false;
     if (adv.detailer && r.detailer !== adv.detailer) return false;
-    if (adv.cityCounty && r.cityCounty !== adv.cityCounty) return false;
+    if (adv.cityCounty && !String(r.cityCounty || "").toLowerCase().includes(adv.cityCounty.trim().toLowerCase())) return false;
     if (adv.dueFrom && (!r.bidDueDate || r.bidDueDate < adv.dueFrom)) return false;
     if (adv.dueTo && (!r.bidDueDate || r.bidDueDate > adv.dueTo)) return false;
     if (adv.subFrom && (!r.submissionDate || r.submissionDate < adv.subFrom)) return false;
@@ -118,7 +118,16 @@ export default function PipelineClient({ data }) {
   const orderBy = sortTouched ? new Map(shown.map((r, i) => [r.id, i])) : null;
   const groups = buildGroups(filtered, orderBy);
   const flightSort = sortTouched ? sort : { key: null, dir: "asc" };
-  const countOf = (f) => rows.filter(f.test).length;
+  // Chip counts: normally the raw stage counts; once filters/search are active,
+  // the count becomes "matches in that stage" — so an empty view tells you at a
+  // glance which chip the matches are hiding under instead of looking broken.
+  const filterActive = advActive || q !== "";
+  const matchBase = searched.filter(advTest);
+  const countOf = (f) => (filterActive ? matchBase : rows).filter(f.test).length;
+  // Filters on + nothing here -> say where the matches went instead of a bare table.
+  const elsewhere = filterActive && filtered.length === 0
+    ? FILTERS.filter((f) => f.key !== filter && f.key !== "all" && countOf(f) > 0)
+    : [];
   // Export what is on screen, in the on-screen order.
   const visibleOrdered = isFlight ? groups.flatMap((g) => g.items) : shown;
   const exportIds = visibleOrdered.map((r) => r.id).join(",");
@@ -163,7 +172,10 @@ export default function PipelineClient({ data }) {
           <AdvSelect label="GC" value={adv.gc} options={opts.gc} onChange={(v) => setA("gc", v)} />
           <AdvSelect label="Fabricator" value={adv.fabricator} options={opts.fabricator} onChange={(v) => setA("fabricator", v)} />
           <AdvSelect label="Detailer" value={adv.detailer} options={opts.detailer} onChange={(v) => setA("detailer", v)} />
-          <AdvSelect label="City / County" value={adv.cityCounty} options={opts.cityCounty} onChange={(v) => setA("cityCounty", v)} />
+          <label className="block">
+            <span className="text-[10px] text-rebar block mb-1">City / County</span>
+            <input type="text" value={adv.cityCounty} onChange={(e) => setA("cityCounty", e.target.value)} placeholder="type to match — e.g. phoe" className="inp-sm w-full" />
+          </label>
           <div className="block">
             <span className="text-[10px] text-rebar block mb-1">Value $ (min – max)</span>
             <div className="flex gap-1.5">
@@ -219,13 +231,21 @@ export default function PipelineClient({ data }) {
                   </Fragment>
                 ))}
                 {groups.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">No bids in flight. Click “+ New Bid” to add one.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
+                    ? <>No matches here — {elsewhere.map((f, i) => (
+                        <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
+                      ))}</>
+                    : "No bids in flight. Click “+ New Bid” to add one."}</td></tr>
                 )}
               </>
             ) : (
               <>
                 {shown.map((r) => <BidRow key={r.id} r={r} />)}
-                {shown.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">No bids with this status.</td></tr>}
+                {shown.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
+                    ? <>No matches here — {elsewhere.map((f, i) => (
+                        <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
+                      ))}</>
+                    : "No bids with this status."}</td></tr>}
               </>
             )}
           </tbody>
