@@ -285,7 +285,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FDate label="Submitted" edit={editing} value={w.submissionDate} onChange={(v) => set("submissionDate", v)} />
             <FDate label="Bid due date" edit={editing} value={w.bidDueDate} onChange={(v) => set("bidDueDate", v)} />
             <F label="City / County" edit={editing} value={w.cityCounty} onChange={(v) => set("cityCounty", v)} />
-            <F label="Detailer" edit={editing} value={w.detailer} onChange={(v) => set("detailer", v)} />
+            <FSelectOpt label="Detailer" edit={editing} value={w.detailer} options={options["Detailer"]} onChange={(v) => set("detailer", v)} />
             <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} options={options["GC"]} />
             <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} options={options["Fabricator"]} />
             <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} options={options["Project Type"]} />
@@ -395,6 +395,22 @@ function FNum({ label, edit, value, onChange, step, placeholder, hint }) {
 function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</V>}</div>);
 }
+function FSelectOpt({ label, edit, value, options = [], onChange }) {
+  // Single-select from the real Notion options (blank allowed). Falls back to
+  // showing the saved value even if options haven't loaded yet.
+  const list = options && options.length ? options : (value ? [value] : []);
+  return (
+    <div><L>{label}</L>
+      {edit
+        ? <select className="inp" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+            <option value="">{list.length ? "—" : "No options"}</option>
+            {list.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        : <V>{value}</V>}
+    </div>
+  );
+}
+
 function FSelect({ label, edit, value, options, onChange }) {
   return (<div><L>{label}</L>{edit ? <select className="inp" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((o) => <option key={o} value={o}>{o}</option>)}</select> : <V>{value}</V>}</div>);
 }

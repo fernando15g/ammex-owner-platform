@@ -173,7 +173,12 @@ export default function NewBidForm() {
         <ChipSelect label="Fabricator" items={form.fabricator} options={options["Fabricator"] || []} onChange={(v) => set("fabricator", v)} />
         <ChipSelect label="Project type" items={form.projectType} options={options["Project Type"] || []} onChange={(v) => set("projectType", v)} />
         <Field label="City / County"><input className="inp" value={form.cityCounty} onChange={(e) => set("cityCounty", e.target.value)} placeholder="Phoenix" /></Field>
-          <Field label="Detailer"><input className="inp" value={form.detailer} onChange={(e) => set("detailer", e.target.value)} placeholder="who detailed it" /></Field>
+          <Field label="Detailer">
+            <select className="inp" value={form.detailer} onChange={(e) => set("detailer", e.target.value)}>
+              <option value="">—</option>
+              {(options["Detailer"] || []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </Field>
 
         <div className="pt-2"><SectionTitle>Numbers <span className="text-rebar font-normal text-xs">— blue fields drive economics; defaults pre-filled</span></SectionTitle></div>
         <div className="grid sm:grid-cols-2 gap-5">

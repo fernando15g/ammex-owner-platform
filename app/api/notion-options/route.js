@@ -13,7 +13,7 @@ import { DB } from "@/lib/notion/ids";
 export const dynamic = "force-dynamic";
 
 const FIELDS = {
-  bids: { db: DB.BID_TRACKER, props: ["GC", "Fabricator", "Project Type"] },
+  bids: { db: DB.BID_TRACKER, props: ["GC", "Fabricator", "Project Type", "Detailer"] },
   projects: { db: DB.PROJECTS, props: ["Foreman"] },
 };
 
