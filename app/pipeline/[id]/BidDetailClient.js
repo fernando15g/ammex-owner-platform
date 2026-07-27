@@ -65,6 +65,14 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     submissionDate: bid.submissionDate ?? "",
   });
   const [w, setW] = useState(initialW);
+  // Rebuild editable specialty lines from the bid's saved scope so an existing
+  // PT bid opens ready to edit. Guarded: no specialty → empty, panel stays off.
+  const seedSpecialty = (specialty?.rows || []).map((r) => {
+    const base = newSpecialtyLine(r.type);
+    if (r.type === "PT Building") return { ...base, lbs: r.lbs ?? "", tons: r.lbs ? r.lbs / 2000 : "", prodLbPerMH: r.prodLbPerMH ?? SPECIALTY_DEFAULT_PRODUCTIVITY["PT Building"], rateCentsPerLb: r.rateCentsPerLb ?? "" };
+    if (r.type === "Mesh") return { ...base, sqft: r.sqft ?? "", prodSqftPerMH: r.prodSqftPerMH ?? "", rateCentsPerSqft: r.rateCentsPerSqft ?? "" };
+    return { ...base, hours: r.hours ?? "", ratePerHour: r.ratePerHour ?? "" };
+  });
   const [specialtyLines, setSpecialtyLines] = useState(seedSpecialty);
   const [specialtyOn, setSpecialtyOn] = useState(seedSpecialty.length > 0);
   const toggleType = (t) => setSpecialtyLines((ls) => ls.some((l) => l.type === t) ? ls.filter((l) => l.type !== t) : [...ls, newSpecialtyLine(t)]);
