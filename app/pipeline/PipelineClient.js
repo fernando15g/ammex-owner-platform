@@ -178,16 +178,16 @@ export default function PipelineClient({ data }) {
           </label>
           <div className="block">
             <span className="text-[10px] text-rebar block mb-1">Value $ (min – max)</span>
-            <div className="flex gap-1.5">
-              <input type="text" inputMode="numeric" value={adv.valMin} onChange={(e) => setA("valMin", e.target.value)} placeholder="min" className="inp-sm w-full" />
-              <input type="text" inputMode="numeric" value={adv.valMax} onChange={(e) => setA("valMax", e.target.value)} placeholder="max" className="inp-sm w-full" />
+            <div className="grid grid-cols-2 gap-1.5">
+              <input type="text" inputMode="numeric" value={adv.valMin} onChange={(e) => setA("valMin", e.target.value)} placeholder="min" className="inp-sm w-full min-w-0" />
+              <input type="text" inputMode="numeric" value={adv.valMax} onChange={(e) => setA("valMax", e.target.value)} placeholder="max" className="inp-sm w-full min-w-0" />
             </div>
           </div>
           <AdvDates label="Bid due" from={adv.dueFrom} to={adv.dueTo} onFrom={(v) => setA("dueFrom", v)} onTo={(v) => setA("dueTo", v)} />
           <AdvDates label="Submitted" from={adv.subFrom} to={adv.subTo} onFrom={(v) => setA("subFrom", v)} onTo={(v) => setA("subTo", v)} />
-          <div className="flex items-end gap-2 col-span-2 sm:col-span-1">
-            <span className="text-xs text-rebar pb-1.5">{filtered.length} of {rows.length} shown</span>
-            {advActive && <button onClick={() => setAdv(BLANK_ADV)} className="text-xs text-safety hover:underline pb-1.5">Clear</button>}
+          <div className="flex items-center gap-3 col-span-full pt-1 border-t border-line mt-1">
+            <span className="text-xs text-rebar">{filtered.length} of {rows.length} shown</span>
+            {advActive && <button onClick={() => setAdv(BLANK_ADV)} className="text-xs text-safety hover:underline">Clear filters</button>}
           </div>
         </div>
       )}
@@ -310,12 +310,15 @@ function AdvSelect({ label, value, options, onChange }) {
 }
 
 function AdvDates({ label, from, to, onFrom, onTo }) {
+  // Native date inputs refuse to shrink below their intrinsic width, so at
+  // squeezed widths the pair overflowed its grid cell and overlapped the next.
+  // Two columns of room below lg + min-w-0 lets them compress cleanly.
   return (
-    <div className="block">
+    <div className="block col-span-2 lg:col-span-1">
       <span className="text-[10px] text-rebar block mb-1">{label} (from – to)</span>
-      <div className="flex gap-1.5">
-        <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} className="inp-sm w-full" />
-        <input type="date" value={to} onChange={(e) => onTo(e.target.value)} className="inp-sm w-full" />
+      <div className="grid grid-cols-2 gap-1.5">
+        <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} className="inp-sm w-full min-w-0" />
+        <input type="date" value={to} onChange={(e) => onTo(e.target.value)} className="inp-sm w-full min-w-0" />
       </div>
     </div>
   );
