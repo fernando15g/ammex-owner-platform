@@ -4,12 +4,10 @@
 // HOURS SOURCE — the one control that decides which labor-hours source a job
 // uses. Auto (timecards if any, else payroll) · Payroll (use the payroll number
 // as-is; editable — also the close-out "final") · Combined (frozen payroll
-// baseline + only timecard hours logged since the combine anchor).
 //
-// It writes Hours Mode (+ freezes Combine Baseline when Combined is picked, +
+// It writes Hours Mode (+
 // the payroll number in Payroll mode) — the SAME fields the resolver reads, so
 // wherever this control appears (Active panel, Performance modal) they stay in
-// perfect lockstep. Selecting Combined freezes the current timesheet total so
 // only new hours after that moment add on.
 // =============================================================================
 
@@ -17,7 +15,7 @@ import { useState } from "react";
 
 const n0 = (n) => (typeof n === "number" ? Math.round(n).toLocaleString() : "—");
 
-export default function HoursControl({ projectId, mode = "auto", timesheet, payroll, baseline }) {
+export default function HoursControl({ projectId, mode = "auto", timesheet, payroll }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [editing, setEditing] = useState(false);

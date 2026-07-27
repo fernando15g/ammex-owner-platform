@@ -387,7 +387,7 @@ function DetailPanel({ row, onClose, onEdit }) {
           </div>
         )}
         {row.burn.forecastable && <Row label="Forecast finish" value={`${pct(row.burn.forecastPct)} of budget`} />}
-        <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} baseline={d.combineBaseline} />
+        <HoursControl projectId={row.id} mode={d.hoursMode} timesheet={d.hoursTimesheet} payroll={d.hoursPayroll} />
       </Section>
 
       <Section title="Economics">

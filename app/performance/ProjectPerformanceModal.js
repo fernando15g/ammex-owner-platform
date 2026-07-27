@@ -289,7 +289,7 @@ export default function ProjectPerformanceModal({ row, onClose }) {
           </div>
 
           <div className="flex items-center gap-2 pt-1">
-            <HoursControl projectId={r.id} mode={r.hoursMode} timesheet={r.timesheetHours} payroll={r.payrollHours} baseline={r.combineBaseline} />
+            <HoursControl projectId={r.id} mode={r.hoursMode} timesheet={r.timesheetHours} payroll={r.payrollHours} />
             <div className="ml-auto flex gap-2">
               <a href={`/projects/${r.id}`} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Go to project</a>
               <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Close</button>

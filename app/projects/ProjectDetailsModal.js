@@ -131,7 +131,7 @@ function Body({ d, projectId }) {
       <Section title="Progress">
         <Row label="Estimated" value={lbs(d.estimatedLbs)} />
         <Row label="Billed" value={`${lbs(d.billedLbs)}${d.pctComplete != null ? ` · ${d.pctComplete.toFixed(0)}% of the bid` : ""}`} />
-        <Row label="Labour hours" value={typeof d.payrollHours === "number" ? `${Math.round(d.payrollHours).toLocaleString()} hrs` : "—"} />
+        <Row label="Labor hours" value={typeof d.payrollHours === "number" ? `${Math.round(d.payrollHours).toLocaleString()} hrs` : "—"} />
         <Row label="Started" value={running != null ? `${dateStr(d.actualStartDate)} · ${running} days ago` : dateStr(d.actualStartDate)} />
       </Section>
     </div>

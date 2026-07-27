@@ -5,8 +5,7 @@ of Ammex OS so a fresh session (or a fresh Claude) can pick up without the chat
 history. It's maintained by hand at ship time — treat the **git repo as the source
 of truth** if this file and the code ever disagree.
 
-_Last updated against commit: `65e93d0` (Realized economics for closed jobs) — this
-build adds the items marked ✅ below._
+_Last updated against commit: `7d7d6b6` (Fix filter panel overlap) + this build (Batch C: Combine Baseline removed, polish)._
 
 ---
 
@@ -145,3 +144,111 @@ Smaller / verification:
   (Retention Bill/Payment) don't need manual setup — but a rejected option fails loud.
 - Reads don't 400 on a missing property (return blank); only writes do — so a config
   problem can be "silently off" until you try to write.
+
+## Where we are (July 2026 — post specialty + Batch A/C)
+
+**Everything below is shipped, pushed, and TESTED by Fern unless marked.**
+
+### Specialty scope (PT + mesh) — COMPLETE, tested end-to-end
+- Bids can carry **PT Building / PT Bridge / Mesh** priced LABOR-ONLY beside rebar.
+  Math is a verbatim port of the calculator (`lib/rules/specialty.js` — re-copy from
+  the calculator repo if its math ever changes; never reimplement).
+- **Pricing UI on BOTH bid forms** (new-bid + detail): checkbox reveals type buttons;
+  each line computes rev/cost/hours/margin live; recommended rate to hit target;
+  "▲ no cost basis" when productivity is blank. Rollup + Rebar/Specialty/Combined
+  split shown in Economics.
+- **On save, specialty becomes billable line items** (`PT LBS` / `SF` / `HRS`) via
+  `POST /api/bids/[id]/specialty` (archives + recreates that bid's specialty lines;
+  rebar lines untouched). One source of truth: line items → (calc) columns → legacy
+  `PT/Specialty Revenue` (history only, hidden in UI unless a legacy value exists).
+- **Rows echo raw inputs** (lbs/rate/productivity...) so a reloaded bid seeds the
+  editor populated — this was the root of a nasty bug (empty seed → $0 specialty →
+  wrong contract value + a stale-vs-live −$13,000 display). One brain now: the
+  read-only Specialty panel renders from the SAME live rollup the editor prices.
+- **Protected everywhere:** weight test matches unit `LBS` exactly, so specialty
+  adds revenue but zero pounds. Specialty hours are subtracted from lbs/MH
+  denominators (pace, fleet blend, foreman scorecard, summary modal), added to hour
+  budgets (burn), and split from rebar in realizedEconomics (rebar scales with
+  placed lbs; specialty counts whole). Jobs without specialty are byte-identical.
+- Defaults: PT Building 98 lb/MH, Mesh 1400 sqft/MH (real figures). PT ACTUAL hours
+  per job = designed (option 1: one "PT Hours (actual)" field) but HELD, not built.
+
+### Invoices — corruption root cause found and fixed
+- **`invoiceBuffer()` in `lib/documents/invoice.js` is mandatory** for invoice
+  downloads: ExcelJS + fitToPage writes `<pageSetUpPr>` BEFORE `<outlinePr>`,
+  violating OOXML element order → Excel flags the file corrupt (recovery = blank).
+  openpyxl/lxml tolerate it, so sandbox validation CANNOT catch this class of bug —
+  proven by a 4-file feature ladder opened in Fern's Excel. The helper re-zips with
+  the order fixed. Any NEW spreadsheet route: either avoid fitToPage entirely
+  (bids export does) or run the same fix.
+- Multi-page invoices: rows 1–11 repeat per page, fit-to-width, live "PAGE X OF Y"
+  header. **Billing Job Reference** (Projects prop) prints as PROJECT NAME, frozen
+  into each invoice snapshot (`ref` in `[snap]`), per-invoice override on the
+  new-bill form; blank falls back to project name + ID.
+
+### Billing / projects — shipped + tested
+- Short-pay resolver: themed modal, Auto/Manual allocation, THREE interlocked
+  columns (billed lbs / rollback lbs / $ — edit any, others follow), reconcile
+  guard, "⋯ → Edit rollback" (locked once a newer invoice exists).
+- Cascade delete: project → its billing events + line items (+ optional bid via
+  checkbox), type-DELETE confirm; bid force-delete when blocked.
+- Themed `confirmDialog` everywhere (no native prompts). Project edit modal:
+  read-only until "Edit project"; Save/Cancel/Delete pinned in the frozen footer.
+- `getProjectBilling` exposes bid / actualStartDate / resolved hours (project
+  details modal shows bid rate, hours, started).
+
+### Bids page — Batch A (shipped, tested; filter polish shipped)
+- **Filters panel:** GC / Fabricator / Detailer dropdowns, City/County TYPE-IN
+  (contains, case-insensitive), bid-due + submitted date ranges, value min/max,
+  live "N of M shown", Clear. Stage chips show MATCH counts when filters active;
+  empty state points to where matches live ("2 in Awarded" — tap to jump).
+- **Export = exactly what's on screen, in order:** Excel (`/api/bids/export?ids=`,
+  built from scratch, NO fitToPage → immune to the corruption bug) and Print/PDF
+  (`/pipeline/print?ids=` — light print view, browser does the PDF; no PDF dep).
+- **Detailer** = new Bid Tracker select (auto-creates options); on both forms,
+  filter, exports.
+- **Cold bids:** anchor falls back last-follow-up → submission → BID DUE DATE
+  (most bids lack submission dates; Apr/May bids now flag at 69–98d). Future due
+  dates can't trip it. Same anchor feeds the export's "days since contact".
+- Foreman scorecard states its exclusions: "N shown · M excluded (reasons)",
+  hover for per-job detail; empty state explains instead of looking broken.
+
+### Hours model — DECIDED, minimal
+- `Combine Baseline` is **REMOVED from the codebase** (was read-and-ignored; a trap).
+  Fern can delete the Notion property whenever. Combined mode still = payroll +
+  full timesheet (only correct if payroll is frozen pre-cutover).
+- **Spanning jobs (started before 6/25/26 with timecards) are handled MANUALLY:**
+  Fern sets Hours Mode = Payroll and keeps the payroll number current (accounting's
+  total is complete/authoritative — Westwing: 729). "Payroll Hours As Of" date was
+  designed but deliberately NOT built (transition problem; new jobs are pure
+  timesheet/Auto). Don't resurrect it without asking.
+
+## Gotchas that bit us (don't relearn these)
+- Notion property NAMES must match exactly or writes 400 (`Retention Enable` ≠
+  `Retention Enabled`; `Billing Job Reference` missing from `PROJECT_EDITABLE`
+  blocked ALL project saves). Select/multi-select OPTION VALUES auto-create on
+  write — but near-duplicate options accumulate silently (check dropdowns for typos).
+- **Zod `z.object()` silently STRIPS unknown keys** — new bid fields must be added
+  to `bidSchema.js` or saves quietly drop them.
+- Client components: helpers defined inside hooks aren't in scope at render
+  (`n()` crash class). Component-scope `num0()` exists in BidDetailClient.
+- ExcelJS reads its own malformed output happily; so does openpyxl. For anything
+  Excel-bound, the only real oracle is Excel — ship a test file to Fern if unsure.
+- `PROJECT_EDITABLE` (lib/rules/mutations.js) gates all project saves; bid schema
+  gates bid saves. Check BOTH when adding fields.
+
+## Open backlog (in Fern's priority order)
+1. **Payment-row document download** — BLOCKED on format decision (receipt /
+   remittance / plain export). Ask before building.
+2. **Supabase auth + roles** — replaces PIN. Free project exists (us-west-1);
+   needs Fern's URL + keys. Owner (Fern, everything) + Admin (Bids/Active
+   Work/Billing). Server-side zone enforcement. Multi-session build.
+3. **Due Billings report review** — Fern reads it against real data; expect tweaks.
+4. HELD: PT actual hours (option 1 designed). HELD: mesh/PT productivity
+   calibration vs real jobs. Older TODO.md: performance headline redesign, The
+   Book + Home read-only zones, dark mode, StagePath chevron polish.
+
+## Timecard app (context)
+Separate repo/app at ammex-timecard.vercel.app — employee timesheets + admin
+Review cockpit. The OS reads its Timecards + Crew Roster Notion DBs (read-only
+from the OS side; field names there are LOAD-BEARING, never rename).

@@ -343,7 +343,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
               <Row label="Operating margin" value={pctFmt(econ.operatingMargin)} tone="ok" />
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
-              <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />
+              {!(specRollup.specRevenue > 0) && <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />}
               <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMHCombined ?? econ.totalMH))} sub={econ.specialtyHours > 0 ? `rebar ${lbsFmt(Math.round(econ.totalMH))} + specialty ${lbsFmt(Math.round(econ.specialtyHours))}` : null} />
               <div className="pt-2 mt-2 border-t border-line text-xs text-rebar leading-relaxed">
                 {Number(w.bidRate) > 0 ? (
