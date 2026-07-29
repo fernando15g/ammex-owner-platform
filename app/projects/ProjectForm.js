@@ -197,6 +197,9 @@ export default function ProjectForm({
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
+      // wait out Notion's ~1s read lag so the Active Work list arrives without
+      // a ghost of the just-deleted project (same fix as bid delete)
+      await new Promise((r) => setTimeout(r, 1400));
       window.location.href = "/active";
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }

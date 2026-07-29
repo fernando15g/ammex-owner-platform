@@ -171,6 +171,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         d = await res.json();
       }
       if (!d.ok) throw new Error(d.error);
+      // Notion's reads lag ~1s behind the archive. Landing on the bid list
+      // inside that window shows the just-deleted bid as a ghost row (and used
+      // to cache it). Waiting the lag out means the list arrives truthful.
+      await new Promise((r) => setTimeout(r, 1400));
       window.location.href = "/pipeline";
     } catch (e) { setState({ saving: false, saved: false, error: String(e.message || e) }); }
   }
@@ -271,7 +275,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <>
               <button onClick={save} disabled={state.saving} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : dirty ? "Update" : "Save"}</button>
               <button onClick={cancelEdit} className="text-sm px-4 py-2 rounded-md border border-line text-rebar hover:text-concrete">Cancel</button>
-              <button onClick={deleteBid} disabled={state.saving} className="text-sm px-4 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">Delete bid</button>
+              <button onClick={deleteBid} disabled={state.saving} className="text-sm px-4 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-40">{state.saving ? "Deleting…" : "Delete bid"}</button>
             </>
           )}
         </div>
