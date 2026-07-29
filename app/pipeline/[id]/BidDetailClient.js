@@ -62,7 +62,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     contingencyPct: bid.contingencyPct ?? "",
     mobilizationHrs: bid.mobilizationHrs ?? "",
     targetMarginPct: bid.targetMarginPct ?? "",
-    hoursPerDay: "",
+    hoursPerDay: bid.hoursPerDay ?? "",
     submissionDate: bid.submissionDate ?? "",
   });
   const [w, setW] = useState(initialW);
