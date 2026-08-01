@@ -198,14 +198,43 @@ export default function PipelineClient({ data }) {
 
       {isFlight ? (
         <div className="space-y-5">
+          {/* one shared column-header row so every stage card aligns to it */}
+          <table className="w-full text-sm table-fixed">
+            <colgroup>
+                  <col className="w-auto" />
+                  <col className="w-[180px] hidden sm:table-column" />
+                  <col className="w-[90px] hidden md:table-column" />
+                  <col className="w-[90px] hidden md:table-column" />
+                  <col className="w-[100px]" />
+                  <col className="w-[80px] hidden lg:table-column" />
+                </colgroup>
+            <thead>
+              <tr className="text-rebar text-[11px] uppercase tracking-wider">
+                <th className="px-4 py-2 text-left font-medium">Bid</th>
+                <th className="px-3 py-2 text-left font-medium hidden sm:table-cell">Status</th>
+                <th className="px-3 py-2 text-left font-medium hidden md:table-cell">Bid due</th>
+                <th className="px-3 py-2 text-right font-medium hidden md:table-cell">Bid ¢</th>
+                <th className="px-3 py-2 text-right font-medium">Value</th>
+                <th className="px-4 py-2 text-right font-medium hidden lg:table-cell">Margin</th>
+              </tr>
+            </thead>
+          </table>
           {groups.map((g) => (
             <div key={g.key} className="rounded-lg border border-line overflow-hidden">
-              <div className="bg-graphite/40 border-b border-line px-4 py-2">
+              <div className="bg-graphite border-b border-line px-4 py-2.5">
                 <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
                 <span className="text-xs text-rebar ml-2">{g.hint}</span>
                 <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
               </div>
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col className="w-auto" />
+                  <col className="w-[180px] hidden sm:table-column" />
+                  <col className="w-[90px] hidden md:table-column" />
+                  <col className="w-[90px] hidden md:table-column" />
+                  <col className="w-[100px]" />
+                  <col className="w-[80px] hidden lg:table-column" />
+                </colgroup>
                 <tbody>
                   {g.items.map((r) => <BidRow key={r.id} r={r} first />)}
                 </tbody>
@@ -289,30 +318,30 @@ function BidRow({ r }) {
 
   return (
     <tr className="border-t border-line hover:bg-graphite/60">
-      <td className="px-4 py-3 cursor-pointer" onClick={go}>
+      <td className="px-4 py-3 cursor-pointer max-w-0" onClick={go}>
         <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
         <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
       </td>
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap">
-        <div className="inline-flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] || "#9aa3af" }} />
           <select
             value={status}
             disabled={busy}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => changeStatus(e.target.value)}
-            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
+            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none max-w-full"
             style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.4rem center" }}
           >
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          {status === "Awarded" && !r.project && (
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-warn/50 text-warn shrink-0">needs project</span>
+          )}
+          {r.project && (
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok shrink-0 truncate">{r.project.projectId || "project"}</span>
+          )}
         </div>
-        {status === "Awarded" && !r.project && (
-          <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-warn/50 text-warn">needs project</span>
-        )}
-        {r.project && (
-          <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok">{r.project.projectId || "project"}</span>
-        )}
       </td>
       <td className="px-3 py-3 hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{dateStr(r.bidDueDate)}</td>
       <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{centsStr(r.bidRate)}</td>
