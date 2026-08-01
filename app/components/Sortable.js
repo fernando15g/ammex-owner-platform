@@ -68,7 +68,7 @@ export function SortHeader({ label, sortKey, sort, toggle, align = "left", class
     <th
       onClick={() => toggle(sortKey)}
       className={`px-3 py-2.5 font-medium cursor-pointer select-none whitespace-nowrap hover:text-concrete ${
-        align === "right" ? "text-right" : "text-left"
+        align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
       } ${active ? "text-concrete" : ""} ${className}`}
       title={`Sort by ${label}`}
     >
