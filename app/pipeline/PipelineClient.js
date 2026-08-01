@@ -196,57 +196,50 @@ export default function PipelineClient({ data }) {
         </div>
       )}
 
+      {isFlight ? (
+        <div className="space-y-5">
+          {groups.map((g) => (
+            <div key={g.key} className="rounded-lg border border-line overflow-hidden">
+              <div className="bg-graphite/40 border-b border-line px-4 py-2">
+                <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
+                <span className="text-xs text-rebar ml-2">{g.hint}</span>
+                <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
+              </div>
+              <table className="w-full text-sm">
+                <tbody>
+                  {g.items.map((r) => <BidRow key={r.id} r={r} first />)}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          {groups.length === 0 && (
+            <div className="rounded-lg border border-line px-4 py-10 text-center text-rebar">{elsewhere.length > 0
+              ? <>No matches here — {elsewhere.map((f, i) => (
+                  <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
+                ))}</>
+              : "No bids in flight. Click “+ New Bid” to add one."}</div>
+          )}
+        </div>
+      ) : (
       <div className="rounded-lg border border-line overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              {isFlight ? (
-                <>
-                  <SortHeader label="Bid" sortKey="name" sort={flightSort} toggle={toggleSort} className="px-4" />
-                  <SortHeader label="Status" sortKey="status" sort={flightSort} toggle={toggleSort} className="hidden sm:table-cell" />
-                  <SortHeader label="Bid due" sortKey="bidDueDate" sort={flightSort} toggle={toggleSort} className="hidden md:table-cell" />
-                  <SortHeader label="Value" sortKey="contractValue" sort={flightSort} toggle={toggleSort} align="right" />
-                  <SortHeader label="Margin" sortKey="operatingMargin" sort={flightSort} toggle={toggleSort} align="right" className="hidden lg:table-cell px-4" />
-                </>
-              ) : (
-                <>
+              <>
                   <SortHeader label="Bid" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
                   <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
                   <SortHeader label="Bid due" sortKey="bidDueDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
+                  <SortHeader label="Bid ¢" sortKey="bidRate" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
                   <SortHeader label="Value" sortKey="contractValue" sort={sort} toggle={toggle} align="right" />
                   <SortHeader label="Margin" sortKey="operatingMargin" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell px-4" />
-                </>
-              )}
+              </>
             </tr>
           </thead>
           <tbody>
-            {isFlight ? (
-              <>
-                {groups.map((g, gi) => (
-                  <Fragment key={g.key}>
-                    {gi > 0 && <tr aria-hidden><td colSpan={5} className="h-4" /></tr>}
-                    <tr className="bg-graphite/40 border-y border-line">
-                      <td colSpan={5} className="px-4 py-2">
-                        <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
-                        <span className="text-xs text-rebar ml-2">{g.hint}</span>
-                        <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
-                      </td>
-                    </tr>
-                    {g.items.map((r) => <BidRow key={r.id} r={r} />)}
-                  </Fragment>
-                ))}
-                {groups.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
-                    ? <>No matches here — {elsewhere.map((f, i) => (
-                        <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
-                      ))}</>
-                    : "No bids in flight. Click “+ New Bid” to add one."}</td></tr>
-                )}
-              </>
-            ) : (
+            {(
               <>
                 {shown.map((r) => <BidRow key={r.id} r={r} />)}
-                {shown.length === 0 && <tr><td colSpan={5} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
+                {shown.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
                     ? <>No matches here — {elsewhere.map((f, i) => (
                         <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
                       ))}</>
@@ -256,6 +249,7 @@ export default function PipelineClient({ data }) {
           </tbody>
         </table>
       </div>
+      )}
       <p className="text-xs text-rebar mt-3">
         Risk-weighted = each bid&apos;s value × its confidence by status. In-flight bids are grouped by stage, hottest on
         top; the date shown is when the bid was submitted.
@@ -264,28 +258,66 @@ export default function PipelineClient({ data }) {
   );
 }
 
+const ALL_STATUSES = ["Reviewing", "Estimating", "Need Weights", "Contingent", "Negotiating", "Submitted", "Follow Up", "Awarded", "Lost", "No Bid"];
+const centsStr = (rate) => (typeof rate === "number" ? `${(rate * 100).toFixed(2)}¢` : "—");
+
 function BidRow({ r }) {
+  const [status, setStatus] = useState(r.status);
+  const [busy, setBusy] = useState(false);
+  const go = () => { window.location.href = `/pipeline/${r.id}`; };
+
+  // Inline status change straight from the list — no need to open the bid.
+  // Uses the same PATCH the detail page uses (keeps the Lost/No-Bid guard).
+  const changeStatus = async (next) => {
+    if (next === status) return;
+    const prev = status;
+    setStatus(next); setBusy(true); // optimistic
+    try {
+      const res = await fetch(`/api/bids/${r.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes: { status: next } }),
+      });
+      const d = await res.json();
+      if (!d.ok) throw new Error(d.error || "Save failed");
+      // let Notion settle, then refresh so the bid re-groups into its new section
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      setStatus(prev); setBusy(false); // rollback
+      alert(String(e.message || e));
+    }
+  };
+
   return (
-    <tr onClick={() => { window.location.href = `/pipeline/${r.id}`; }} className="border-t border-line cursor-pointer hover:bg-graphite/60">
-      <td className="px-4 py-3">
+    <tr className="border-t border-line hover:bg-graphite/60">
+      <td className="px-4 py-3 cursor-pointer" onClick={go}>
         <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
         <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
       </td>
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap">
-        <span className="inline-flex items-center gap-1.5 text-xs rounded-full px-2 py-0.5 bg-steel border border-line text-concrete/80">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[r.status] || "#9aa3af" }} />
-          {r.status}
-        </span>
-        {r.status === "Awarded" && !r.project && (
+        <div className="inline-flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] || "#9aa3af" }} />
+          <select
+            value={status}
+            disabled={busy}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => changeStatus(e.target.value)}
+            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.4rem center" }}
+          >
+            {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        {status === "Awarded" && !r.project && (
           <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-warn/50 text-warn">needs project</span>
         )}
         {r.project && (
           <span className="ml-1.5 inline-block text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok">{r.project.projectId || "project"}</span>
         )}
       </td>
-      <td className="px-3 py-3 hidden md:table-cell text-concrete/80">{dateStr(r.bidDueDate)}</td>
-      <td className="px-3 py-3 text-right tabular-nums text-concrete">{money(r.contractValue)}</td>
-      <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/80">{pct(r.operatingMargin)}</td>
+      <td className="px-3 py-3 hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{dateStr(r.bidDueDate)}</td>
+      <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{centsStr(r.bidRate)}</td>
+      <td className="px-3 py-3 text-right tabular-nums text-concrete cursor-pointer" onClick={go}>{money(r.contractValue)}</td>
+      <td className="px-4 py-3 text-right tabular-nums hidden lg:table-cell text-concrete/80 cursor-pointer" onClick={go}>{pct(r.operatingMargin)}</td>
     </tr>
   );
 }
