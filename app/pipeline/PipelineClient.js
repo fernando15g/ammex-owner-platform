@@ -197,45 +197,48 @@ export default function PipelineClient({ data }) {
       )}
 
       {isFlight ? (
-        <div className="space-y-5">
-          {/* one shared column-header row so every stage card aligns to it */}
-          <table className="w-full text-sm table-fixed">
-            <colgroup>
-                  <col className="w-auto" />
-                  <col className="w-[180px] hidden sm:table-column" />
+        <div className="space-y-4">
+          {/* shared column headers (OS standard: SortHeader, bg-graphite band) */}
+          <div className="rounded-lg border border-line overflow-hidden">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                  <col />
+                  <col className="w-[150px] hidden sm:table-column" />
                   <col className="w-[90px] hidden md:table-column" />
                   <col className="w-[90px] hidden md:table-column" />
                   <col className="w-[100px]" />
                   <col className="w-[80px] hidden lg:table-column" />
                 </colgroup>
-            <thead>
-              <tr className="text-rebar text-[11px] uppercase tracking-wider">
-                <th className="px-4 py-2 text-left font-medium">Bid</th>
-                <th className="px-3 py-2 text-left font-medium hidden sm:table-cell">Status</th>
-                <th className="px-3 py-2 text-left font-medium hidden md:table-cell">Bid due</th>
-                <th className="px-3 py-2 text-right font-medium hidden md:table-cell">Bid ¢</th>
-                <th className="px-3 py-2 text-right font-medium">Value</th>
-                <th className="px-4 py-2 text-right font-medium hidden lg:table-cell">Margin</th>
-              </tr>
-            </thead>
-          </table>
+              <thead>
+                <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
+                  <SortHeader label="Bid" sortKey="name" sort={flightSort} toggle={toggleSort} className="px-4" />
+                  <SortHeader label="Status" sortKey="status" sort={flightSort} toggle={toggleSort} className="hidden sm:table-cell" />
+                  <SortHeader label="Bid due" sortKey="bidDueDate" sort={flightSort} toggle={toggleSort} className="hidden md:table-cell" />
+                  <SortHeader label="Bid ¢" sortKey="bidRate" sort={flightSort} toggle={toggleSort} align="right" className="hidden md:table-cell" />
+                  <SortHeader label="Value" sortKey="contractValue" sort={flightSort} toggle={toggleSort} align="right" />
+                  <SortHeader label="Margin" sortKey="operatingMargin" sort={flightSort} toggle={toggleSort} align="right" className="hidden lg:table-cell px-4" />
+                </tr>
+              </thead>
+            </table>
+          </div>
           {groups.map((g) => (
             <div key={g.key} className="rounded-lg border border-line overflow-hidden">
-              <div className="bg-graphite border-b border-line px-4 py-2.5">
-                <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
-                <span className="text-xs text-rebar ml-2">{g.hint}</span>
-                <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
-              </div>
               <table className="w-full text-sm table-fixed">
                 <colgroup>
-                  <col className="w-auto" />
-                  <col className="w-[180px] hidden sm:table-column" />
+                  <col />
+                  <col className="w-[150px] hidden sm:table-column" />
                   <col className="w-[90px] hidden md:table-column" />
                   <col className="w-[90px] hidden md:table-column" />
                   <col className="w-[100px]" />
                   <col className="w-[80px] hidden lg:table-column" />
                 </colgroup>
                 <tbody>
+                  <tr className="bg-graphite border-b border-line">
+                    <td colSpan={6} className="px-4 py-2">
+                      <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
+                      <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
+                    </td>
+                  </tr>
                   {g.items.map((r) => <BidRow key={r.id} r={r} first />)}
                 </tbody>
               </table>
@@ -330,7 +333,7 @@ function BidRow({ r }) {
             disabled={busy}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => changeStatus(e.target.value)}
-            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none max-w-full"
+            className="bg-steel border border-line rounded-full text-xs text-concrete/80 text-center pl-2 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none max-w-full"
             style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.4rem center" }}
           >
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
