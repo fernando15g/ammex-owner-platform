@@ -30,9 +30,9 @@ const bySubmittedDesc = (a, b) => {
 // decision (newest submitted first, so the ones going cold surface as you
 // scroll); then the pre-submission work at the bottom.
 const GROUPS = [
+  { key: "works", title: "In the works", hint: "actively estimating — not submitted yet", statuses: ["Reviewing", "Estimating", "Need Weights"] },
   { key: "live", title: "Live — chasing the award", hint: "waiting on the contract, or negotiating", statuses: ["Contingent", "Negotiating"] },
   { key: "submitted", title: "Submitted — awaiting decision", hint: "newest first — older ones are going cold", statuses: ["Submitted", "Follow Up"] },
-  { key: "works", title: "In the works", hint: "not submitted yet", statuses: ["Need Weights", "Reviewing", "Estimating"] },
 ];
 const LIVE_ORDER = { Contingent: 0, Negotiating: 1 };
 
@@ -58,6 +58,10 @@ function buildGroups(rows, orderBy = null) {
       if (orderBy) items.sort((a, b) => (orderBy.get(a.id) ?? 0) - (orderBy.get(b.id) ?? 0));
       else if (g.key === "live") items.sort((a, b) => (LIVE_ORDER[a.status] - LIVE_ORDER[b.status]) || ((b.contractValue || 0) - (a.contractValue || 0)));
       else if (g.key === "submitted") items.sort(bySubmittedDesc);
+      else if (g.key === "works") {
+        const WORKS_ORDER = { Reviewing: 0, Estimating: 1, "Need Weights": 2 };
+        items.sort((a, b) => (WORKS_ORDER[a.status] - WORKS_ORDER[b.status]) || (a.name || "").localeCompare(b.name || ""));
+      }
       else items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       return { ...g, items };
     })
@@ -218,11 +222,12 @@ export default function PipelineClient({ data }) {
           <tbody>
             {isFlight ? (
               <>
-                {groups.map((g) => (
+                {groups.map((g, gi) => (
                   <Fragment key={g.key}>
-                    <tr className="bg-graphite/50 border-t border-line">
+                    {gi > 0 && <tr aria-hidden><td colSpan={5} className="h-4" /></tr>}
+                    <tr className="bg-graphite/40 border-y border-line">
                       <td colSpan={5} className="px-4 py-2">
-                        <span className="text-[11px] font-medium text-concrete uppercase tracking-wider">{g.title}</span>
+                        <span className="text-[11px] font-semibold text-concrete uppercase tracking-wider">{g.title}</span>
                         <span className="text-xs text-rebar ml-2">{g.hint}</span>
                         <span className="text-xs text-rebar/70 ml-2">· {g.items.length}</span>
                       </td>
