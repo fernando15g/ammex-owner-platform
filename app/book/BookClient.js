@@ -40,7 +40,7 @@ export default function BookClient({ data }) {
       {/* the glance — the whole book in one line */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Tile label="Contract value" value={money(totals.contract)} info="Total revised contract value across open awarded jobs — original contract plus approved change orders." />
-        <Tile label="Profit in book" value={money(totals.operatingProfit)} tone="ok" info="Operating profit these jobs were bid to make. Realized profit lands as jobs complete." />
+        <Tile label="Profit in book" value={money(totals.operatingProfit)} tone="ok" info="Closed jobs show realized profit (actually earned); active and backlog show the profit they were bid to make. Realized lands as jobs complete." />
         <Tile label="Remaining to bill" value={money(totals.remaining)} info="Contract value not yet invoiced — your booked future revenue (backlog)." />
         <Tile label="Outstanding" value={money(totals.outstanding)} tone="amber" info="Billed but not yet collected — money owed to you right now." />
       </div>
@@ -64,7 +64,7 @@ export default function BookClient({ data }) {
               <SortHeader label="Job" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
               <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
               <SortHeader label="Contract" sortKey="contract" sort={sort} toggle={toggle} align="right" info="Revised contract value (incl. approved change orders); the bid's contract value until billing is set up." />
-              <SortHeader label="Profit / margin" sortKey="operatingProfit" sort={sort} toggle={toggle} align="right" info="Operating profit and margin the job was bid to make." />
+              <SortHeader label="Expected profit" sortKey="operatingProfit" sort={sort} toggle={toggle} align="right" info="Profit and margin the job was BID to make — the forecast, not today\u2019s realized number. See Performance for how a job is actually tracking." />
               <SortHeader label="Billed" sortKey="billed" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" info="Invoiced to date, net of short-pay roll-forwards." />
               <SortHeader label="Remaining" sortKey="remaining" sort={sort} toggle={toggle} align="right" info="Contract not yet invoiced — future revenue on this job." />
               <SortHeader label="Outstanding" sortKey="outstanding" sort={sort} toggle={toggle} align="right" className="px-4" info="Billed but not yet collected — owed to you now." />
@@ -128,7 +128,7 @@ export default function BookClient({ data }) {
             <span className="text-xs text-rebar">awarded, not started — booked future work</span>
             <span className="ml-auto text-xs tabular-nums text-rebar">
               <span className="text-concrete">{money(backlogTotals.contract)}</span> contract ·{" "}
-              <span className="text-ok">{money(backlogTotals.operatingProfit)}</span> profit
+              <span className="text-ok">{money(backlogTotals.operatingProfit)}</span> est. profit
             </span>
           </div>
           <div className="rounded-lg border border-line divide-y divide-line overflow-hidden">
@@ -158,7 +158,7 @@ export default function BookClient({ data }) {
           <button onClick={() => setShowClosed((o) => !o)} className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-graphite/30">
             <span className={`text-rebar text-xs transition-transform ${showClosed ? "rotate-90" : ""}`}>▸</span>
             <span className="text-sm text-concrete font-medium">Closed jobs</span>
-            <span className="text-xs text-rebar">completed — profit earned</span>
+            <span className="text-xs text-rebar">completed — realized profit earned</span>
             <span className="ml-auto flex items-center gap-4 text-xs tabular-nums">
               <span className="text-rebar">{closedTotals.jobs} job{closedTotals.jobs === 1 ? "" : "s"}</span>
               <span className="text-concrete">{money(closedTotals.contract)} contract</span>
@@ -198,7 +198,7 @@ export default function BookClient({ data }) {
 
       <p className="text-xs text-rebar">
         The Book is read-only — every figure is computed from the same billing engine as the Billing zone, so the two always agree.
-        Contract is the revised value including approved change orders; profit and margin are what the job was bid to make. Click any
+        Contract is the revised value including approved change orders. Profit is REALIZED (actually earned) on closed jobs, and the BID forecast on active/backlog jobs. Click any
         job to open its billing workspace.
       </p>
     {chooser && (
