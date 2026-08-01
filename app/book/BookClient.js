@@ -24,6 +24,7 @@ export default function BookClient({ data }) {
   const { active, backlog, closed, totals, activeTotals, backlogTotals, closedTotals } = data;
   const [q, setQ] = useState("");
   const [showClosed, setShowClosed] = useState(false);
+  const [chooser, setChooser] = useState(null); // row whose destination picker is open
 
   const matches = (r) => {
     const s = q.trim().toLowerCase();
@@ -73,7 +74,7 @@ export default function BookClient({ data }) {
             {sorted.map((r) => (
               <tr
                 key={r.id}
-                onClick={() => { window.location.href = `/billing/${r.id}`; }}
+                onClick={() => setChooser(r)}
                 className="border-t border-line cursor-pointer hover:bg-graphite/60 transition-colors"
               >
                 <td className="px-4 py-3">
@@ -134,7 +135,7 @@ export default function BookClient({ data }) {
             {backlogF.map((r) => (
               <div
                 key={r.id}
-                onClick={() => { window.location.href = `/billing/${r.id}`; }}
+                onClick={() => setChooser(r)}
                 className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/60 cursor-pointer"
               >
                 <div className="min-w-0">
@@ -176,7 +177,7 @@ export default function BookClient({ data }) {
               {(q ? closedF : closed).map((r) => (
                 <div
                   key={r.id}
-                  onClick={() => { window.location.href = `/billing/${r.id}`; }}
+                  onClick={() => setChooser(r)}
                   className="flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40 cursor-pointer text-sm"
                 >
                   <div className="min-w-0">
@@ -200,6 +201,37 @@ export default function BookClient({ data }) {
         Contract is the revised value including approved change orders; profit and margin are what the job was bid to make. Click any
         job to open its billing workspace.
       </p>
+    {chooser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setChooser(null)}>
+        <div className="absolute inset-0 bg-black/60" />
+        <div className="relative w-full max-w-sm rounded-lg border border-line bg-graphite p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="mb-1 text-sm font-semibold text-concrete truncate">{chooser.name || "Project"}</div>
+          <div className="mb-4 text-xs text-rebar">{chooser.projectId || ""}{chooser.gc?.length ? ` · ${chooser.gc.join(", ")}` : ""}</div>
+          <div className="space-y-2">
+            <a href={`/billing/${chooser.id}`} className="block rounded-md border border-line px-4 py-2.5 text-sm text-concrete hover:bg-steel">
+              <span className="font-medium">Billing</span>
+              <span className="block text-xs text-rebar mt-0.5">Invoices, payments, retention</span>
+            </a>
+            <a href={`/projects/${chooser.id}`} className="block rounded-md border border-line px-4 py-2.5 text-sm text-concrete hover:bg-steel">
+              <span className="font-medium">Project</span>
+              <span className="block text-xs text-rebar mt-0.5">Scope, schedule, site, hours</span>
+            </a>
+            {chooser.relatedBidId ? (
+              <a href={`/pipeline/${chooser.relatedBidId}`} className="block rounded-md border border-line px-4 py-2.5 text-sm text-concrete hover:bg-steel">
+                <span className="font-medium">Bid</span>
+                <span className="block text-xs text-rebar mt-0.5">The estimate this job came from</span>
+              </a>
+            ) : (
+              <div className="rounded-md border border-line px-4 py-2.5 text-sm text-rebar/60">
+                <span className="font-medium">Bid</span>
+                <span className="block text-xs mt-0.5">No linked bid</span>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setChooser(null)} className="mt-4 w-full text-xs text-rebar hover:text-concrete py-1">Cancel</button>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
