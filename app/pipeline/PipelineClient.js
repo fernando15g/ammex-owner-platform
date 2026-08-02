@@ -335,16 +335,21 @@ function BidRow({ r }) {
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap text-center">
         <div className="inline-flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: STATUS_COLOR[status] || "#9aa3af" }} />
-          <select
-            value={status}
-            disabled={busy}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => changeStatus(e.target.value)}
-            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2.5 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
-            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23e8e8e8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.45rem center", backgroundSize: "14px" }}
-          >
-            {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <span className="relative inline-flex items-center">
+            <select
+              value={status}
+              disabled={busy}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => changeStatus(e.target.value)}
+              className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2.5 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
+            >
+              {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            {/* Real caret character (not a CSS background image, which was silently
+                not rendering in some browsers). pointer-events-none so clicks fall
+                through to the select underneath. */}
+            <span className="pointer-events-none absolute right-2 text-concrete text-[10px] leading-none">▾</span>
+          </span>
         </div>
         {status === "Awarded" && !r.project && (
           <div className="text-[10px] text-warn mt-1">needs project</div>
