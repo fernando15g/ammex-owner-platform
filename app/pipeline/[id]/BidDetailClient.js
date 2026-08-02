@@ -404,7 +404,11 @@ function FSelectOpt({ label, edit, value, options = [], onChange }) {
   // to type a name that isn't in the list yet. The field is a Notion Select, so
   // writing a new value auto-creates the option on save (selects auto-create).
   const [adding, setAdding] = useState(false);
-  const list = options && options.length ? options : (value ? [value] : []);
+  // Always include the current value in the option list, even if it's a new name
+  // that isn't in Notion yet — otherwise the <select> can't show it and it looks
+  // like the entry vanished.
+  const base = options && options.length ? options : [];
+  const list = value && !base.includes(value) ? [...base, value] : base;
   if (!edit) return <div><L>{label}</L><V>{value}</V></div>;
   return (
     <div><L>{label}</L>
@@ -413,7 +417,7 @@ function FSelectOpt({ label, edit, value, options = [], onChange }) {
           <input
             autoFocus
             className="inp"
-            defaultValue={value || ""}
+            value={value || ""}
             placeholder="Type a new name"
             onChange={(e) => onChange(e.target.value)}
           />
