@@ -250,17 +250,23 @@ export default function PipelineClient({ data }) {
         </div>
       ) : (
       <div className="rounded-lg border border-line overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+          <colgroup>
+            <col />
+            <col className="w-[150px] hidden sm:table-column" />
+            <col className="w-[90px] hidden md:table-column" />
+            <col className="w-[90px] hidden md:table-column" />
+            <col className="w-[100px]" />
+            <col className="w-[80px] hidden lg:table-column" />
+          </colgroup>
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <>
-                  <SortHeader label="Bid" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
-                  <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
-                  <SortHeader label="Bid due" sortKey="bidDueDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
-                  <SortHeader label="Bid ¢" sortKey="bidRate" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
-                  <SortHeader label="Value" sortKey="contractValue" sort={sort} toggle={toggle} align="right" />
-                  <SortHeader label="Margin" sortKey="operatingMargin" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell px-4" />
-              </>
+              <SortHeader label="Bid" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} align="center" className="hidden sm:table-cell" />
+              <SortHeader label="Bid due" sortKey="bidDueDate" sort={sort} toggle={toggle} className="hidden md:table-cell" />
+              <SortHeader label="Bid ¢" sortKey="bidRate" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
+              <SortHeader label="Value" sortKey="contractValue" sort={sort} toggle={toggle} align="right" />
+              <SortHeader label="Margin" sortKey="operatingMargin" sort={sort} toggle={toggle} align="right" className="hidden lg:table-cell px-4" />
             </tr>
           </thead>
           <tbody>
