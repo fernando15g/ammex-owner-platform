@@ -110,7 +110,7 @@ export default function PipelineClient({ data }) {
   const q = query.trim().toLowerCase();
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
   const searched = q
-    ? rows.filter((r) => [r.name, (r.gc || []).join(" "), (r.fabricator || []).join(" "), r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
+    ? rows.filter((r) => [r.name, r.project?.projectId, (r.gc || []).join(" "), (r.fabricator || []).join(" "), r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
     : rows;
   const filtered = searched.filter(active.test).filter(advTest);
   const isFlight = filter === "flight";
@@ -324,7 +324,12 @@ function BidRow({ r }) {
   return (
     <tr className="border-t border-line hover:bg-graphite/60">
       <td className="px-4 py-3 cursor-pointer max-w-0" onClick={go}>
-        <div className="font-medium text-concrete truncate">{r.name || "—"}{r.project?.projectId ? <span className="text-rebar font-normal ml-1.5">{r.project.projectId}</span> : null}</div>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="font-medium text-concrete truncate">{r.name || "—"}</span>
+          {r.project?.projectId && (
+            <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok shrink-0">{r.project.projectId}</span>
+          )}
+        </div>
         <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
       </td>
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap text-center">
@@ -340,13 +345,10 @@ function BidRow({ r }) {
           >
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          {status === "Awarded" && !r.project && (
-            <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-warn/50 text-warn shrink-0">needs project</span>
-          )}
-          {r.project && (
-            <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok shrink-0 truncate">{r.project.projectId || "project"}</span>
-          )}
         </div>
+        {status === "Awarded" && !r.project && (
+          <div className="text-[10px] text-warn mt-1">needs project</div>
+        )}
       </td>
       <td className="px-3 py-3 hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{dateStr(r.bidDueDate)}</td>
       <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell text-concrete/80 cursor-pointer" onClick={go}>{centsStr(r.bidRate)}</td>

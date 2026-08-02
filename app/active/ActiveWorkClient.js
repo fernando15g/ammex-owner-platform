@@ -40,7 +40,7 @@ export default function ActiveWorkClient({ data }) {
   const [bulk, setBulk] = useState(false);
   const q = query.trim().toLowerCase();
   const filtered = q
-    ? sorted.filter((r) => [r.name, r.detail?.projectId, (r.detail?.gc || []).join(" "), (r.detail?.foreman || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q))
+    ? sorted.filter((r) => [r.name, r.projectId, r.detail?.projectId, (r.gc || []).join(" "), (r.detail?.gc || []).join(" "), (r.detail?.foreman || []).join(" ")].filter(Boolean).join(" ").toLowerCase().includes(q))
     : sorted;
   const [detailsFor, setDetailsFor] = useState(null);
   const [editFor, setEditFor] = useState(null);
