@@ -400,17 +400,34 @@ function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</V>}</div>);
 }
 function FSelectOpt({ label, edit, value, options = [], onChange }) {
-  // Single-select from the real Notion options (blank allowed). Falls back to
-  // showing the saved value even if options haven't loaded yet.
+  // Single-select from the real Notion options (blank allowed), with a "+ New"
+  // to type a name that isn't in the list yet. The field is a Notion Select, so
+  // writing a new value auto-creates the option on save (selects auto-create).
+  const [adding, setAdding] = useState(false);
   const list = options && options.length ? options : (value ? [value] : []);
+  if (!edit) return <div><L>{label}</L><V>{value}</V></div>;
   return (
     <div><L>{label}</L>
-      {edit
-        ? <select className="inp" value={value || ""} onChange={(e) => onChange(e.target.value)}>
+      {adding ? (
+        <div className="flex gap-1.5">
+          <input
+            autoFocus
+            className="inp"
+            defaultValue={value || ""}
+            placeholder="Type a new name"
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <button type="button" onClick={() => setAdding(false)} className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap">Done</button>
+        </div>
+      ) : (
+        <div className="flex gap-1.5">
+          <select className="inp" value={value || ""} onChange={(e) => onChange(e.target.value)}>
             <option value="">{list.length ? "—" : "No options"}</option>
             {list.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
-        : <V>{value}</V>}
+          <button type="button" onClick={() => setAdding(true)} title="Add a name that doesn't exist yet" className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap">+ New</button>
+        </div>
+      )}
     </div>
   );
 }

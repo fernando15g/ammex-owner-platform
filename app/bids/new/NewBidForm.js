@@ -19,6 +19,7 @@ const DEFAULTS = {
 };
 
 export default function NewBidForm() {
+  const [addingDetailer, setAddingDetailer] = useState(false);
   const [form, setForm] = useState({
     projectName: "", gc: [], fabricator: [], projectType: [],
     cityCounty: "", detailer: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
@@ -174,10 +175,20 @@ export default function NewBidForm() {
         <ChipSelect label="Project type" items={form.projectType} options={options["Project Type"] || []} onChange={(v) => set("projectType", v)} />
         <Field label="City / County"><input className="inp" value={form.cityCounty} onChange={(e) => set("cityCounty", e.target.value)} placeholder="Phoenix" /></Field>
           <Field label="Detailer">
-            <select className="inp" value={form.detailer} onChange={(e) => set("detailer", e.target.value)}>
-              <option value="">—</option>
-              {(options["Detailer"] || []).map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
+            {addingDetailer ? (
+              <div className="flex gap-1.5">
+                <input autoFocus className="inp" value={form.detailer} placeholder="Type a new name" onChange={(e) => set("detailer", e.target.value)} />
+                <button type="button" onClick={() => setAddingDetailer(false)} className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap">Done</button>
+              </div>
+            ) : (
+              <div className="flex gap-1.5">
+                <select className="inp" value={form.detailer} onChange={(e) => set("detailer", e.target.value)}>
+                  <option value="">—</option>
+                  {(options["Detailer"] || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <button type="button" onClick={() => setAddingDetailer(true)} title="Add a name that doesn't exist yet" className="text-xs px-2.5 rounded border border-line text-rebar hover:text-concrete whitespace-nowrap">+ New</button>
+              </div>
+            )}
           </Field>
 
         <div className="pt-2"><SectionTitle>Numbers <span className="text-rebar font-normal text-xs">— blue fields drive economics; defaults pre-filled</span></SectionTitle></div>
