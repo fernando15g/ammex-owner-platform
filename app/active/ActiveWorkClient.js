@@ -145,7 +145,7 @@ export default function ActiveWorkClient({ data }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-                <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+                <SortHeader label="Project" sortKey="projectId" sort={sort} toggle={toggle} className="px-4" info="Click to sort by project ID (26-08, 26-09, 26-10 …)." />
                 <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
                 <SortHeader label="Complete" sortKey="placedFraction" sort={sort} toggle={toggle} align="right" />
                 <SortHeader label="Forecast" sortKey="forecastLbsPerMH" sort={sort} toggle={toggle} align="right" className="px-4" />

@@ -121,7 +121,7 @@ export default function BillingOverviewClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <SortHeader label="Project" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Project" sortKey="projectId" sort={sort} toggle={toggle} className="px-4" info="Click to sort by project ID." />
               <SortHeader label="Contract" sortKey="billing.revisedContract" sort={sort} toggle={toggle} align="right" className="hidden md:table-cell" />
               <SortHeader label="Billed" sortKey="billing.billedToDate" sort={sort} toggle={toggle} align="right" />
               <SortHeader label="Owed" sortKey="billing.outstanding" sort={sort} toggle={toggle} align="right" />

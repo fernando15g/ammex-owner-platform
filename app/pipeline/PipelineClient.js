@@ -318,7 +318,7 @@ function BidRow({ r }) {
   return (
     <tr className="border-t border-line hover:bg-graphite/60">
       <td className="px-4 py-3 cursor-pointer max-w-0" onClick={go}>
-        <div className="font-medium text-concrete truncate">{r.name || "—"}</div>
+        <div className="font-medium text-concrete truncate">{r.name || "—"}{r.project?.projectId ? <span className="text-rebar font-normal ml-1.5">{r.project.projectId}</span> : null}</div>
         <div className="text-xs text-rebar mt-0.5">{r.gc?.length ? r.gc.join(", ") : "no GC"}{r.cityCounty ? ` · ${r.cityCounty}` : ""}</div>
       </td>
       <td className="px-3 py-3 hidden sm:table-cell whitespace-nowrap text-center">

@@ -61,7 +61,7 @@ export default function BookClient({ data }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-graphite text-rebar text-[11px] uppercase tracking-wider">
-              <SortHeader label="Job" sortKey="name" sort={sort} toggle={toggle} className="px-4" />
+              <SortHeader label="Job" sortKey="projectId" sort={sort} toggle={toggle} className="px-4" info="Click to sort by project ID." />
               <SortHeader label="Status" sortKey="status" sort={sort} toggle={toggle} className="hidden sm:table-cell" />
               <SortHeader label="Contract" sortKey="contract" sort={sort} toggle={toggle} align="right" info="Revised contract value (incl. approved change orders); the bid's contract value until billing is set up." />
               <SortHeader label="Expected profit" sortKey="operatingProfit" sort={sort} toggle={toggle} align="right" info="Profit and margin the job was BID to make — the forecast, not today\u2019s realized number. See Performance for how a job is actually tracking." />

@@ -13,7 +13,7 @@ import IdentityGate from "@/app/components/IdentityGate";
 const NAV = [
   { key: "home", label: "Home", href: "/home", ready: true },
   { key: "pipeline", label: "Bids", href: "/pipeline", ready: true },
-  { key: "active", label: "Active Work", href: "/active", ready: true },
+  { key: "active", label: "Active Projects", href: "/active", ready: true },
   { key: "billing", label: "Billing", href: "/billing", ready: true },
   { key: "performance", label: "Performance", href: "/performance", ready: true },
   { key: "book", label: "The Book", href: "/book", ready: true },
