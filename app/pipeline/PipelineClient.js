@@ -340,8 +340,8 @@ function BidRow({ r }) {
             disabled={busy}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) => changeStatus(e.target.value)}
-            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2.5 pr-5 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
-            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.4rem center" }}
+            className="bg-steel border border-line rounded-full text-xs text-concrete/80 pl-2.5 pr-6 py-0.5 cursor-pointer hover:border-rebar focus:outline-none focus:border-rebar disabled:opacity-50 appearance-none"
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23e8e8e8' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 0.45rem center", backgroundSize: "14px" }}
           >
             {ALL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
