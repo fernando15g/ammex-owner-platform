@@ -45,6 +45,7 @@ export async function POST(req, { params }) {
         quantity: qty,
         unit,
         unitPrice: Number(ln.unitPrice) || 0,
+        specialtyType: ln.type,   // EXPLICIT stamp — the read side trusts this, never the unit
         productivity: ln.productivity != null && ln.productivity !== "" ? Number(ln.productivity) : null,
         lineType: "Standard",
         status: "Proposed",
