@@ -168,7 +168,9 @@ export default function ProjectForm({
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
       if (modal) { setBusy(false); onSaved?.(); return; }
-      if (isNew) { window.location.href = `/billing/${d.id}`; return; }
+      // After creating a project, land on the PROJECT page (its details), not
+      // billing — you've just made it and want to see/finish the project itself.
+      if (isNew) { window.location.href = `/projects/${d.id}`; return; }
       // Editing an existing project: don't hard-reload to the same form (which
       // looks like nothing happened). Confirm the save in place and soft-refresh
       // the server data behind it.
