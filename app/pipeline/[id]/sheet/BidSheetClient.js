@@ -11,7 +11,7 @@ import ProposalButton from "@/app/pipeline/ProposalButton";
 // auto-computes; TOTAL at the bottom. Lines save as "Proposed".
 // =============================================================================
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
@@ -32,6 +32,25 @@ const blankRow = () => ({ id: null, itemNo: "", description: "", quantity: "", u
 // value; kept as a STRING so the field still shows what the user has and an
 // in-progress entry like "0." or "-" isn't clobbered mid-type.
 const NUMERIC_COLS = new Set(["quantity", "unitPrice"]);
+
+// Units: type-to-match against known units (case-insensitive), so "lbs" resolves
+// to "LBS" instead of breeding a duplicate. Genuinely new units are added
+// DELIBERATELY via the reconcile bar, never silently by typing. Mappings you
+// define ("sq ft" means "SF") are remembered per browser so a bulk paste from
+// the same Excel sheet auto-corrects next time.
+const UNIT_MAP_KEY = "ammex-unit-map";
+const loadUnitMap = () => {
+  try { return JSON.parse(localStorage.getItem(UNIT_MAP_KEY) || "{}"); } catch { return {}; }
+};
+const saveUnitMap = (m) => { try { localStorage.setItem(UNIT_MAP_KEY, JSON.stringify(m)); } catch {} };
+const canonUnit = (v, known, map) => {
+  const t = String(v || "").trim();
+  if (!t) return "";
+  const mapped = map[t.toLowerCase()];
+  if (mapped) return mapped;
+  const hit = known.find((k) => k.toLowerCase() === t.toLowerCase());
+  return hit || t; // unknown stays as typed (flagged in the reconcile bar)
+};
 const cleanNumStr = (v) => {
   if (typeof v !== "string") return v;
   const stripped = v.replace(/[$,\s]/g, "");
@@ -51,6 +70,28 @@ export default function BidSheetClient({ data, linkedProject = null }) {
       : [blankRow(), blankRow(), blankRow()]
   );
   const [state, setState] = useState({ saving: false, saved: false, error: null });
+  const [extraUnits, setExtraUnits] = useState([]);           // deliberately-added new units (this session)
+  const [unitMap, setUnitMap] = useState(loadUnitMap);         // your remembered "means" mappings
+  const knownUnits = useMemo(() => {
+    const fromItems = (items || []).map((li) => li.unit).filter(Boolean);
+    return [...new Set([...UNIT_OPTIONS, ...fromItems, ...extraUnits])];
+  }, [items, extraUnits]);
+  // distinct units currently on the sheet that aren't known — drive the reconcile bar
+  const unknownUnits = useMemo(() => {
+    const seen = new Set();
+    for (const r of rows) {
+      const u = String(r.unit || "").trim();
+      if (u && !knownUnits.some((k) => k.toLowerCase() === u.toLowerCase())) seen.add(u);
+    }
+    return [...seen];
+  }, [rows, knownUnits]);
+  const resolveUnknown = (raw, target) => {
+    // target = a known unit to map to, or "__new__" to add raw as a new unit
+    if (target === "__new__") { setExtraUnits((xs) => [...new Set([...xs, raw])]); return; }
+    setRows((rs) => rs.map((r) => (String(r.unit || "").trim().toLowerCase() === raw.toLowerCase() ? { ...r, unit: target, _dirty: true } : r)));
+    const next = { ...unitMap, [raw.toLowerCase()]: target };
+    setUnitMap(next); saveUnitMap(next);
+  };
   const [editing, setEditing] = useState(items.length === 0); // no sheet yet -> straight to entry
   const tableRef = useRef(null);
 
@@ -131,6 +172,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
           if (!col) return;
           if (col === "furnInst") { updated[col] = FURN_OPTIONS.includes(v.trim()) ? v.trim() : updated.furnInst; }
           else if (NUMERIC_COLS.has(col)) { updated[col] = cleanNumStr(v.trim()); }
+          else if (col === "unit") { updated[col] = canonUnit(v, knownUnits, unitMap); }
           else { updated[col] = v.trim(); }
         });
         next[r] = updated;
@@ -223,6 +265,33 @@ export default function BidSheetClient({ data, linkedProject = null }) {
 
       {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80 mb-4">Couldn&apos;t save: {state.error}</div>}
 
+      <datalist id="unit-options">{knownUnits.map((u) => <option key={u} value={u} />)}</datalist>
+
+      {/* Unrecognized units after a paste or typo: decide once, in bulk — map each
+          to an existing unit (remembered for future pastes) or add it as new. */}
+      {editing && unknownUnits.length > 0 && (
+        <div className="rounded-lg border border-warn/50 bg-warn/10 p-3 mb-4 text-sm">
+          <div className="text-concrete/90 font-medium mb-2">Unrecognized unit{unknownUnits.length > 1 ? "s" : ""}: decide what to do with each</div>
+          <div className="space-y-1.5">
+            {unknownUnits.map((u) => (
+              <div key={u} className="flex items-center gap-2">
+                <span className="text-warn font-medium w-24 truncate">&ldquo;{u}&rdquo;</span>
+                <select
+                  className="inp-sm"
+                  defaultValue=""
+                  onChange={(e) => { if (e.target.value) resolveUnknown(u, e.target.value); }}
+                >
+                  <option value="" disabled>Choose…</option>
+                  {knownUnits.map((k) => <option key={k} value={k}>Map to {k}</option>)}
+                  <option value="__new__">➕ Add &ldquo;{u}&rdquo; as a new unit</option>
+                </select>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-rebar mt-2">Mapping is remembered — next time you paste a sheet using that wording, it corrects automatically.</div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-line overflow-x-auto" ref={tableRef}>
         <table className="w-full text-sm" style={{ minWidth: 780 }}>
           <thead>
@@ -270,9 +339,15 @@ export default function BidSheetClient({ data, linkedProject = null }) {
                 <td className="px-1.5 py-1"><input data-r={i} data-c={1} onKeyDown={(e) => onKeyDown(e, i, 1)} onPaste={(e) => onPaste(e, i, 1)} className="cell" value={r.description} onChange={(e) => setCell(i, "description", e.target.value)} placeholder="Bridge Deck" /></td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={2} onKeyDown={(e) => onKeyDown(e, i, 2)} onPaste={(e) => onPaste(e, i, 2)} type="text" inputMode="decimal" className="cell text-right" value={r.quantity} onChange={(e) => setCell(i, "quantity", e.target.value)} placeholder="0" /></td>
                 <td className="px-1.5 py-1">
-                  <select data-r={i} data-c={3} onKeyDown={(e) => onKeyDown(e, i, 3)} className="cell" value={UNIT_OPTIONS.includes((r.unit || "").toUpperCase()) ? (r.unit || "").toUpperCase() : "LBS"} onChange={(e) => setCell(i, "unit", e.target.value)}>
-                    {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  <input
+                    data-r={i} data-c={3} list="unit-options"
+                    onKeyDown={(e) => onKeyDown(e, i, 3)} onPaste={(e) => onPaste(e, i, 3)}
+                    className={`cell ${r.unit && !knownUnits.some((k) => k.toLowerCase() === String(r.unit).trim().toLowerCase()) ? "border border-warn/60" : ""}`}
+                    value={r.unit}
+                    onChange={(e) => setCell(i, "unit", e.target.value)}
+                    onBlur={(e) => setCell(i, "unit", canonUnit(e.target.value, knownUnits, unitMap))}
+                    placeholder="LBS"
+                  />
                 </td>
                 <td className="px-1.5 py-1"><input data-r={i} data-c={4} onKeyDown={(e) => onKeyDown(e, i, 4)} onPaste={(e) => onPaste(e, i, 4)} type="text" inputMode="decimal" className="cell text-right" value={r.unitPrice} onChange={(e) => setCell(i, "unitPrice", e.target.value)} placeholder="0.30" /></td>
                 <td className="px-3 py-1 text-right tabular-nums text-concrete/80">{money(ext(r))}</td>
