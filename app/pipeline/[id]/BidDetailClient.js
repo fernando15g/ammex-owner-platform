@@ -11,6 +11,7 @@ import { confirmDialog } from "@/app/components/Dialog";
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { fmtDateLocal } from "@/lib/format/dates";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import ProposalButton from "@/app/pipeline/ProposalButton";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
@@ -403,7 +404,7 @@ function FNum({ label, edit, value, onChange, step, placeholder, hint }) {
   return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /> : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}</div>);
 }
 function FDate({ label, edit, value, onChange }) {
-  return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value ? new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}</V>}</div>);
+  return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{fmtDateLocal(value)}</V>}</div>);
 }
 function FSelectOpt({ label, edit, value, options = [], onChange }) {
   // Single-select from the real Notion options (blank allowed), with a "+ New"

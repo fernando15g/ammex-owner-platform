@@ -22,7 +22,8 @@ const money = (n) =>
 const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
 const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
 const num = (n, d = 0) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: d }) : "—");
-const dateStr = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—");
+import { fmtDateLocal } from "@/lib/format/dates";
+const dateStr = (s) => fmtDateLocal(s);
 
 const SEV = {
   danger: { dot: "bg-danger", text: "text-danger", label: "Over pace" },

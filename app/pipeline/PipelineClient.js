@@ -15,7 +15,8 @@ const lbsStr = (lbs) => (typeof lbs === "number" ? `${Math.round(lbs).toLocaleSt
 const tonsStr = (t) => (typeof t === "number" ? `${Math.round(t).toLocaleString()} tons` : "—");
 const money = (n) => (typeof n !== "number" ? "—" : Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `$${Math.round(n / 1e3)}k` : `$${Math.round(n)}`);
 const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
-const dateStr = (s) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—");
+import { fmtDateLocal } from "@/lib/format/dates";
+const dateStr = (s) => fmtDateLocal(s, { month: "short", day: "numeric" });
 
 // newest submission first; not-yet-submitted (null) sinks to the bottom
 const bySubmittedDesc = (a, b) => {
