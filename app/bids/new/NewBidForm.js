@@ -132,7 +132,12 @@ export default function NewBidForm() {
           return { type: r.type, qty: Number(src.hours) || 0, unitPrice: Number(src.ratePerHour) || 0, productivity: "" };
         }).filter((x) => x.qty > 0) : [];
         if (specPayload.length) {
-          await fetch(`/api/bids/${data.id}/specialty`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: specPayload }) });
+          // The bid exists but its specialty lines are their own save — if THIS
+          // fails, say so loudly instead of silently dropping the specialty
+          // (which is exactly what used to happen).
+          const sres = await fetch(`/api/bids/${data.id}/specialty`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: specPayload }) });
+          const sdata = await sres.json().catch(() => ({}));
+          if (!sdata.ok) throw new Error(`Bid created, but specialty lines did NOT save: ${sdata.error || "unknown error"}. Open the bid and re-save its specialty scope.`);
         }
       }
       setState({ saving: false, result: data, error: null });

@@ -227,9 +227,11 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         if (r.type === "Mesh") return { type: r.type, qty: Number(src.sqft) || 0, unitPrice: (Number(src.rateCentsPerSqft) || 0) / 100, productivity: src.prodSqftPerMH };
         return { type: r.type, qty: Number(src.hours) || 0, unitPrice: Number(src.ratePerHour) || 0, productivity: "" };
       }).filter((x) => x.qty > 0) : [];
-      await fetch(`/api/bids/${bid.id}/specialty`, {
+      const sres = await fetch(`/api/bids/${bid.id}/specialty`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: specPayload }),
       });
+      const sdata = await sres.json().catch(() => ({}));
+      if (!sdata.ok) throw new Error(`Specialty lines did not save: ${sdata.error || "unknown error"}`);
       changes.specialtyTypes = specialtyOn ? [...new Set(specRollup.rows.map((r) => r.type))] : [];
 
       // 2) save the bid + its combined rollup
