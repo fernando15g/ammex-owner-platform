@@ -240,12 +240,16 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       });
       const data = await res.json();
       if (!data.ok) throw new Error(data.error || "Save failed");
+      // Notion is eventually consistent (~1s write-to-read lag). If we drop to
+      // view mode immediately, it repaints with the OLD props and looks like the
+      // save didn't take (e.g. the date reverting). So: stay in a "Saving…" state,
+      // wait out the lag, refresh server data, and only THEN show view mode — so
+      // the value you see is always the value that saved. (Instant on Postgres.)
+      await new Promise((r) => setTimeout(r, 1400));
+      router.refresh();
+      await new Promise((r) => setTimeout(r, 300));
       setState({ saving: false, saved: true, error: null });
       setEditing(false);
-      // re-fetch server data in place (Notion is eventually consistent — give it
-      // a beat). Keeps the page canonical instead of optimistic. Same pattern as
-      // the Performance modal; gets faster post-Postgres.
-      setTimeout(() => router.refresh(), 900);
     } catch (e) {
       setState({ saving: false, saved: false, error: String(e.message || e) });
     }
