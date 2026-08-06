@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#0d1117"/>
+  <!-- alien head: classic inverted teardrop, slightly wider -->
+  <path d="M32 7
+           C17 7 10 18 10 30
+           c0 12 9 20 22 27
+           c13 -7 22 -15 22 -27
+           C54 18 47 7 32 7 Z"
+        fill="#4ade80" stroke="#22c55e" stroke-width="1.5"/>
+  <!-- big slanted almond eyes -->
+  <path d="M17 26 Q26 24 29 31 Q22 34 17 31 Z" fill="#0d1117"/>
+  <path d="M47 26 Q38 24 35 31 Q42 34 47 31 Z" fill="#0d1117"/>
+</svg>
