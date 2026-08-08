@@ -35,6 +35,7 @@ const ALERT_META = {
 
 export default function HomeClient({ data }) {
   const { tiles, analytics } = data;
+  const capacity = data.capacity;
   const [alerts, setAlerts] = useState(data.alerts);
   const [open, setOpen] = useState({}); // alertId -> bool
   const [modal, setModal] = useState(null); // { alertId, item }
@@ -108,6 +109,8 @@ export default function HomeClient({ data }) {
       </div>
       <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} excluded={analytics.foremanExclusionSummary} /></Card>
       <Card title="The Book · contract by stage"><BookByStage stages={analytics.bookStages} /></Card>
+
+      {capacity && <CapacityZone capacity={capacity} />}
 
       {modal && (
         <Modal alert={alerts.find((a) => a.id === modal.alertId)} item={modal.item} onClose={() => setModal(null)} onResolve={resolve} />
@@ -479,6 +482,99 @@ function ForemanScorecard({ foremen, excluded = null }) {
       })}
       <p className="text-[10px] text-rebar pt-1">White line = bid target · color = beating / on / behind bid.</p>
       {exclusionNote}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CAPACITY ZONE — honest crew utilization from timesheets. Answers "am I
+// overcommitted / do I need to hire" at a glance. Everything is shown so the
+// number is auditable, never a black box.
+function CapacityZone({ capacity }) {
+  const [win, setWin] = useState("4wk");
+  const u = capacity.utilByWindow[win] || {};
+  const pct = typeof u.utilization === "number" ? u.utilization : null;
+  const deployed = typeof u.crewDeployed === "number" ? u.crewDeployed : null;
+  const free = typeof u.crewFree === "number" ? u.crewFree : null;
+  const head = u.headcount || capacity.breakdown?.total || 0;
+
+  // color: green comfy, amber getting full, red over
+  const tone = pct == null ? "rebar" : pct >= 1 ? "danger" : pct >= 0.85 ? "warn" : "ok";
+  const toneClass = tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : tone === "ok" ? "text-ok" : "text-concrete";
+  const barColor = tone === "danger" ? "var(--danger)" : tone === "warn" ? "var(--warn)" : "var(--ok)";
+  const fillPct = pct == null ? 0 : Math.min(pct * 100, 100);
+  const over = pct != null && pct > 1;
+
+  const incoming = capacity.incoming || {};
+  const bd = capacity.breakdown || {};
+
+  return (
+    <Card title="Capacity · crew utilization">
+      {/* window toggle */}
+      <div className="flex gap-1.5 mb-4">
+        {capacity.windows.map((w) => (
+          <button
+            key={w.key}
+            onClick={() => setWin(w.key)}
+            className={`text-xs px-2.5 py-1 rounded-full border ${win === w.key ? "border-rebar/60 text-concrete bg-graphite" : "border-line text-rebar hover:text-concrete"}`}
+          >
+            {w.key === "4wk" ? "4 weeks" : w.key === "3mo" ? "3 months" : "6 months"}
+          </button>
+        ))}
+      </div>
+
+      {/* headline */}
+      <div className="mb-1">
+        <span className={`text-2xl font-semibold ${toneClass}`}>
+          {deployed != null ? `~${deployed.toFixed(0)}` : "—"}
+        </span>
+        <span className="text-lg text-rebar"> of {head} crew deployed</span>
+      </div>
+      <div className="text-sm text-rebar mb-3">
+        {free == null ? "—" : over
+          ? <span className="text-danger">Overcommitted by ~{Math.abs(free).toFixed(0)} crew — at capacity</span>
+          : <>Room for <span className={toneClass}>~{free.toFixed(0)} more crew</span> of work{pct != null ? ` · ${(pct * 100).toFixed(0)}% utilized` : ""}</>}
+      </div>
+
+      {/* utilization bar */}
+      <div className="h-2.5 rounded-full bg-graphite overflow-hidden mb-1">
+        <div className="h-full rounded-full transition-all" style={{ width: `${fillPct}%`, background: barColor }} />
+      </div>
+      <div className="text-[11px] text-rebar mb-4">
+        {u.loggedHours != null && u.supplyHours != null
+          ? `${Math.round(u.loggedHours).toLocaleString()} hrs logged of ~${Math.round(u.supplyHours).toLocaleString()} available`
+          : ""}
+      </div>
+
+      {/* small tiles */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <MiniTile label="Field crew" value={head} sub={`${bd.rodbusters || 0} rod · ${bd.foremen || 0} fore`} />
+        <MiniTile label="Jobs worked" value={u.jobsWorked ?? "—"} sub={`of ${capacity.activeJobCount} active`} />
+        <MiniTile label="Realized hrs/day" value={capacity.realizedHoursPerDay?.toFixed(1) ?? "—"} sub="from timesheets" />
+        <MiniTile
+          label="Incoming pressure"
+          value={incoming.crewNeeded != null ? `~${incoming.crewNeeded.toFixed(0)}` : "—"}
+          sub={`crew · next ${Math.round((incoming.horizonWeeks || 13) / 4.33)}mo`}
+          tone={incoming.crewNeeded != null && free != null && incoming.crewNeeded > free ? "warn" : undefined}
+        />
+      </div>
+
+      {/* the honest footnote: show the math */}
+      <div className="text-[11px] text-rebar mt-3 leading-relaxed">
+        {head} crew × {capacity.realizedHoursPerDay?.toFixed(1)} hrs/day × 5 days × {u.windowWeeks} wks = available.
+        Demand is hours actually logged to jobs (not job status). Incoming = backlog + weighted pipeline spread over ~duration (rough estimate).
+      </div>
+    </Card>
+  );
+}
+
+function MiniTile({ label, value, sub, tone }) {
+  const vc = tone === "warn" ? "text-warn" : tone === "danger" ? "text-danger" : "text-concrete";
+  return (
+    <div className="rounded-lg border border-line px-3 py-2.5" style={{ background: "var(--surface-2)" }}>
+      <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">{label}</div>
+      <div className={`text-lg font-semibold ${vc}`}>{value}</div>
+      {sub && <div className="text-[10px] text-rebar mt-0.5">{sub}</div>}
     </div>
   );
 }
