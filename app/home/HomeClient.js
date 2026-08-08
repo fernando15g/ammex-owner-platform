@@ -529,6 +529,7 @@ function CapacityZone({ capacity }) {
           {deployed != null ? `~${deployed.toFixed(0)}` : "—"}
         </span>
         <span className="text-lg text-rebar"> of {head} crew deployed</span>
+        <span className="text-xs text-rebar ml-2">avg over {win === "4wk" ? "4 weeks" : win === "3mo" ? "3 months" : "6 months"}</span>
       </div>
       <div className="text-sm text-rebar mb-3">
         {free == null ? "—" : over
