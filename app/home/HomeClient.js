@@ -538,8 +538,7 @@ function CapacityZone({ capacity }) {
             className="h-full transition-all"
             style={{
               width: `${Math.min(backlogPct, 100 - fillPct + 40)}%`,
-              background: `repeating-linear-gradient(45deg, var(--steel), var(--steel) 4px, transparent 4px, transparent 8px)`,
-              opacity: 0.9,
+              background: `repeating-linear-gradient(45deg, var(--warn) 0, var(--warn) 5px, rgba(180,120,40,0.35) 5px, rgba(180,120,40,0.35) 10px)`,
             }}
             title="backlog demand — won work waiting to start"
           />
@@ -550,7 +549,7 @@ function CapacityZone({ capacity }) {
       {/* legend + projection */}
       <div className="flex items-center gap-3 text-[11px] text-rebar mb-1">
         <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: st.bar }} /> working now</span>
-        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "repeating-linear-gradient(45deg, var(--steel), var(--steel) 2px, transparent 2px, transparent 4px)" }} /> backlog waiting</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm border border-warn/40" style={{ background: "repeating-linear-gradient(45deg, var(--warn) 0, var(--warn) 2px, rgba(180,120,40,0.35) 2px, rgba(180,120,40,0.35) 4px)" }} /> backlog waiting</span>
         <span className="inline-flex items-center gap-1"><span className="w-px h-3 bg-concrete" /> 85% ceiling</span>
       </div>
       <div className={`text-sm mb-4 ${wouldOverbook ? "text-warn" : "text-rebar"}`}>
