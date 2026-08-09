@@ -11,6 +11,7 @@ import { confirmDialog } from "@/app/components/Dialog";
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import ManageOptions from "@/app/components/ManageOptions";
 import { fmtDateLocal } from "@/lib/format/dates";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import ProposalButton from "@/app/pipeline/ProposalButton";
@@ -27,6 +28,13 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   const [w0, setW0] = useState(null);   // pristine copy, to detect real changes
   const [options, setOptions] = useState({});   // the real Notion option lists
 
+  const reloadOptions = async () => {
+    try {
+      const res = await fetch("/api/notion-options?db=bids");
+      const d = await res.json();
+      if (d.ok) setOptions(d.options || {});
+    } catch {}
+  };
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -296,10 +304,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FDate label="Submitted" edit={editing} value={w.submissionDate} onChange={(v) => set("submissionDate", v)} />
             <FDate label="Bid due date" edit={editing} value={w.bidDueDate} onChange={(v) => set("bidDueDate", v)} />
             <F label="City / County" edit={editing} value={w.cityCounty} onChange={(v) => set("cityCounty", v)} />
-            <FSelectOpt label="Detailer" edit={editing} value={w.detailer} options={options["Detailer"]} onChange={(v) => set("detailer", v)} />
-            <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} options={options["GC"]} />
-            <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} options={options["Fabricator"]} />
-            <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} options={options["Project Type"]} />
+            <FSelectOpt label="Detailer" edit={editing} value={w.detailer} options={options["Detailer"]} onChange={(v) => set("detailer", v)} manageProp="Detailer" onOptionsChanged={reloadOptions} />
+            <FChips label="GC" edit={editing} items={w.gc} onChange={(v) => set("gc", v)} options={options["GC"]} manageProp="GC" onOptionsChanged={reloadOptions} />
+            <FChips label="Fabricator" edit={editing} items={w.fabricator} onChange={(v) => set("fabricator", v)} options={options["Fabricator"]} manageProp="Fabricator" onOptionsChanged={reloadOptions} />
+            <FChips label="Project type" edit={editing} items={w.projectType} onChange={(v) => set("projectType", v)} options={options["Project Type"]} manageProp="Project Type" onOptionsChanged={reloadOptions} />
           </Grid>
           <FArea label="Scope" edit={editing} value={w.scope} onChange={(v) => set("scope", v)} />
           <FArea label="Notes" edit={editing} value={w.notes} onChange={(v) => set("notes", v)} />
@@ -406,7 +414,7 @@ function FNum({ label, edit, value, onChange, step, placeholder, hint }) {
 function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{fmtDateLocal(value)}</V>}</div>);
 }
-function FSelectOpt({ label, edit, value, options = [], onChange }) {
+function FSelectOpt({ label, edit, value, options = [], onChange, manageProp, onOptionsChanged }) {
   // Single-select from the real Notion options (blank allowed), with a "+ New"
   // to type a name that isn't in the list yet. The field is a Notion Select, so
   // writing a new value auto-creates the option on save (selects auto-create).
@@ -418,7 +426,7 @@ function FSelectOpt({ label, edit, value, options = [], onChange }) {
   const list = value && !base.includes(value) ? [...base, value] : base;
   if (!edit) return <div><L>{label}</L><V>{value}</V></div>;
   return (
-    <div><L>{label}</L>
+    <div><L>{label}{manageProp && <ManageOptions prop={manageProp} onChanged={onOptionsChanged} />}</L>
       {adding ? (
         <div className="flex gap-1.5">
           <input
@@ -452,7 +460,7 @@ function FArea({ label, edit, value, onChange }) {
 // Pick from the options that actually exist in Notion. Adding a genuinely new
 // one is still possible — but it's a deliberate act, not a typo. (Notion creates
 // the option on write, which is exactly why free text was breeding duplicates.)
-function FChips({ label, edit, items, onChange, options = [] }) {
+function FChips({ label, edit, items, onChange, options = [], manageProp, onOptionsChanged }) {
   const [adding, setAdding] = useState(false);
   const available = (options || []).filter((o) => !items.includes(o));
 
@@ -469,7 +477,7 @@ function FChips({ label, edit, items, onChange, options = [] }) {
 
   return (
     <div>
-      <L>{label}</L>
+      <L>{label}{edit && manageProp && <ManageOptions prop={manageProp} onChanged={onOptionsChanged} />}</L>
       {items.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {items.map((it, i) => (

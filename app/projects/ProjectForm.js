@@ -75,6 +75,15 @@ export default function ProjectForm({
     notes: project?.notes || "",
   });
   const [options, setOptions] = useState({});
+  const reloadOptions = async () => {
+    try {
+      const [p2, b2] = await Promise.all([
+        fetch("/api/notion-options?db=projects").then((r) => r.json()),
+        fetch("/api/notion-options?db=bids").then((r) => r.json()),
+      ]);
+      setOptions({ Foreman: p2?.options?.Foreman || [], GC: b2?.options?.GC || [] });
+    } catch {}
+  };
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -380,6 +389,8 @@ export default function ProjectForm({
               items={f.gc}
               options={options.GC || []}
               onChange={(v) => setF({ ...f, gc: v })}
+              manageProp="GC"
+              onOptionsChanged={reloadOptions}
               hint={f.relatedBidId ? "Recorded on the bid, so the job's GC lives in one place." : "Attach a bid first — the GC is stored on it."}
             />
           </div>
@@ -392,7 +403,7 @@ export default function ProjectForm({
                 <span className="text-xs text-rebar mb-1 block">Start date</span>
                 <input type="date" className="inp inp-date" value={f.actualStartDate} onChange={(e) => setF({ ...f, actualStartDate: e.target.value })} />
               </label>
-              <ChipSelect label="Foreman" items={f.foreman} options={options.Foreman || []} onChange={(v) => setF({ ...f, foreman: v })} />
+              <ChipSelect label="Foreman" items={f.foreman} options={options.Foreman || []} onChange={(v) => setF({ ...f, foreman: v })} manageProp="Foreman" onOptionsChanged={reloadOptions} />
             </>
           )}
         </div>

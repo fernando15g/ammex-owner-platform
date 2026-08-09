@@ -13,8 +13,9 @@
 // =============================================================================
 
 import { useState } from "react";
+import ManageOptions from "@/app/components/ManageOptions";
 
-export default function ChipSelect({ label, items = [], options = [], onChange, hint }) {
+export default function ChipSelect({ label, items = [], options = [], onChange, hint, manageProp, onOptionsChanged }) {
   const [adding, setAdding] = useState(false);
   const available = (options || []).filter((o) => !items.includes(o));
 
@@ -31,7 +32,7 @@ export default function ChipSelect({ label, items = [], options = [], onChange, 
 
   return (
     <div>
-      {label && <span className="text-xs text-rebar mb-1 block">{label}</span>}
+      {label && <span className="text-xs text-rebar mb-1 block">{label}{manageProp && <ManageOptions prop={manageProp} onChanged={onOptionsChanged} />}</span>}
 
       {items.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-1.5">

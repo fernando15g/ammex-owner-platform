@@ -20,7 +20,7 @@ import ProjectForm from "@/app/projects/ProjectForm";
 export default function ProjectEditModal({ projectId, onClose }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
-  const [locked, setLocked] = useState(true);
+  const [locked, setLocked] = useState(false); // opened from an explicit "Edit" click — start editing
   const [footerSlot, setFooterSlot] = useState(null);
 
   useEffect(() => {

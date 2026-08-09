@@ -12,6 +12,7 @@ import ProposalButton from "@/app/pipeline/ProposalButton";
 // =============================================================================
 
 import { useState, useRef, useMemo } from "react";
+import ManageOptions from "@/app/components/ManageOptions";
 
 const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
@@ -299,7 +300,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
               <th className="text-left font-medium px-3 py-2.5 w-24">Item No.</th>
               <th className="text-left font-medium px-3 py-2.5">Description</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Quantity</th>
-              <th className="text-left font-medium px-3 py-2.5 w-20">Unit</th>
+              <th className="text-left font-medium px-3 py-2.5 w-20">Unit<ManageOptions prop="Unit" /></th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Unit Price</th>
               <th className="text-right font-medium px-3 py-2.5 w-28">Extended</th>
               <th className="text-left font-medium px-3 py-2.5 w-36">

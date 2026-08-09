@@ -11,6 +11,7 @@ import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 import { computeSpecialtyRollup, SPECIALTY_TYPES, newSpecialtyLine } from "@/lib/rules/specialty";
 import ChipSelect from "@/app/components/ChipSelect";
+import ManageOptions from "@/app/components/ManageOptions";
 
 const DEFAULTS = {
   productivity: "200", baseWage: "32", crewSize: "",
@@ -33,6 +34,13 @@ export default function NewBidForm() {
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [state, setState] = useState({ saving: false, result: null, error: null });
   const [options, setOptions] = useState({});
+  const reloadOptions = async () => {
+    try {
+      const res = await fetch("/api/notion-options?db=bids");
+      const d = await res.json();
+      if (d.ok) setOptions(d.options || {});
+    } catch {}
+  };
 
   // The real option lists from Notion. Free text silently created a NEW option
   // for every typo — "CMC", "cmc" and "C.M.C." became three fabricators.
@@ -175,11 +183,11 @@ export default function NewBidForm() {
           <Field label="Submitted"><input type="date" className="inp" value={form.submissionDate} onChange={(e) => set("submissionDate", e.target.value)} /></Field>
           <Field label="Bid due date"><input type="date" className="inp" value={form.bidDueDate} onChange={(e) => set("bidDueDate", e.target.value)} /></Field>
         </div>
-        <ChipSelect label="GC" items={form.gc} options={options["GC"] || []} onChange={(v) => set("gc", v)} />
-        <ChipSelect label="Fabricator" items={form.fabricator} options={options["Fabricator"] || []} onChange={(v) => set("fabricator", v)} />
-        <ChipSelect label="Project type" items={form.projectType} options={options["Project Type"] || []} onChange={(v) => set("projectType", v)} />
+        <ChipSelect label="GC" items={form.gc} options={options["GC"] || []} onChange={(v) => set("gc", v)} manageProp="GC" onOptionsChanged={reloadOptions} />
+        <ChipSelect label="Fabricator" items={form.fabricator} options={options["Fabricator"] || []} onChange={(v) => set("fabricator", v)} manageProp="Fabricator" onOptionsChanged={reloadOptions} />
+        <ChipSelect label="Project type" items={form.projectType} options={options["Project Type"] || []} onChange={(v) => set("projectType", v)} manageProp="Project Type" onOptionsChanged={reloadOptions} />
         <Field label="City / County"><input className="inp" value={form.cityCounty} onChange={(e) => set("cityCounty", e.target.value)} placeholder="Phoenix" /></Field>
-          <Field label="Detailer">
+          <Field label={<span>Detailer<ManageOptions prop="Detailer" onChanged={reloadOptions} /></span>}>
             {addingDetailer ? (
               <div className="flex gap-1.5">
                 <input autoFocus className="inp" value={form.detailer} placeholder="Type a new name" onChange={(e) => set("detailer", e.target.value)} />
