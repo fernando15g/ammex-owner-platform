@@ -472,7 +472,7 @@ function ForemanScorecard({ foremen, excluded = null }) {
             <span className="w-28 shrink-0 text-sm text-concrete truncate">{f.name}</span>
             <div className="flex-1 relative h-3.5 rounded bg-graphite min-w-0">
               <div className={`absolute left-0 top-0 h-3.5 rounded ${bar}`} style={{ width: `${((f.realized || 0) / max) * 100}%` }} />
-              {f.bid && <div className="absolute w-0.5 bg-concrete" style={{ left: `${(f.bid / max) * 100}%`, top: -2, height: 18 }} />}
+              {f.bid && <div className="absolute w-0.5 bg-white rounded-full" style={{ left: `${(f.bid / max) * 100}%`, top: -2, height: 18 }} />}
             </div>
             <span className="w-24 shrink-0 text-right text-sm tabular-nums text-concrete">{f.realized != null ? Math.round(f.realized) : "—"}<span className="text-[10px] text-rebar ml-1">lbs/MH</span></span>
             <span className={`w-14 shrink-0 text-right text-sm font-semibold tabular-nums ${tone}`}>{f.gap != null ? `${f.gap > 0 ? "+" : ""}${Math.round(f.gap * 100)}%` : "—"}</span>
@@ -662,12 +662,63 @@ function TimesheetCard({ ts }) {
       <div className="flex gap-2 mt-1">
         {days.map((_, i) => <div key={i} className="flex-1 text-center text-[10px] text-rebar">{DAYS[i]}</div>)}
       </div>
+      {ts.weekly && ts.weekly.length > 1 && <WeeklyVariance weekly={ts.weekly} />}
       {(ts.underReviewHours > 0 || ts.unassignedHours > 0) && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] border-t border-line mt-3 pt-2.5">
           {ts.underReviewHours > 0 && <span className="text-warn">{ts.underReviewHours} hrs awaiting your review</span>}
           {ts.unassignedHours > 0 && <span className="text-warn">{ts.unassignedHours} hrs not tied to a job</span>}
         </div>
       )}
+    </div>
+  );
+}
+
+// Week-over-week total-hours variance — a compact line graph under the by-day
+// bars. Toggle the window (2 wks / 1 mo / 3 mos). Uses the last N weeks of the
+// weekly series (index 0 oldest, last = current week).
+function WeeklyVariance({ weekly }) {
+  const OPTS = [{ k: "2w", label: "2 wks", n: 2 }, { k: "1m", label: "1 mo", n: 4 }, { k: "3m", label: "3 mos", n: 13 }];
+  const [win, setWin] = useState("1m");
+  const opt = OPTS.find((o) => o.k === win) || OPTS[1];
+  const series = weekly.slice(-opt.n);
+  const max = Math.max(1, ...series);
+  const min = Math.min(...series);
+
+  // build an SVG polyline in a fixed viewbox
+  const W = 300, H = 44, pad = 4;
+  const n = series.length;
+  const x = (i) => n <= 1 ? W / 2 : pad + (i * (W - pad * 2)) / (n - 1);
+  const y = (v) => H - pad - ((v - Math.min(min, 0)) / (max - Math.min(min, 0) || 1)) * (H - pad * 2);
+  const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const last = series[n - 1] ?? 0;
+  const prev = series[n - 2] ?? null;
+  const wow = prev != null && prev > 0 ? last / prev - 1 : null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-line">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] uppercase tracking-wider text-rebar/70">total hours · week over week</span>
+        <div className="flex gap-1">
+          {OPTS.map((o) => (
+            <button key={o.k} onClick={() => setWin(o.k)}
+              className={`text-[10px] px-1.5 py-0.5 rounded ${win === o.k ? "text-concrete bg-graphite" : "text-rebar hover:text-concrete"}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }} preserveAspectRatio="none">
+        <polyline points={pts} fill="none" stroke="#ff6a13" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        {series.map((v, i) => <circle key={i} cx={x(i)} cy={y(v)} r="2.5" fill="#ff6a13" />)}
+      </svg>
+      <div className="flex items-center justify-between mt-1 text-[11px]">
+        <span className="text-rebar tabular-nums">{series[0]?.toLocaleString()} → {last?.toLocaleString()} hrs</span>
+        {wow != null && (
+          <span className={wow >= 0 ? "text-ok" : "text-warn"}>
+            {wow >= 0 ? "\u25B2" : "\u25BC"} {Math.abs(Math.round(wow * 100))}% vs prior wk
+          </span>
+        )}
+      </div>
     </div>
   );
 }
