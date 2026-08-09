@@ -508,6 +508,14 @@ function CapacityZone({ capacity }) {
   const comfortMarkPct = (u.comfortCeiling || 0.85) * 100;
 
   const runway = capacity.committed?.runwayWeeks;
+  const backlogCrew = capacity.committed?.backlogCrewNearTerm ?? 0;
+  const backlogCrewAll = capacity.committed?.backlogCrewAll ?? 0;
+  const nearTermJobs = capacity.committed?.nearTermJobs ?? 0;
+  // projected utilization if the near-term backlog slice started on top of now
+  const projectedCrew = (used || 0) + backlogCrew;
+  const projectedPct = head > 0 ? projectedCrew / head : null;
+  const backlogPct = head > 0 ? (backlogCrew / head) * 100 : 0;
+  const wouldOverbook = projectedPct != null && projectedPct > (u.comfortCeiling || 0.85);
 
   return (
     <Card title="Capacity · are we busy, do we have room">
@@ -520,14 +528,39 @@ function CapacityZone({ capacity }) {
       </div>
       <div className="text-sm text-rebar mb-3">{room != null ? st.msg(room) : "—"}</div>
 
-      {/* utilization bar with a comfort-ceiling marker */}
-      <div className="relative h-3 rounded-full bg-graphite overflow-hidden mb-1">
-        <div className="h-full rounded-full transition-all" style={{ width: `${fillPct}%`, background: st.bar }} />
+      {/* stacked bar: current use (solid) + backlog demand (hatched) with ceiling line */}
+      <div className="relative h-3.5 rounded-full bg-graphite overflow-hidden mb-1 flex">
+        {/* current deployed */}
+        <div className="h-full transition-all" style={{ width: `${fillPct}%`, background: st.bar }} />
+        {/* backlog demand stacked on top, hatched so it reads as "not yet here" */}
+        {backlogPct > 0 && (
+          <div
+            className="h-full transition-all"
+            style={{
+              width: `${Math.min(backlogPct, 100 - fillPct + 40)}%`,
+              background: `repeating-linear-gradient(45deg, var(--steel), var(--steel) 4px, transparent 4px, transparent 8px)`,
+              opacity: 0.9,
+            }}
+            title="backlog demand — won work waiting to start"
+          />
+        )}
         {/* comfort ceiling line */}
-        <div className="absolute top-0 bottom-0 w-px bg-concrete/50" style={{ left: `${comfortMarkPct}%` }} title="comfortable ceiling (85%)" />
+        <div className="absolute top-0 bottom-0 w-0.5 bg-concrete z-10" style={{ left: `${comfortMarkPct}%` }} title="comfortable ceiling (85%)" />
       </div>
-      <div className="text-[11px] text-rebar mb-4">
-        {u.loggedHours != null ? `${Math.round(u.loggedHours).toLocaleString()} hrs worked of ~${Math.round(u.supplyHours).toLocaleString()} available · the line marks your comfortable ceiling (${Math.round((u.comfortCeiling||0.85)*100)}%)` : ""}
+      {/* legend + projection */}
+      <div className="flex items-center gap-3 text-[11px] text-rebar mb-1">
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: st.bar }} /> working now</span>
+        <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm" style={{ background: "repeating-linear-gradient(45deg, var(--steel), var(--steel) 2px, transparent 2px, transparent 4px)" }} /> backlog waiting</span>
+        <span className="inline-flex items-center gap-1"><span className="w-px h-3 bg-concrete" /> 85% ceiling</span>
+      </div>
+      <div className={`text-sm mb-4 ${wouldOverbook ? "text-warn" : "text-rebar"}`}>
+        {backlogCrew > 0.5 ? (
+          wouldOverbook
+            ? <>If your {nearTermJobs} biggest backlog jobs start, you'd need ~{projectedCrew.toFixed(0)} of {head} crew (~{Math.round(projectedPct * 100)}%) — <span className="text-warn font-medium">over your comfortable ceiling. Hire, or stagger their starts.</span> All {capacity.backlogCount} at once would need ~{(used + backlogCrewAll).toFixed(0)}.</>
+            : <>If your {nearTermJobs} biggest backlog jobs start, you'd be at ~{projectedCrew.toFixed(0)} of {head} crew (~{Math.round(projectedPct * 100)}%) — still within comfort. All {capacity.backlogCount} at once would need ~{(used + backlogCrewAll).toFixed(0)}.</>
+        ) : (
+          `${capacity.backlogCount} jobs in backlog — minimal added crew pressure.`
+        )}
       </div>
 
       {/* honest supporting tiles */}
@@ -536,16 +569,18 @@ function CapacityZone({ capacity }) {
         <MiniTile label="Jobs worked" value={u.jobsWorked ?? "—"} sub={`of ${capacity.activeJobCount} active · 30d`} />
         <MiniTile label="Realized hrs/day" value={u.realizedHoursPerDay?.toFixed(1) ?? "—"} sub="from timesheets" />
         <MiniTile
-          label="Won work runway"
-          value={runway != null ? `~${runway.toFixed(0)} wks` : "—"}
-          sub={`${capacity.backlogCount} in backlog`}
+          label="Backlog demand"
+          value={backlogCrew > 0.5 ? `~${backlogCrew.toFixed(0)} crew` : "—"}
+          sub={`${capacity.backlogCount} won, not started`}
+          tone={wouldOverbook ? "warn" : undefined}
         />
       </div>
 
       {/* the honest footnote */}
       <div className="text-[11px] text-rebar mt-3 leading-relaxed">
         {head} crew × {u.realizedHoursPerDay?.toFixed(1)} hrs/day × 5 days × ~4.3 wks = available (last 30 days). Used = hours actually
-        logged to jobs. Runway = won work still to place ÷ your current weekly pace — how long today's committed work lasts if you win nothing new.
+        logged to jobs. Backlog pressure sizes each won-but-not-started job at its typical crew (5–10 by job size) — we can size it, not time it,
+        so it's shown as a range: near-term (biggest start first) vs. all at once.
       </div>
     </Card>
   );
