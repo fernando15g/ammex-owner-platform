@@ -231,7 +231,7 @@ export default function PerformanceClient({ data }) {
                 <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" info="Pounds of rebar installed on this job." />
                 <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" info="Counted labor hours (voided and under-review timecards excluded)." />
                 <SortHeader label="Realized" sortKey="realized" sort={sort} toggle={toggle} align="right" info="Actual lbs placed per man-hour — placed pounds ÷ counted hours." />
-                <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
+                <SortHeader label="Bid pace" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
                 <SortHeader label="Variance" sortKey="variancePct" sort={sort} toggle={toggle} align="right" info="Realized productivity vs. what the bid assumed. Positive = beating the bid." />
                 <SortHeader label="Margin" sortKey="achievedMargin" sort={sort} toggle={toggle} align="right" className="px-4 hidden md:table-cell" info="Operating margin the job actually finished at, vs. what the bid priced. Red only below the 12% floor; within ±2 pts of the bid margin reads neutral — a 30% bid that lands 29% is fine, not a failure." />
               </tr>
@@ -363,7 +363,7 @@ function InProgressTable({ rows, count, onOpen }) {
               <SortHeader label="Placed" sortKey="placedLbs" sort={sort} toggle={toggle} align="right" info="Pounds of rebar installed on this job." />
               <SortHeader label="Hours" sortKey="hours" sort={sort} toggle={toggle} align="right" info="Counted labor hours (voided and under-review timecards excluded)." />
               <SortHeader label="Pace" sortKey="paceLbsPerMH" sort={sort} toggle={toggle} align="right" info="Current lbs/MH. \u2018Billed\u2019 = billed weight through the last invoice date; \u2018placed\u2019 = manual placed-to-date." />
-              <SortHeader label="Bid" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
+              <SortHeader label="Bid pace" sortKey="bidProductivity" sort={sort} toggle={toggle} align="right" className="hidden sm:table-cell" info="The productivity (lbs/MH) this job\u2019s bid assumed." />
               <SortHeader label="Forecast" sortKey="_forecast" sort={sort} toggle={toggle} align="right" className="px-4" info="Projected total hours at the current pace vs. the hours the bid budgeted. Over 100% = trending to finish over the hour budget." />
             </tr>
           </thead>
