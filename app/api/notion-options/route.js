@@ -23,7 +23,7 @@ export async function GET(req) {
     const cfg = FIELDS[which];
     if (!cfg) throw new Error(`Unknown option set: ${which}`);
 
-    const schema = await getDatabaseSchema(cfg.db);
+    const schema = await getDatabaseSchema(cfg.db, { fresh: true });
     const out = {};
     for (const name of cfg.props) {
       const prop = schema.properties?.[name];
