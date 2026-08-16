@@ -25,11 +25,9 @@ export async function PATCH(req, { params }) {
     // its line items — which would silently strip that project's contract value
     // and leave a live job with nothing to bill. Block it; don't cascade it.
     if (changes.status === "Lost" || changes.status === "No Bid") {
-      const { getEverything } = await import("@/lib/data");
-      const all = await getEverything();
-      const owner = all.projects.find((p) =>
-        (p.relatedBidIds || []).includes(params.id) || p.relatedBidId === params.id
-      );
+      const { projectsForBid } = await import("@/lib/notion/projectRepository");
+      const owners = await projectsForBid(params.id);
+      const owner = owners[0];
       if (owner) {
         return NextResponse.json({
           ok: false,

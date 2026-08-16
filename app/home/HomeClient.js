@@ -361,16 +361,35 @@ function BulkColdModal({ action, items, onClose, onDone }) {
 
   const run = async () => {
     setBusy(true);
+    if (isLost) {
+      // one batched request — reads projects once, marks the safe ones
+      try {
+        const res = await fetch(`/api/bids/bulk-lost`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: items.map((it) => it.id) }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || d.ok === false) throw new Error(d.error || `Failed (${res.status})`);
+        const nameOf = Object.fromEntries(items.map((it) => [it.id, it.name]));
+        const blocked = (d.blocked || []).map((b) => ({ name: nameOf[b.id] || b.id, error: b.error }));
+        setBusy(false);
+        setResults({ ok: d.marked || [], blocked });
+        if (blocked.length === 0) onDone(d.marked || []);
+      } catch (e) {
+        setBusy(false);
+        setResults({ ok: [], blocked: [{ name: "Batch", error: String(e.message || e) }] });
+      }
+      return;
+    }
+    // snooze — per bid (fast: just a date write, no attachment check)
     const ok = [], blocked = [];
     for (const it of items) {
-      const changes = isLost
-        ? { status: "Lost" }
-        : { lastFollowUp: new Date().toISOString().slice(0, 10) };
       try {
         const res = await fetch(`/api/bids/${it.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ changes }),
+          body: JSON.stringify({ changes: { lastFollowUp: new Date().toISOString().slice(0, 10) } }),
         });
         const d = await res.json().catch(() => ({}));
         if (res.ok && d.ok !== false) ok.push(it.id);
@@ -381,7 +400,7 @@ function BulkColdModal({ action, items, onClose, onDone }) {
     }
     setBusy(false);
     setResults({ ok, blocked });
-    if (blocked.length === 0) onDone(ok); // clean sweep — close and clear
+    if (blocked.length === 0) onDone(ok);
   };
 
   return (
@@ -787,7 +806,7 @@ function WinRateCard({ winRate }) {
       {data.byType && data.byType.length > 0 && (
         <div>
           <div className="text-[10px] uppercase tracking-wider text-rebar/70 mb-2">by project type · tap for pricing detail</div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
             {data.byType.map((t) => (
               <button key={t.type} onClick={() => setModalType(t)}
                 className="w-full flex items-center gap-3 text-left hover:bg-graphite/40 rounded px-1.5 py-1 -mx-1.5 transition-colors">
