@@ -9,6 +9,7 @@
 import { getSystemCheck } from "@/lib/data";
 import CheckThemeToggle from "@/app/components/CheckThemeToggle";
 import BackfillPanel from "./BackfillPanel";
+import MergeTypesPanel from "./MergeTypesPanel";
 import AuditSetupPanel from "./AuditSetupPanel";
 import ReconcilePanel from "./ReconcilePanel";
 import TemplatePanel from "./TemplatePanel";
@@ -50,6 +51,7 @@ export default async function SystemCheckPage() {
       <TemplatePanel />
       <TemplatePanel kind="invoice" />
       <BackfillPanel />
+      <MergeTypesPanel />
 
       <header className="mb-8">
         <p className="text-xs tracking-widest uppercase text-rebar mb-1">Ammex OS</p>
