@@ -40,6 +40,15 @@ export default function HomeClient({ data }) {
   const [alerts, setAlerts] = useState(data.alerts);
   const [open, setOpen] = useState({}); // alertId -> bool
   const [modal, setModal] = useState(null); // { alertId, item }
+  const [coldSel, setColdSel] = useState(new Set()); // selected cold bid ids
+  const [bulkModal, setBulkModal] = useState(null); // { action: "snooze"|"lost", ids: [] }
+
+  const toggleColdSel = (id) =>
+    setColdSel((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
 
   // Remove an item once it's resolved; drop the whole alert when it empties.
   const resolve = (alertId, itemId) => {
@@ -49,6 +58,17 @@ export default function HomeClient({ data }) {
         .filter((a) => a.items.length > 0)
     );
     setModal(null);
+  };
+
+  // Bulk-resolve several cold bids at once (used after a bulk snooze / mark-lost).
+  const resolveMany = (alertId, itemIds) => {
+    const gone = new Set(itemIds);
+    setAlerts((prev) =>
+      prev
+        .map((a) => (a.id === alertId ? { ...a, items: a.items.filter((it) => !gone.has(it.id)), count: a.items.filter((it) => !gone.has(it.id)).length } : a))
+        .filter((a) => a.items.length > 0)
+    );
+    setColdSel((prev) => { const n = new Set(prev); itemIds.forEach((id) => n.delete(id)); return n; });
   };
 
   const need = alerts.reduce((s, a) => s + a.items.length, 0);
@@ -96,10 +116,24 @@ export default function HomeClient({ data }) {
                 open={!!open[a.id]}
                 onToggle={() => setOpen((o) => ({ ...o, [a.id]: !o[a.id] }))}
                 onPick={(item) => setModal({ alertId: a.id, item })}
+                selectable={a.id === "cold"}
+                selected={a.id === "cold" ? coldSel : null}
+                onToggleSelect={toggleColdSel}
               />
             ))
           )}
         </div>
+        {coldSel.size > 0 && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-line px-4 py-2.5" style={{ background: "var(--surface)" }}>
+            <span className="text-sm text-concrete">{coldSel.size} selected</span>
+            <button onClick={() => setBulkModal({ action: "snooze", ids: [...coldSel] })}
+              className="ml-auto text-sm px-3 py-1.5 rounded-md bg-safety text-steel font-medium">Snooze 2 weeks</button>
+            <button onClick={() => setBulkModal({ action: "lost", ids: [...coldSel] })}
+              className="text-sm px-3 py-1.5 rounded-md border border-danger/40 text-danger hover:bg-danger/10">Mark lost</button>
+            <button onClick={() => setColdSel(new Set())}
+              className="text-sm px-2 py-1.5 text-rebar hover:text-concrete">Clear</button>
+          </div>
+        )}
       </div>
 
       {/* ===================== analytics canvas ===================== */}
@@ -116,6 +150,14 @@ export default function HomeClient({ data }) {
 
       {modal && (
         <Modal alert={alerts.find((a) => a.id === modal.alertId)} item={modal.item} onClose={() => setModal(null)} onResolve={resolve} />
+      )}
+      {bulkModal && (
+        <BulkColdModal
+          action={bulkModal.action}
+          items={(alerts.find((a) => a.id === "cold")?.items || []).filter((it) => bulkModal.ids.includes(it.id))}
+          onClose={() => setBulkModal(null)}
+          onDone={(resolvedIds) => { resolveMany("cold", resolvedIds); setBulkModal(null); }}
+        />
       )}
     </div>
   );
@@ -137,7 +179,7 @@ function ZoneTile({ href, label, value, unit, sub, valueTone, subTone }) {
 
 const DOT = { danger: "bg-danger", warn: "bg-warn", ok: "bg-ok" };
 
-function AlertGroup({ alert, open, onToggle, onPick }) {
+function AlertGroup({ alert, open, onToggle, onPick, selectable, selected, onToggleSelect }) {
   const meta = ALERT_META[alert.id] || {};
   return (
     <div className="border-b border-line last:border-b-0">
@@ -151,16 +193,31 @@ function AlertGroup({ alert, open, onToggle, onPick }) {
       </button>
       {open && (
         <div className="border-t border-line divide-y divide-line" style={{ background: "var(--surface-2)" }}>
-          {alert.items.map((it) => (
-            <button key={it.id} onClick={() => onPick(it)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-graphite/40">
-              <span className="min-w-0 text-sm text-concrete truncate">{meta.item ? meta.item(it) : it.name}</span>
-              <span className="ml-auto shrink-0 text-right">
-                <span className="text-sm tabular-nums text-concrete">{meta.right ? meta.right(it) : ""}</span>
-                <span className="text-[11px] text-rebar ml-1">{meta.sub || ""}</span>
-              </span>
-              <span className="text-rebar text-xs shrink-0">›</span>
-            </button>
-          ))}
+          {alert.items.map((it) => {
+            const isSel = selectable && selected?.has(it.id);
+            return (
+              <div key={it.id} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-graphite/40">
+                {selectable && (
+                  <input
+                    type="checkbox"
+                    checked={!!isSel}
+                    onChange={(e) => { e.stopPropagation(); onToggleSelect(it.id); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0 w-4 h-4 accent-safety cursor-pointer"
+                    aria-label={`Select ${it.name}`}
+                  />
+                )}
+                <button onClick={() => onPick(it)} className="min-w-0 flex-1 flex items-center gap-3 text-left">
+                  <span className="min-w-0 text-sm text-concrete truncate">{meta.item ? meta.item(it) : it.name}</span>
+                  <span className="ml-auto shrink-0 text-right">
+                    <span className="text-sm tabular-nums text-concrete">{meta.right ? meta.right(it) : ""}</span>
+                    <span className="text-[11px] text-rebar ml-1">{meta.sub || ""}</span>
+                  </span>
+                  <span className="text-rebar text-xs shrink-0">›</span>
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -288,6 +345,95 @@ function ColdBody({ item, onDone }) {
         <button onClick={snooze} disabled={busy} className="text-sm px-3 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-50">Snooze 2 weeks</button>
         <button onClick={markLost} disabled={busy} className="text-sm px-3 py-2 rounded-md border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-50">Mark lost</button>
         <a href={`/pipeline/${item.id}`} className="ml-auto text-sm text-rebar hover:text-concrete">Open bid</a>
+      </div>
+    </div>
+  );
+}
+
+// Bulk snooze / mark-lost for cold bids. Processes each bid in turn. Mark-lost
+// can be blocked per-bid (a project is built on it -> 409); we surface those
+// individually instead of failing the whole batch, and still resolve the ones
+// that succeeded.
+function BulkColdModal({ action, items, onClose, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState(null); // { ok:[], blocked:[{name,error}] }
+  const isLost = action === "lost";
+
+  const run = async () => {
+    setBusy(true);
+    const ok = [], blocked = [];
+    for (const it of items) {
+      const changes = isLost
+        ? { status: "Lost" }
+        : { lastFollowUp: new Date().toISOString().slice(0, 10) };
+      try {
+        const res = await fetch(`/api/bids/${it.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d.ok !== false) ok.push(it.id);
+        else blocked.push({ name: it.name, error: d.error || `Failed (${res.status})` });
+      } catch (e) {
+        blocked.push({ name: it.name, error: String(e.message || e) });
+      }
+    }
+    setBusy(false);
+    setResults({ ok, blocked });
+    if (blocked.length === 0) onDone(ok); // clean sweep — close and clear
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg border border-line p-5" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-concrete font-medium text-lg">
+            {isLost ? "Mark lost" : "Snooze"} · {items.length} {items.length === 1 ? "bid" : "bids"}
+          </h3>
+          <button onClick={onClose} className="text-rebar hover:text-concrete">✕</button>
+        </div>
+
+        {!results ? (
+          <>
+            <p className="text-sm text-rebar mb-3">
+              {isLost
+                ? "These bids will be marked Lost. Any bid with a project built on it will be skipped and shown below — you'd need to detach it first."
+                : "These bids will be snoozed two weeks (resets the 14-day clock)."}
+            </p>
+            <div className="max-h-48 overflow-y-auto rounded border border-line divide-y divide-line mb-4" style={{ background: "var(--surface-2)" }}>
+              {items.map((it) => (
+                <div key={it.id} className="px-3 py-2 text-sm text-concrete flex items-center justify-between">
+                  <span className="truncate">{it.name}</span>
+                  <span className="text-[11px] text-rebar shrink-0 ml-2">{it.coldDays}d</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={run} disabled={busy}
+                className={`text-sm px-4 py-2 rounded-md font-medium disabled:opacity-50 ${isLost ? "border border-danger/40 text-danger hover:bg-danger/10" : "bg-safety text-steel"}`}>
+                {busy ? "Working…" : isLost ? `Mark ${items.length} lost` : `Snooze ${items.length}`}
+              </button>
+              <button onClick={onClose} className="text-sm px-4 py-2 rounded-md border border-line text-rebar">Cancel</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-concrete mb-2">
+              {results.ok.length} {isLost ? "marked lost" : "snoozed"}{results.blocked.length > 0 ? `, ${results.blocked.length} skipped` : ""}.
+            </p>
+            {results.blocked.length > 0 && (
+              <div className="rounded border border-danger/40 bg-danger/10 p-3 mb-3 max-h-40 overflow-y-auto">
+                {results.blocked.map((b, i) => (
+                  <div key={i} className="text-xs text-concrete mb-1.5 last:mb-0">
+                    <span className="text-danger font-medium">{b.name}</span> — {b.error}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => onDone(results.ok)} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium">Done</button>
+          </>
+        )}
       </div>
     </div>
   );
