@@ -36,6 +36,7 @@ const ALERT_META = {
 export default function HomeClient({ data }) {
   const { tiles, analytics } = data;
   const capacity = data.capacity;
+  const winRate = data.winRate;
   const [alerts, setAlerts] = useState(data.alerts);
   const [open, setOpen] = useState({}); // alertId -> bool
   const [modal, setModal] = useState(null); // { alertId, item }
@@ -108,6 +109,7 @@ export default function HomeClient({ data }) {
         <Card title="Work mix · by type"><WorkMixDonut mix={analytics.workMix} /></Card>
       </div>
       <Card title="Foreman scorecard · realized vs bid lbs/MH"><ForemanScorecard foremen={analytics.foremen} excluded={analytics.foremanExclusionSummary} /></Card>
+      {winRate && <WinRateCard winRate={winRate} />}
       <Card title="The Book · contract by stage"><BookByStage stages={analytics.bookStages} /></Card>
 
       {capacity && <CapacityZone capacity={capacity} />}
@@ -592,6 +594,119 @@ function MiniTile({ label, value, sub, tone }) {
       <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">{label}</div>
       <div className={`text-lg font-semibold ${vc}`}>{value}</div>
       {sub && <div className="text-[10px] text-rebar mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WIN RATE — how often we win the bids we compete for, overall and by type.
+// The by-type rows click through to a modal showing won-vs-lost avg bid rate,
+// so you can confirm whether losing a type is a pricing problem.
+function WinRateCard({ winRate }) {
+  const [win, setWin] = useState("window12");
+  const [modalType, setModalType] = useState(null);
+  const data = winRate[win] || {};
+  const o = data.overall || {};
+  const rate = o.rate;
+
+  const tone = rate == null ? "text-rebar" : rate >= 0.4 ? "text-ok" : rate >= 0.25 ? "text-warn" : "text-danger";
+  const barColor = rate == null ? "var(--line)" : rate >= 0.4 ? "var(--ok)" : rate >= 0.25 ? "var(--warn)" : "var(--danger)";
+  const pctStr = rate == null ? "—" : `${Math.round(rate * 100)}%`;
+
+  return (
+    <Card title="Win rate · how often we land what we bid">
+      <div className="flex gap-1.5 mb-4">
+        {[["window12", "Last 12 mo"], ["allTime", "All-time"]].map(([k, label]) => (
+          <button key={k} onClick={() => setWin(k)}
+            className={`text-xs px-2.5 py-1 rounded-full border ${win === k ? "border-rebar/60 text-concrete bg-graphite" : "border-line text-rebar hover:text-concrete"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* headline */}
+      <div className="flex items-baseline gap-3 mb-1">
+        <span className={`text-4xl font-semibold ${tone}`}>{pctStr}</span>
+        <span className="text-sm text-rebar">won {o.won ?? 0} of {o.decided ?? 0} decided bids</span>
+      </div>
+      {/* won/lost bar */}
+      <div className="h-2.5 rounded-full bg-graphite overflow-hidden mb-1 flex">
+        <div className="h-full" style={{ width: `${rate == null ? 0 : rate * 100}%`, background: barColor }} />
+      </div>
+      <div className="text-[11px] text-rebar mb-4">
+        {o.won ?? 0} won · {o.lost ?? 0} lost · excludes in-flight and no-bids
+      </div>
+
+      {/* by type */}
+      {data.byType && data.byType.length > 0 && (
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-rebar/70 mb-2">by project type · tap for pricing detail</div>
+          <div className="space-y-1.5">
+            {data.byType.map((t) => (
+              <button key={t.type} onClick={() => setModalType(t)}
+                className="w-full flex items-center gap-3 text-left hover:bg-graphite/40 rounded px-1.5 py-1 -mx-1.5 transition-colors">
+                <span className="text-sm text-concrete w-40 truncate shrink-0">{t.type}</span>
+                <span className="flex-1 h-2 rounded-full bg-graphite overflow-hidden">
+                  <span className="block h-full rounded-full" style={{ width: `${t.rate == null ? 0 : t.rate * 100}%`, background: t.rate >= 0.4 ? "var(--ok)" : t.rate >= 0.25 ? "var(--warn)" : "var(--danger)" }} />
+                </span>
+                <span className={`text-xs tabular-nums w-10 text-right shrink-0 ${t.rate >= 0.4 ? "text-ok" : t.rate >= 0.25 ? "text-warn" : "text-danger"}`}>
+                  {t.rate == null ? "—" : `${Math.round(t.rate * 100)}%`}
+                </span>
+                <span className="text-[11px] text-rebar tabular-nums w-14 text-right shrink-0">
+                  {t.won}/{t.decided}{t.lowSample ? " ·" : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="text-[11px] text-rebar mt-2">· = thin data (under 4 decided). Tap a type to see won vs lost bid rates.</div>
+        </div>
+      )}
+
+      {modalType && <WinRateTypeModal t={modalType} onClose={() => setModalType(null)} />}
+    </Card>
+  );
+}
+
+function WinRateTypeModal({ t, onClose }) {
+  const wr = t.wonAvgRate, lr = t.lostAvgRate;
+  const cents = (r) => (r == null ? "—" : `${(r * 100).toFixed(1)}¢`);
+  const priceSignal = (wr != null && lr != null)
+    ? (lr > wr
+        ? `Your lost ${t.type} bids averaged ${cents(lr)}/lb vs ${cents(wr)}/lb on wins — you may be pricing these too high.`
+        : `Your won and lost ${t.type} bids are priced similarly — losses here probably aren't about price.`)
+    : `Not enough priced won/lost bids to compare rates yet.`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-lg border border-line p-5" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-concrete font-medium text-lg">{t.type}</h3>
+          <button onClick={onClose} className="text-rebar hover:text-concrete">✕</button>
+        </div>
+
+        <div className="flex items-baseline gap-3 mb-4">
+          <span className={`text-3xl font-semibold ${t.rate >= 0.4 ? "text-ok" : t.rate >= 0.25 ? "text-warn" : "text-danger"}`}>
+            {t.rate == null ? "—" : `${Math.round(t.rate * 100)}%`}
+          </span>
+          <span className="text-sm text-rebar">won {t.won} of {t.decided}</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg border border-ok/30 p-3" style={{ background: "var(--surface-2)" }}>
+            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Won · avg bid rate</div>
+            <div className="text-xl font-semibold text-ok">{cents(wr)}<span className="text-xs text-rebar">/lb</span></div>
+            <div className="text-[11px] text-rebar mt-0.5">{t.won} bids</div>
+          </div>
+          <div className="rounded-lg border border-danger/30 p-3" style={{ background: "var(--surface-2)" }}>
+            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Lost · avg bid rate</div>
+            <div className="text-xl font-semibold text-danger">{cents(lr)}<span className="text-xs text-rebar">/lb</span></div>
+            <div className="text-[11px] text-rebar mt-0.5">{t.lost} bids</div>
+          </div>
+        </div>
+
+        <p className="text-sm text-concrete/90 leading-relaxed">{priceSignal}</p>
+        {t.lowSample && <p className="text-[11px] text-warn mt-2">Thin data — under 4 decided bids, so read this as a hint, not a conclusion.</p>}
+      </div>
     </div>
   );
 }
