@@ -767,21 +767,27 @@ function MiniTile({ label, value, sub, tone }) {
 // WIN RATE — how often we win the bids we compete for, overall and by type.
 // The by-type rows click through to a modal showing won-vs-lost avg bid rate,
 // so you can confirm whether losing a type is a pricing problem.
+// ---------------------------------------------------------------------------
+// WIN RATE — how often we land what we bid. Card stays lean (headline + goalpost
+// bar + one segmented list at a time); all pricing depth lives in the tap modal.
 function WinRateCard({ winRate }) {
   const [win, setWin] = useState("window12");
-  const [modalType, setModalType] = useState(null);
+  const [lens, setLens] = useState("type"); // "type" | "gc"
+  const [modalSeg, setModalSeg] = useState(null);
   const data = winRate[win] || {};
   const o = data.overall || {};
   const rate = o.rate;
+  const target = data.target || 0.25;
 
-  const tone = rate == null ? "text-rebar" : rate >= 0.4 ? "text-ok" : rate >= 0.25 ? "text-warn" : "text-danger";
-  const barColor = rate == null ? "var(--line)" : rate >= 0.4 ? "var(--ok)" : rate >= 0.25 ? "var(--warn)" : "var(--danger)";
+  const tone = rate == null ? "text-rebar" : rate >= target ? "text-ok" : rate >= 0.15 ? "text-warn" : "text-danger";
   const pctStr = rate == null ? "—" : `${Math.round(rate * 100)}%`;
+  const list = lens === "type" ? (data.byType || []) : (data.byGC || []);
 
   return (
     <Card title="Win rate · how often we land what we bid">
+      {/* window toggle */}
       <div className="flex gap-1.5 mb-4">
-        {[["window12", "Last 12 mo"], ["allTime", "All-time"]].map(([k, label]) => (
+        {[["window6", "Last 6 mo"], ["window12", "Last 12 mo"], ["allTime", "All-time"]].map(([k, label]) => (
           <button key={k} onClick={() => setWin(k)}
             className={`text-xs px-2.5 py-1 rounded-full border ${win === k ? "border-rebar/60 text-concrete bg-graphite" : "border-line text-rebar hover:text-concrete"}`}>
             {label}
@@ -790,87 +796,158 @@ function WinRateCard({ winRate }) {
       </div>
 
       {/* headline */}
-      <div className="flex items-baseline gap-3 mb-1">
+      <div className="flex items-baseline gap-3 mb-2">
         <span className={`text-4xl font-semibold ${tone}`}>{pctStr}</span>
         <span className="text-sm text-rebar">won {o.won ?? 0} of {o.decided ?? 0} decided bids</span>
       </div>
-      {/* won/lost bar */}
-      <div className="h-2.5 rounded-full bg-graphite overflow-hidden mb-1 flex">
-        <div className="h-full" style={{ width: `${rate == null ? 0 : rate * 100}%`, background: barColor }} />
-      </div>
-      <div className="text-[11px] text-rebar mb-4">
-        {o.won ?? 0} won · {o.lost ?? 0} lost · excludes in-flight and no-bids
+
+      {/* GOALPOST BAR: won (green) | lost (muted) split, with a 25% target marker */}
+      <GoalpostBar won={o.won ?? 0} lost={o.lost ?? 0} target={target} />
+      <div className="flex items-center justify-between text-[11px] text-rebar mb-4">
+        <span>{o.won ?? 0} won · {o.lost ?? 0} lost · excludes in-flight & no-bids</span>
+        <span className="text-concrete/70">◦ {Math.round(target * 100)}% target</span>
       </div>
 
-      {/* by type */}
-      {data.byType && data.byType.length > 0 && (
-        <div>
-          <div className="text-[10px] uppercase tracking-wider text-rebar/70 mb-2">by project type · tap for pricing detail</div>
-          <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-            {data.byType.map((t) => (
-              <button key={t.type} onClick={() => setModalType(t)}
+      {/* lens toggle */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex gap-1 rounded-md border border-line p-0.5">
+          {[["type", "By type"], ["gc", "By GC"]].map(([k, label]) => (
+            <button key={k} onClick={() => setLens(k)}
+              className={`text-[11px] px-2 py-0.5 rounded ${lens === k ? "bg-graphite text-concrete" : "text-rebar hover:text-concrete"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-rebar/60">tap a row for pricing detail</span>
+      </div>
+
+      {list.length === 0 ? (
+        <div className="text-sm text-rebar py-3 text-center">No decided bids in this window yet.</div>
+      ) : (
+        <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+          {list.map((seg) => {
+            const beats = seg.rate != null && seg.rate >= target;
+            return (
+              <button key={seg.label} onClick={() => setModalSeg(seg)}
                 className="w-full flex items-center gap-3 text-left hover:bg-graphite/40 rounded px-1.5 py-1 -mx-1.5 transition-colors">
-                <span className="text-sm text-concrete w-40 truncate shrink-0">{t.type}</span>
-                <span className="flex-1 h-2 rounded-full bg-graphite overflow-hidden">
-                  <span className="block h-full rounded-full" style={{ width: `${t.rate == null ? 0 : t.rate * 100}%`, background: t.rate >= 0.4 ? "var(--ok)" : t.rate >= 0.25 ? "var(--warn)" : "var(--danger)" }} />
+                <span className="text-sm text-concrete w-40 truncate shrink-0">{seg.label}</span>
+                <span className="flex-1 h-2 rounded-full bg-graphite overflow-hidden relative">
+                  <span className="block h-full rounded-full" style={{ width: `${seg.rate == null ? 0 : seg.rate * 100}%`, background: beats ? "var(--ok)" : seg.rate >= 0.15 ? "var(--warn)" : "var(--danger)" }} />
+                  {/* target tick */}
+                  <span className="absolute top-0 bottom-0 w-px bg-concrete/50" style={{ left: `${target * 100}%` }} />
                 </span>
-                <span className={`text-xs tabular-nums w-10 text-right shrink-0 ${t.rate >= 0.4 ? "text-ok" : t.rate >= 0.25 ? "text-warn" : "text-danger"}`}>
-                  {t.rate == null ? "—" : `${Math.round(t.rate * 100)}%`}
+                <span className={`text-xs tabular-nums w-9 text-right shrink-0 ${beats ? "text-ok" : seg.rate >= 0.15 ? "text-warn" : "text-danger"}`}>
+                  {seg.rate == null ? "—" : `${Math.round(seg.rate * 100)}%`}
                 </span>
-                <span className="text-[11px] text-rebar tabular-nums w-14 text-right shrink-0">
-                  {t.won}/{t.decided}{t.lowSample ? " ·" : ""}
+                <span className="text-[11px] text-rebar tabular-nums w-12 text-right shrink-0">
+                  {seg.won}/{seg.decided}{seg.lowSample ? " ·" : ""}
                 </span>
               </button>
-            ))}
-          </div>
-          <div className="text-[11px] text-rebar mt-2">· = thin data (under 4 decided). Tap a type to see won vs lost bid rates.</div>
+            );
+          })}
         </div>
       )}
+      {list.some((s) => s.lowSample) && <div className="text-[11px] text-rebar mt-2">· = thin data (under 4 decided)</div>}
 
-      {modalType && <WinRateTypeModal t={modalType} onClose={() => setModalType(null)} />}
+      {modalSeg && <WinRateSegModal seg={modalSeg} target={target} onClose={() => setModalSeg(null)} />}
     </Card>
   );
 }
 
-function WinRateTypeModal({ t, onClose }) {
-  const wr = t.wonAvgRate, lr = t.lostAvgRate;
+// Won/lost split bar with a target marker line — a goalpost, not just a fill.
+function GoalpostBar({ won, lost, target }) {
+  const total = won + lost;
+  const wonPct = total ? (won / total) * 100 : 0;
+  return (
+    <div className="relative h-3 rounded-full bg-graphite overflow-hidden mb-1 flex">
+      <div className="h-full" style={{ width: `${wonPct}%`, background: "var(--ok)" }} title={`${won} won`} />
+      <div className="h-full flex-1" style={{ background: "rgba(180,80,80,0.35)" }} title={`${lost} lost`} />
+      {/* target marker */}
+      <div className="absolute top-0 bottom-0 w-0.5 bg-white z-10" style={{ left: `${target * 100}%` }} title={`${Math.round(target * 100)}% target`} />
+    </div>
+  );
+}
+
+function WinRateSegModal({ seg, target, onClose }) {
   const cents = (r) => (r == null ? "—" : `${(r * 100).toFixed(1)}¢`);
+  const rng = (r) => (r ? `${(r.min * 100).toFixed(0)}–${(r.max * 100).toFixed(0)}¢` : "—");
+  const wr = seg.wonAvgRate, lr = seg.lostAvgRate;
+  const beats = seg.rate != null && seg.rate >= target;
+
   const priceSignal = (wr != null && lr != null)
     ? (lr > wr
-        ? `Your lost ${t.type} bids averaged ${cents(lr)}/lb vs ${cents(wr)}/lb on wins — you may be pricing these too high.`
-        : `Your won and lost ${t.type} bids are priced similarly — losses here probably aren't about price.`)
+        ? `Lost ${seg.label} bids averaged ${cents(lr)}/lb vs ${cents(wr)}/lb on wins — you may be pricing these too high.`
+        : `Won and lost ${seg.label} bids are priced similarly — losses here probably aren't about price.`)
     : `Not enough priced won/lost bids to compare rates yet.`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-lg border border-line p-5" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-lg rounded-lg border border-line p-5 max-h-[85vh] overflow-y-auto" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-concrete font-medium text-lg">{t.type}</h3>
+          <h3 className="text-concrete font-medium text-lg">{seg.label}</h3>
           <button onClick={onClose} className="text-rebar hover:text-concrete">✕</button>
         </div>
 
-        <div className="flex items-baseline gap-3 mb-4">
-          <span className={`text-3xl font-semibold ${t.rate >= 0.4 ? "text-ok" : t.rate >= 0.25 ? "text-warn" : "text-danger"}`}>
-            {t.rate == null ? "—" : `${Math.round(t.rate * 100)}%`}
+        <div className="flex items-baseline gap-3 mb-1">
+          <span className={`text-3xl font-semibold ${beats ? "text-ok" : seg.rate >= 0.15 ? "text-warn" : "text-danger"}`}>
+            {seg.rate == null ? "—" : `${Math.round(seg.rate * 100)}%`}
           </span>
-          <span className="text-sm text-rebar">won {t.won} of {t.decided}</span>
+          <span className="text-sm text-rebar">won {seg.won} of {seg.decided}</span>
+          <span className="text-[11px] text-rebar ml-auto">{beats ? "above" : "below"} {Math.round(target * 100)}% target</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* DOT STRIP: each bid a dot on a ¢/lb scale, green won / red lost */}
+        <DotStrip dots={seg.dots} wonRange={seg.wonRange} lostRange={seg.lostRange} />
+
+        <div className="grid grid-cols-2 gap-3 my-4">
           <div className="rounded-lg border border-ok/30 p-3" style={{ background: "var(--surface-2)" }}>
-            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Won · avg bid rate</div>
-            <div className="text-xl font-semibold text-ok">{cents(wr)}<span className="text-xs text-rebar">/lb</span></div>
-            <div className="text-[11px] text-rebar mt-0.5">{t.won} bids</div>
+            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Won · bid rate</div>
+            <div className="text-xl font-semibold text-ok">{cents(wr)}<span className="text-xs text-rebar">/lb avg</span></div>
+            <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.wonRange)} · {seg.won} bids</div>
           </div>
           <div className="rounded-lg border border-danger/30 p-3" style={{ background: "var(--surface-2)" }}>
-            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Lost · avg bid rate</div>
-            <div className="text-xl font-semibold text-danger">{cents(lr)}<span className="text-xs text-rebar">/lb</span></div>
-            <div className="text-[11px] text-rebar mt-0.5">{t.lost} bids</div>
+            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Lost · bid rate</div>
+            <div className="text-xl font-semibold text-danger">{cents(lr)}<span className="text-xs text-rebar">/lb avg</span></div>
+            <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.lostRange)} · {seg.lost} bids</div>
           </div>
         </div>
 
-        <p className="text-sm text-concrete/90 leading-relaxed">{priceSignal}</p>
-        {t.lowSample && <p className="text-[11px] text-warn mt-2">Thin data — under 4 decided bids, so read this as a hint, not a conclusion.</p>}
+        <p className="text-sm text-concrete/90 leading-relaxed mb-3">{priceSignal}</p>
+
+        {seg.lowSample && <p className="text-[11px] text-warn mb-3">Thin data — under 4 decided bids, so read this as a hint, not a conclusion.</p>}
+
+        <div className="text-[11px] text-rebar rounded border border-line p-2.5" style={{ background: "var(--surface-2)" }}>
+          <span className="text-concrete/70">Context:</span> hard-bid public rebar work typically wins ~10–20% of bids, private ~15–25% (industry guidance). Ammex aims for {Math.round(target * 100)}% — hitting it means outperforming most public-work subs.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// A simple won/lost dot strip: rate on the x-axis, green dots won / red lost.
+// Shows where your winning prices sit vs losing prices — the threshold at a glance.
+function DotStrip({ dots, wonRange, lostRange }) {
+  if (!dots || dots.length === 0) return <div className="text-[11px] text-rebar py-2">No priced bids to plot.</div>;
+  const rates = dots.map((d) => d.rate);
+  const min = Math.min(...rates), max = Math.max(...rates);
+  const span = max - min || 1;
+  const x = (r) => ((r - min) / span) * 100;
+  return (
+    <div className="mt-1">
+      <div className="relative h-10 rounded-lg border border-line" style={{ background: "var(--surface-2)" }}>
+        {dots.map((d, i) => (
+          <span key={i}
+            className="absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 top-1/2"
+            style={{ left: `${x(d.rate)}%`, background: d.won ? "var(--ok)" : "var(--danger)", opacity: 0.85 }}
+            title={`${(d.rate * 100).toFixed(1)}¢ · ${d.won ? "won" : "lost"}`}
+          />
+        ))}
+      </div>
+      <div className="flex justify-between text-[10px] text-rebar mt-1">
+        <span>{(min * 100).toFixed(0)}¢/lb</span>
+        <span className="text-ok">● won</span>
+        <span className="text-danger">● lost</span>
+        <span>{(max * 100).toFixed(0)}¢/lb</span>
       </div>
     </div>
   );
