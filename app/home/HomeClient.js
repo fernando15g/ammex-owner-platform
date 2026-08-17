@@ -842,7 +842,9 @@ function WinRateCard({ winRate }) {
                 <span className="text-[11px] text-rebar tabular-nums w-12 text-right shrink-0">
                   {seg.won}/{seg.decided}
                 </span>
-                {seg.lowSample && <span className="text-[9px] text-rebar/70 border border-line rounded px-1 shrink-0">thin</span>}
+                <span className="w-9 shrink-0 flex justify-end">
+                  {seg.lowSample && <span className="text-[9px] text-rebar/70 border border-line rounded px-1">thin</span>}
+                </span>
               </button>
             );
           })}
