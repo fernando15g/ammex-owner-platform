@@ -840,14 +840,15 @@ function WinRateCard({ winRate }) {
                   {seg.rate == null ? "—" : `${Math.round(seg.rate * 100)}%`}
                 </span>
                 <span className="text-[11px] text-rebar tabular-nums w-12 text-right shrink-0">
-                  {seg.won}/{seg.decided}{seg.lowSample ? " ·" : ""}
+                  {seg.won}/{seg.decided}
                 </span>
+                {seg.lowSample && <span className="text-[9px] text-rebar/70 border border-line rounded px-1 shrink-0">thin</span>}
               </button>
             );
           })}
         </div>
       )}
-      {list.some((s) => s.lowSample) && <div className="text-[11px] text-rebar mt-2">· = thin data (under 4 decided)</div>}
+      {list.some((s) => s.lowSample) && <div className="text-[11px] text-rebar mt-2"><span className="text-[9px] border border-line rounded px-1">thin</span> = under 4 decided bids, read as a hint</div>}
 
       {modalSeg && <WinRateSegModal seg={modalSeg} target={target} onClose={() => setModalSeg(null)} />}
     </Card>
@@ -896,8 +897,10 @@ function WinRateSegModal({ seg, target, onClose }) {
           <span className="text-[11px] text-rebar ml-auto">{beats ? "above" : "below"} {Math.round(target * 100)}% target</span>
         </div>
 
-        {/* DOT STRIP: each bid a dot on a ¢/lb scale, green won / red lost */}
-        <DotStrip dots={seg.dots} wonRange={seg.wonRange} lostRange={seg.lostRange} />
+        {/* WON vs LOST price comparison — two thin bars on a shared scale.
+            If they overlap, price isn't the deciding factor; if the lost bar
+            sits clearly to the right (higher ¢), you're likely priced too high. */}
+        <RangeCompare seg={seg} />
 
         <div className="grid grid-cols-2 gap-3 my-4">
           <div className="rounded-lg border border-ok/30 p-3" style={{ background: "var(--surface-2)" }}>
@@ -924,31 +927,59 @@ function WinRateSegModal({ seg, target, onClose }) {
   );
 }
 
-// A simple won/lost dot strip: rate on the x-axis, green dots won / red lost.
-// Shows where your winning prices sit vs losing prices — the threshold at a glance.
-function DotStrip({ dots, wonRange, lostRange }) {
-  if (!dots || dots.length === 0) return <div className="text-[11px] text-rebar py-2">No priced bids to plot.</div>;
-  const rates = dots.map((d) => d.rate);
-  const min = Math.min(...rates), max = Math.max(...rates);
-  const span = max - min || 1;
-  const x = (r) => ((r - min) / span) * 100;
+// Won vs Lost price comparison — two thin bars on one shared ¢/lb scale, so you
+// can SEE at a glance whether your winning and losing prices overlap (price isn't
+// the driver) or separate (you're pricing too high on losses). Averages marked
+// with a tick on each bar.
+function RangeCompare({ seg }) {
+  const wR = seg.wonRange, lR = seg.lostRange;
+  if (!wR && !lR) return <div className="text-[11px] text-rebar py-2">No priced bids to compare.</div>;
+
+  // shared scale across both ranges, padded a touch
+  const lo = Math.min(wR?.min ?? Infinity, lR?.min ?? Infinity);
+  const hi = Math.max(wR?.max ?? -Infinity, lR?.max ?? -Infinity);
+  const span = (hi - lo) || 1;
+  const pos = (r) => ((r - lo) / span) * 100;
+
+  // do the ranges overlap?
+  const overlap = wR && lR && !(wR.max < lR.min || lR.max < wR.min);
+  const verdict = (wR && lR)
+    ? (overlap
+        ? "Winning and losing prices overlap — price isn't cleanly deciding these."
+        : (lR.min > wR.max
+            ? "Losing bids sit entirely higher than winning ones — a strong sign you're priced too high here."
+            : "Winning bids sit higher than losing ones — losses here aren't about price."))
+    : "Only one side has priced bids — not enough to compare yet.";
+
+  const Bar = ({ range, color, label }) => (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] w-10 shrink-0" style={{ color }}>{label}</span>
+      <div className="relative flex-1 h-4">
+        {range ? (
+          <>
+            <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full"
+              style={{ left: `${pos(range.min)}%`, width: `${Math.max(pos(range.max) - pos(range.min), 1.5)}%`, background: color, opacity: 0.55 }} />
+            {/* endpoints */}
+            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ left: `${pos(range.min)}%`, background: color }} />
+            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ left: `${pos(range.max)}%`, background: color }} />
+          </>
+        ) : <span className="text-[10px] text-rebar absolute top-1/2 -translate-y-1/2">none</span>}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="mt-1">
-      <div className="relative h-10 rounded-lg border border-line" style={{ background: "var(--surface-2)" }}>
-        {dots.map((d, i) => (
-          <span key={i}
-            className="absolute w-2.5 h-2.5 rounded-full -translate-x-1/2 -translate-y-1/2 top-1/2"
-            style={{ left: `${x(d.rate)}%`, background: d.won ? "var(--ok)" : "var(--danger)", opacity: 0.85 }}
-            title={`${(d.rate * 100).toFixed(1)}¢ · ${d.won ? "won" : "lost"}`}
-          />
-        ))}
+    <div className="mt-1 mb-1">
+      <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-1.5">won vs lost bid price · same scale</div>
+      <div className="space-y-1.5">
+        <Bar range={wR} color="var(--ok)" label="Won" />
+        <Bar range={lR} color="var(--danger)" label="Lost" />
       </div>
       <div className="flex justify-between text-[10px] text-rebar mt-1">
-        <span>{(min * 100).toFixed(0)}¢/lb</span>
-        <span className="text-ok">● won</span>
-        <span className="text-danger">● lost</span>
-        <span>{(max * 100).toFixed(0)}¢/lb</span>
+        <span>{(lo * 100).toFixed(0)}¢/lb</span>
+        <span>{(hi * 100).toFixed(0)}¢/lb</span>
       </div>
+      <p className="text-xs text-concrete/80 mt-2 leading-snug">{verdict}</p>
     </div>
   );
 }
