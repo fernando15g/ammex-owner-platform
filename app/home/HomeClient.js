@@ -872,16 +872,7 @@ function GoalpostBar({ won, lost, target }) {
 }
 
 function WinRateSegModal({ seg, target, onClose }) {
-  const cents = (r) => (r == null ? "—" : `${(r * 100).toFixed(1)}¢`);
-  const rng = (r) => (r ? `${(r.min * 100).toFixed(0)}–${(r.max * 100).toFixed(0)}¢` : "—");
-  const wr = seg.wonAvgRate, lr = seg.lostAvgRate;
   const beats = seg.rate != null && seg.rate >= target;
-
-  const priceSignal = (wr != null && lr != null)
-    ? (lr > wr
-        ? `Lost ${seg.label} bids averaged ${cents(lr)}/lb vs ${cents(wr)}/lb on wins — you may be pricing these too high.`
-        : `Won and lost ${seg.label} bids are priced similarly — losses here probably aren't about price.`)
-    : `Not enough priced won/lost bids to compare rates yet.`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -899,29 +890,12 @@ function WinRateSegModal({ seg, target, onClose }) {
           <span className="text-[11px] text-rebar ml-auto">{beats ? "above" : "below"} {Math.round(target * 100)}% target</span>
         </div>
 
-        {/* WON vs LOST price comparison — two thin bars on a shared scale.
-            If they overlap, price isn't the deciding factor; if the lost bar
-            sits clearly to the right (higher ¢), you're likely priced too high. */}
-        <RangeCompare seg={seg} />
+        {/* Typical won vs lost price — median (resists the one-outlier problem).
+            Simple readout + plain verdict; no chart, because at 4-9 bids a chart
+            implies more precision than the data supports. */}
+        <MedianCompare seg={seg} />
 
-        <div className="grid grid-cols-2 gap-3 my-4">
-          <div className="rounded-lg border border-ok/30 p-3" style={{ background: "var(--surface-2)" }}>
-            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Won · bid rate</div>
-            <div className="text-xl font-semibold text-ok">{cents(wr)}<span className="text-xs text-rebar">/lb avg</span></div>
-            <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.wonRange)} · {seg.won} bids</div>
-          </div>
-          <div className="rounded-lg border border-danger/30 p-3" style={{ background: "var(--surface-2)" }}>
-            <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Lost · bid rate</div>
-            <div className="text-xl font-semibold text-danger">{cents(lr)}<span className="text-xs text-rebar">/lb avg</span></div>
-            <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.lostRange)} · {seg.lost} bids</div>
-          </div>
-        </div>
-
-        <p className="text-sm text-concrete/90 leading-relaxed mb-3">{priceSignal}</p>
-
-        {seg.lowSample && <p className="text-[11px] text-warn mb-3">Thin data — under 4 decided bids, so read this as a hint, not a conclusion.</p>}
-
-        <div className="text-[11px] text-rebar rounded border border-line p-2.5" style={{ background: "var(--surface-2)" }}>
+        <div className="text-[11px] text-rebar rounded border border-line p-2.5 mt-4" style={{ background: "var(--surface-2)" }}>
           <span className="text-concrete/70">Context:</span> hard-bid public rebar work typically wins ~10–20% of bids, private ~15–25% (industry guidance). Ammex aims for {Math.round(target * 100)}% — hitting it means outperforming most public-work subs.
         </div>
       </div>
@@ -929,62 +903,45 @@ function WinRateSegModal({ seg, target, onClose }) {
   );
 }
 
-// Won vs Lost price comparison — two thin bars on one shared ¢/lb scale, so you
-// can SEE at a glance whether your winning and losing prices overlap (price isn't
-// the driver) or separate (you're pricing too high on losses). Averages marked
-// with a tick on each bar.
-function RangeCompare({ seg }) {
-  const wR = seg.wonRange, lR = seg.lostRange;
-  if (!wR && !lR) return <div className="text-[11px] text-rebar py-2">No priced bids to compare.</div>;
+// Typical won vs lost bid price, using MEDIAN. Two numbers, a small range as
+// context, and a plain verdict. No bar/dots — small samples don't support a
+// chart, and the median comparison is the honest signal.
+function MedianCompare({ seg }) {
+  const wM = seg.wonMedRate, lM = seg.lostMedRate;
+  const c = (r) => (r == null ? "—" : `${(r * 100).toFixed(0)}¢`);
+  const rng = (r) => (r ? `${(r.min * 100).toFixed(0)}–${(r.max * 100).toFixed(0)}¢` : "—");
 
-  // shared scale across both ranges, padded a touch
-  const lo = Math.min(wR?.min ?? Infinity, lR?.min ?? Infinity);
-  const hi = Math.max(wR?.max ?? -Infinity, lR?.max ?? -Infinity);
-  const span = (hi - lo) || 1;
-  const pos = (r) => ((r - lo) / span) * 100;
-
-  // do the ranges overlap?
-  const overlap = wR && lR && !(wR.max < lR.min || lR.max < wR.min);
-  const verdict = (wR && lR)
-    ? (overlap
-        ? "Winning and losing prices overlap — price isn't cleanly deciding these."
-        : (lR.min > wR.max
-            ? "Losing bids sit entirely higher than winning ones — a strong sign you're priced too high here."
-            : "Winning bids sit higher than losing ones — losses here aren't about price."))
-    : "Only one side has priced bids — not enough to compare yet.";
-
-  const Bar = ({ range, color, label }) => (
-    <div className="flex items-center gap-2">
-      <span className="text-[10px] w-10 shrink-0" style={{ color }}>{label}</span>
-      <div className="relative flex-1 h-4">
-        {range ? (
-          <>
-            <div className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full"
-              style={{ left: `${pos(range.min)}%`, width: `${Math.max(pos(range.max) - pos(range.min), 1.5)}%`, background: color, opacity: 0.55 }} />
-            {/* endpoints */}
-            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ left: `${pos(range.min)}%`, background: color }} />
-            <span className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ left: `${pos(range.max)}%`, background: color }} />
-          </>
-        ) : <span className="text-[10px] text-rebar absolute top-1/2 -translate-y-1/2">none</span>}
-      </div>
-    </div>
-  );
+  let verdict, verdictTone = "text-concrete/80";
+  if (wM == null || lM == null) {
+    verdict = "Only one side has priced bids — not enough to compare yet.";
+  } else {
+    const gap = (lM - wM) * 100; // ¢ difference, lost minus won
+    if (gap >= 5) { verdict = `Your losing bids run about ${gap.toFixed(0)}¢/lb higher than your winning ones — a sign you may be priced too high on ${seg.label}.`; verdictTone = "text-warn"; }
+    else if (gap <= -5) { verdict = `Your winning bids run higher than your losing ones — losses here aren't about price.`; }
+    else { verdict = `Winning and losing bids are priced about the same (within ${Math.abs(gap).toFixed(0)}¢) — price probably isn't what's deciding these.`; }
+  }
 
   return (
-    <div className="mt-1 mb-1">
-      <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-1.5">won vs lost bid price · same scale</div>
-      <div className="space-y-1.5">
-        <Bar range={wR} color="var(--ok)" label="Won" />
-        <Bar range={lR} color="var(--danger)" label="Lost" />
+    <div className="my-4">
+      <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-2">typical bid price · won vs lost (median)</div>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="rounded-lg border border-ok/30 p-3" style={{ background: "var(--surface-2)" }}>
+          <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Won · typical</div>
+          <div className="text-2xl font-semibold text-ok">{c(wM)}<span className="text-xs text-rebar">/lb</span></div>
+          <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.wonRange)} · {seg.won} bids</div>
+        </div>
+        <div className="rounded-lg border border-danger/30 p-3" style={{ background: "var(--surface-2)" }}>
+          <div className="text-[10px] uppercase tracking-wider text-rebar mb-1">Lost · typical</div>
+          <div className="text-2xl font-semibold text-danger">{c(lM)}<span className="text-xs text-rebar">/lb</span></div>
+          <div className="text-[11px] text-rebar mt-0.5">range {rng(seg.lostRange)} · {seg.lost} bids</div>
+        </div>
       </div>
-      <div className="flex justify-between text-[10px] text-rebar mt-1">
-        <span>{(lo * 100).toFixed(0)}¢/lb</span>
-        <span>{(hi * 100).toFixed(0)}¢/lb</span>
-      </div>
-      <p className="text-xs text-concrete/80 mt-2 leading-snug">{verdict}</p>
+      <p className={`text-sm leading-snug ${verdictTone}`}>{verdict}</p>
+      {seg.lowSample && <p className="text-[11px] text-warn mt-2">Under 4 decided bids — read this as a hint, not a conclusion.</p>}
     </div>
   );
 }
+
 
 const STAGE = [["backlog", "#2f73d8", "Backlog"], ["active", "#4a9e63", "Active"], ["closed", "#5a626e", "Closed"]];
 function BookByStage({ stages }) {
