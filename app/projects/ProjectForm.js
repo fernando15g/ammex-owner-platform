@@ -66,6 +66,7 @@ export default function ProjectForm({
       : project?.relatedBidId ? [project.relatedBidId]
       : presetBidId ? [presetBidId] : [],
     siteStreet: project?.siteStreet || "",
+    siteCrossroads: project?.siteCrossroads || "",
     siteCity: project?.siteCity || "",
     siteState: project?.siteState || "AZ",
     siteZip: project?.siteZip || "",
@@ -153,6 +154,7 @@ export default function ProjectForm({
       relatedBidIds: f.relatedBidIds,
       relatedBidId: f.relatedBidIds[0] || null,   // kept for callers that still read one
       siteStreet: f.siteStreet.trim(),
+      siteCrossroads: f.siteCrossroads.trim(),
       siteCity: f.siteCity.trim(),
       siteState: f.siteState.trim(),
       siteZip: f.siteZip.trim(),
@@ -318,6 +320,7 @@ export default function ProjectForm({
               <input className="inp sm:col-span-3" value={f.siteCity} onChange={(e) => setF({ ...f, siteCity: e.target.value })} placeholder="City" />
               <input className="inp sm:col-span-1" value={f.siteState} onChange={(e) => setF({ ...f, siteState: e.target.value })} placeholder="State" />
               <input className="inp sm:col-span-2" value={f.siteZip} onChange={(e) => setF({ ...f, siteZip: e.target.value })} placeholder="Zip" />
+              <input className="inp sm:col-span-6" value={f.siteCrossroads} onChange={(e) => setF({ ...f, siteCrossroads: e.target.value })} placeholder="Crossroads (used for supplier PO if no street address)" />
             </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">
               <button type="button" onClick={() => setShowMap((v) => !v)} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">
