@@ -333,13 +333,17 @@ function DetailPanel({ row, onClose, onEdit }) {
           {row.bidId && (
             <a href={`/pipeline/${row.bidId}`} title="Open this job's bid" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to bid →</a>
           )}
-          <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="open" />
-          {/closed|complete/i.test(row.status || "") && (
-            <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="close" />
-          )}
           <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
           <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
         </div>
+      </div>
+
+      {/* PO actions get their own full-width row so the header isn't crowded */}
+      <div className="px-6 py-3 border-b border-line flex flex-col gap-2 [&_button]:w-full [&_button]:justify-center">
+        <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="open" />
+        {/closed|complete/i.test(row.status || "") && (
+          <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="close" />
+        )}
       </div>
 
       <div className="px-6 py-4 border-b border-line">
