@@ -16,7 +16,6 @@ export default function POEmailButton({ project, mode = "open" }) {
   const compose = async (supplier) => {
     const subject = isClose ? supplier.closeSubject(fields) : supplier.subject(fields);
     const body = isClose ? supplier.closeBody(fields) : supplier.body(fields);
-    // close-out marks the project notified so the dashboard alert clears
     if (isClose && project.id) {
       try {
         await fetch(`/api/projects/${project.id}`, {
@@ -25,17 +24,33 @@ export default function POEmailButton({ project, mode = "open" }) {
         });
       } catch {}
     }
-    // Recipient goes RAW before the ? (encoding the @ breaks some handlers);
-    // only subject/body are query-encoded. Trigger via a real anchor click,
-    // which is more reliable across browsers than assigning window.location.
-    const href = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    const a = document.createElement("a");
-    a.href = href;
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    openMail({ to: supplier.email, subject, body });
     setPicking(false);
+  };
+
+  const composeBoth = async () => {
+    const s0 = SUPPLIERS[0];
+    const subject = isClose ? s0.closeSubject(fields) : s0.subject(fields);
+    const body = isClose ? s0.closeBody(fields) : s0.body(fields);
+    if (isClose && project.id) {
+      try {
+        await fetch(`/api/projects/${project.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes: { supplierPoNotified: true } }),
+        });
+      } catch {}
+    }
+    openMail({ to: SUPPLIERS[0].email, bcc: SUPPLIERS.slice(1).map((s) => s.email).join(","), subject, body });
+    setPicking(false);
+  };
+
+  const openMail = ({ to, bcc, subject, body }) => {
+    const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(body)}`];
+    if (bcc) params.unshift(`bcc=${encodeURIComponent(bcc)}`);
+    const href = `mailto:${to}?${params.join("&")}`;
+    const a = document.createElement("a");
+    a.href = href; a.style.display = "none";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
   return (
@@ -79,6 +94,16 @@ export default function POEmailButton({ project, mode = "open" }) {
                   <div className="text-[11px] text-rebar mt-0.5 truncate">{s.email}</div>
                 </button>
               ))}
+              {SUPPLIERS.length > 1 && (
+                <button onClick={composeBoth}
+                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-concrete">Send to both</span>
+                    <span className="text-[11px] text-rebar group-hover:text-safety shrink-0">Compose →</span>
+                  </div>
+                  <div className="text-[11px] text-rebar mt-0.5">One email — {SUPPLIERS[0].name} in To, others BCC'd (they won't see each other)</div>
+                </button>
+              )}
             </div>
           </div>
         </div>

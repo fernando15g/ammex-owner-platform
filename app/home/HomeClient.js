@@ -508,12 +508,14 @@ function CloseoutBody({ item, onDone }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  const send = async (supplier) => {
+  const send = async (supplier, both = false) => {
     setBusy(true); setErr(null);
     const fields = resolvePOFields({ name: item.name, projectId: item.projectId, site: item.site });
-    const subject = supplier.closeSubject(fields);
-    const body = supplier.closeBody(fields);
-    // mark notified first (so it clears), then open the mail draft
+    const s0 = SUPPLIERS[0];
+    const subject = (both ? s0 : supplier).closeSubject(fields);
+    const body = (both ? s0 : supplier).closeBody(fields);
+    const to = both ? s0.email : supplier.email;
+    const bcc = both ? SUPPLIERS.slice(1).map((s) => s.email).join(",") : "";
     try {
       const res = await fetch(`/api/projects/${item.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -521,7 +523,9 @@ function CloseoutBody({ item, onDone }) {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.ok === false) throw new Error(d.error || `Failed (${res.status})`);
-      const href = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const params = [`subject=${encodeURIComponent(subject)}`, `body=${encodeURIComponent(body)}`];
+      if (bcc) params.unshift(`bcc=${encodeURIComponent(bcc)}`);
+      const href = `mailto:${to}?${params.join("&")}`;
       const a = document.createElement("a");
       a.href = href; a.style.display = "none";
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -541,6 +545,13 @@ function CloseoutBody({ item, onDone }) {
             <span className="text-[11px] text-rebar">{s.email}</span>
           </button>
         ))}
+        {SUPPLIERS.length > 1 && (
+          <button disabled={busy} onClick={() => send(null, true)}
+            className="w-full flex items-center justify-between rounded-md border border-line px-3 py-2.5 text-left hover:border-rebar hover:bg-graphite/40 disabled:opacity-50">
+            <span className="text-sm text-concrete">Send to both</span>
+            <span className="text-[11px] text-rebar">To + BCC</span>
+          </button>
+        )}
       </div>
       <p className="text-[11px] text-rebar mt-3">Sending marks this notified so it clears here. You can still re-send from the project page anytime.</p>
     </div>
