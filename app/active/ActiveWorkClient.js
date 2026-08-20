@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
 import BulkUpdate from "@/app/active/BulkUpdate";
+import POEmailButton from "@/app/projects/POEmailButton";
 import HoursControl from "@/app/components/HoursControl";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import ProjectEditModal from "@/app/projects/ProjectEditModal";
@@ -331,6 +332,10 @@ function DetailPanel({ row, onClose, onEdit }) {
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {row.bidId && (
             <a href={`/pipeline/${row.bidId}`} title="Open this job's bid" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to bid →</a>
+          )}
+          <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="open" />
+          {/closed|complete/i.test(row.status || "") && (
+            <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="close" />
           )}
           <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
           <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
