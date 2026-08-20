@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { useState, useEffect } from "react";
+import { SUPPLIERS, resolvePOFields } from "@/lib/suppliers";
 import { useRouter } from "next/navigation";
 import { confirmDialog } from "@/app/components/Dialog";
 import { AZ_COUNTIES, AZ_VIEWBOX, projectAZ } from "./azCounties";
@@ -31,6 +32,7 @@ const ALERT_META = {
   cold: { title: "Cold bids", item: (i) => `${i.name}${i.gc?.length ? ` · ${i.gc.join(", ")}` : ""}`, right: (i) => `${i.coldDays}d`, sub: "quiet" },
   placement: { title: "Missing placement", item: (i) => i.name, right: () => "0 lbs", sub: "logged" },
   nosheet: { title: "No bid sheet", item: (i) => i.name, right: () => "—", sub: "no line items" },
+  closeout: { title: "Notify supplier of close-out", item: (i) => i.name, right: () => "closed", sub: "PO open" },
 };
 
 export default function HomeClient({ data }) {
@@ -177,7 +179,7 @@ function ZoneTile({ href, label, value, unit, sub, valueTone, subTone }) {
   );
 }
 
-const DOT = { danger: "bg-danger", warn: "bg-warn", ok: "bg-ok" };
+const DOT = { danger: "bg-danger", warn: "bg-warn", ok: "bg-ok", info: "bg-rebar" };
 
 function AlertGroup({ alert, open, onToggle, onPick, selectable, selected, onToggleSelect }) {
   const meta = ALERT_META[alert.id] || {};
@@ -250,6 +252,7 @@ function Modal({ alert, item, onClose, onResolve }) {
           {alert.id === "cold" && <ColdBody item={item} onDone={() => onResolve("cold", item.id)} />}
           {alert.id === "placement" && <PlacementBody item={item} onDone={() => onResolve("placement", item.id)} />}
           {alert.id === "nosheet" && <NoSheetBody item={item} />}
+          {alert.id === "closeout" && <CloseoutBody item={item} onDone={() => onResolve("closeout", item.id)} />}
         </div>
       </div>
     </div>
@@ -493,6 +496,50 @@ function NoSheetBody({ item }) {
       <div className="mt-4">
         <a href={item.bidId ? `/pipeline/${item.bidId}/sheet` : "/pipeline"} className="text-sm px-3 py-2 rounded-md bg-safety text-steel font-medium inline-block">Add bid sheet</a>
       </div>
+    </div>
+  );
+}
+
+// Close-out: pick a supplier, open the pre-filled close-out email, and mark the
+// project notified (checks "Supplier PO Notified" in Notion) so it clears from
+// the alert. mailto can't confirm a send, so we mark on compose — re-openable
+// from the project if needed.
+function CloseoutBody({ item, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const send = async (supplier) => {
+    setBusy(true); setErr(null);
+    const fields = resolvePOFields({ name: item.name, projectId: item.projectId, site: item.site });
+    const subject = supplier.closeSubject(fields);
+    const body = supplier.closeBody(fields);
+    // mark notified first (so it clears), then open the mail draft
+    try {
+      const res = await fetch(`/api/projects/${item.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes: { supplierPoNotified: true } }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.ok === false) throw new Error(d.error || `Failed (${res.status})`);
+      window.location.href = `mailto:${encodeURIComponent(supplier.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      onDone();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  };
+
+  return (
+    <div>
+      <p className="text-xs text-rebar mb-3">This job is closed. Send the supplier a note to close their PO and send final material billing. Pick a supplier — opens a pre-filled email you review and send.</p>
+      {err && <div className="text-danger text-xs mb-2 rounded border border-danger/40 bg-danger/10 p-2">{err}</div>}
+      <div className="space-y-1.5">
+        {SUPPLIERS.map((s) => (
+          <button key={s.id} disabled={busy} onClick={() => send(s)}
+            className="w-full flex items-center justify-between rounded-md border border-line px-3 py-2.5 text-left hover:border-rebar hover:bg-graphite/40 disabled:opacity-50">
+            <span className="text-sm text-concrete">{s.name}</span>
+            <span className="text-[11px] text-rebar">{s.email}</span>
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-rebar mt-3">Sending marks this notified so it clears here. You can still re-send from the project page anytime.</p>
     </div>
   );
 }

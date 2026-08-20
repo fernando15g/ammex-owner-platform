@@ -13,9 +13,18 @@ export default function POEmailButton({ project, mode = "open" }) {
   const fields = resolvePOFields(project);
   const isClose = mode === "close";
 
-  const compose = (supplier) => {
+  const compose = async (supplier) => {
     const subject = isClose ? supplier.closeSubject(fields) : supplier.subject(fields);
     const body = isClose ? supplier.closeBody(fields) : supplier.body(fields);
+    // close-out marks the project notified so the dashboard alert clears
+    if (isClose && project.id) {
+      try {
+        await fetch(`/api/projects/${project.id}`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ changes: { supplierPoNotified: true } }),
+        });
+      } catch {}
+    }
     const href = `mailto:${encodeURIComponent(supplier.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = href;
     setPicking(false);
