@@ -42,19 +42,15 @@ export default function POEmailButton({ project, mode = "open" }) {
       {picking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPicking(false)}>
           <div className="w-full max-w-md rounded-xl border border-line p-6 max-h-[85vh] overflow-y-auto" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
-            {/* header */}
-            <div className="flex items-start justify-between mb-1 gap-3">
-              <div>
-                <h3 className="text-concrete font-semibold text-lg leading-tight">{isClose ? "Notify supplier of close-out" : "Request material PO"}</h3>
-                <p className="text-sm text-rebar mt-1">{project.name || "This job"}{project.projectId ? ` · ${project.projectId}` : ""}</p>
-              </div>
-              <button onClick={() => setPicking(false)} className="text-rebar hover:text-concrete shrink-0 -mt-1">✕</button>
+            {/* header — ✕ pinned top-right, title gets full width so it doesn't wrap */}
+            <div className="relative mb-4">
+              <button onClick={() => setPicking(false)} className="absolute top-0 right-0 text-rebar hover:text-concrete">✕</button>
+              <h3 className="text-concrete font-semibold text-lg leading-tight pr-8">{isClose ? "Notify supplier of close-out" : "Request material PO"}</h3>
+              <p className="text-sm text-rebar mt-1 pr-8">{project.name || "This job"}{project.projectId ? ` · ${project.projectId}` : ""}</p>
             </div>
 
-            <p className="text-sm text-rebar mt-3 mb-4 leading-relaxed">
-              {isClose
-                ? "Choose a supplier to email that this job is complete — asks them to close the PO and send final billing. Opens a pre-filled draft you review and send."
-                : "Choose a supplier to email a job-PO request so they can start tracking material costs. Opens a pre-filled draft you review and send."}
+            <p className="text-sm text-rebar mb-4 leading-relaxed">
+              {isClose ? "Emails the supplier to close the PO and send final billing." : "Emails the supplier to open a job PO for material-cost tracking."}
             </p>
 
             {fields._addressMissing && !isClose && (
