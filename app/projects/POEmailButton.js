@@ -41,25 +41,38 @@ export default function POEmailButton({ project, mode = "open" }) {
 
       {picking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPicking(false)}>
-          <div className="w-full max-w-sm rounded-lg border border-line p-4" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-concrete font-medium">{isClose ? "Close-out email" : "Material PO request"}</h3>
-              <button onClick={() => setPicking(false)} className="text-rebar hover:text-concrete">✕</button>
+          <div className="w-full max-w-md rounded-xl border border-line p-6 max-h-[85vh] overflow-y-auto" style={{ background: "var(--surface)" }} onClick={(e) => e.stopPropagation()}>
+            {/* header */}
+            <div className="flex items-start justify-between mb-1 gap-3">
+              <div>
+                <h3 className="text-concrete font-semibold text-lg leading-tight">{isClose ? "Notify supplier of close-out" : "Request material PO"}</h3>
+                <p className="text-sm text-rebar mt-1">{project.name || "This job"}{project.projectId ? ` · ${project.projectId}` : ""}</p>
+              </div>
+              <button onClick={() => setPicking(false)} className="text-rebar hover:text-concrete shrink-0 -mt-1">✕</button>
             </div>
-            <p className="text-xs text-rebar mb-3">Pick a supplier — opens a pre-filled email you review and send.</p>
+
+            <p className="text-sm text-rebar mt-3 mb-4 leading-relaxed">
+              {isClose
+                ? "Choose a supplier to email that this job is complete — asks them to close the PO and send final billing. Opens a pre-filled draft you review and send."
+                : "Choose a supplier to email a job-PO request so they can start tracking material costs. Opens a pre-filled draft you review and send."}
+            </p>
 
             {fields._addressMissing && !isClose && (
-              <div className="text-xs text-warn rounded border border-warn/40 bg-warn/10 p-2 mb-3">
-                No site address or crossroads on this project. Add “Site Crossroads” (or a Site Street) on the project first, or the email will go out without a job address.
+              <div className="text-xs text-warn rounded-lg border border-warn/40 bg-warn/10 p-3 mb-4 leading-relaxed">
+                <span className="font-medium">No job address yet.</span> Add a Site Street or Site Crossroads on this project first, or the email goes out without one.
               </div>
             )}
 
-            <div className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-2">Supplier</div>
+            <div className="space-y-2">
               {SUPPLIERS.map((s) => (
                 <button key={s.id} onClick={() => compose(s)}
-                  className="w-full flex items-center justify-between rounded-md border border-line px-3 py-2.5 text-left hover:border-rebar hover:bg-graphite/40">
-                  <span className="text-sm text-concrete">{s.name}</span>
-                  <span className="text-[11px] text-rebar">{s.email}</span>
+                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-concrete">{s.name}</span>
+                    <span className="text-[11px] text-rebar group-hover:text-safety shrink-0">Compose →</span>
+                  </div>
+                  <div className="text-[11px] text-rebar mt-0.5 truncate">{s.email}</div>
                 </button>
               ))}
             </div>
