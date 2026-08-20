@@ -25,8 +25,16 @@ export default function POEmailButton({ project, mode = "open" }) {
         });
       } catch {}
     }
-    const href = `mailto:${encodeURIComponent(supplier.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
+    // Recipient goes RAW before the ? (encoding the @ breaks some handlers);
+    // only subject/body are query-encoded. Trigger via a real anchor click,
+    // which is more reliable across browsers than assigning window.location.
+    const href = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const a = document.createElement("a");
+    a.href = href;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     setPicking(false);
   };
 

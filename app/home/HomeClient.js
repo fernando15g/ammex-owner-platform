@@ -521,7 +521,10 @@ function CloseoutBody({ item, onDone }) {
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok || d.ok === false) throw new Error(d.error || `Failed (${res.status})`);
-      window.location.href = `mailto:${encodeURIComponent(supplier.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const href = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const a = document.createElement("a");
+      a.href = href; a.style.display = "none";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
       onDone();
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   };
