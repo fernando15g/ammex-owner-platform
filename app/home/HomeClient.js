@@ -89,8 +89,9 @@ export default function HomeClient({ data }) {
       </div>
 
       {/* the glance */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <ZoneTile href="/pipeline" label="Bids in flight" value={money(tiles.pipeline.weighted)} sub={`${tiles.pipeline.count} bids · weighted`} />
+        <SubmittedTile data={tiles.submitted} />
         <ZoneTile href="/active" label="Active work" value={`${tiles.active.running}`} unit="running"
           sub={tiles.active.overPace > 0 ? `${tiles.active.overPace} over pace` : "on pace"} subTone={tiles.active.overPace > 0 ? "danger" : "ok"} />
         <ZoneTile href="/billing" label="To collect" value={money(tiles.billing.outstanding)} valueTone="amber"
@@ -161,6 +162,32 @@ export default function HomeClient({ data }) {
           onDone={(resolvedIds) => { resolveMany("cold", resolvedIds); setBulkModal(null); }}
         />
       )}
+    </div>
+  );
+}
+
+// Bids put out the door — count + contract value, this week or this month.
+// Not a link: the toggle is the interaction. Same visual shell as ZoneTile.
+function SubmittedTile({ data }) {
+  const [win, setWin] = useState("week");
+  const d = (data && data[win]) || { count: 0, value: 0 };
+  return (
+    <div className="rounded-lg border border-line px-4 py-3.5" style={{ background: "var(--surface-2)" }}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] uppercase tracking-wider text-rebar">Submitted</span>
+        <span className="flex gap-0.5">
+          {[["week", "Wk"], ["month", "Mo"]].map(([k, label]) => (
+            <button key={k} onClick={() => setWin(k)}
+              className={`text-[10px] px-1.5 py-0.5 rounded ${win === k ? "bg-graphite text-concrete" : "text-rebar hover:text-concrete"}`}>
+              {label}
+            </button>
+          ))}
+        </span>
+      </div>
+      <div className="text-[26px] leading-none font-semibold tabular-nums text-concrete">
+        {d.count}<span className="text-xs font-normal text-rebar ml-1">{d.count === 1 ? "bid" : "bids"}</span>
+      </div>
+      <div className="text-[11px] mt-2 text-rebar">{money(d.value)} {win === "week" ? "this week" : "this month"}</div>
     </div>
   );
 }
