@@ -208,19 +208,22 @@ export default function NewBidForm() {
         <div className="grid sm:grid-cols-2 gap-5">
           <Field label="Estimated LBS" required><input type="number" className="inp inp-need" value={form.estimatedLbs} onChange={(e) => set("estimatedLbs", e.target.value)} placeholder="234000" /></Field>
           <Field label="Bid rate ($/lb)" hint={Number(form.bidRate) > 0 ? "yours — clear to use the recommendation" : "recommended — type to override"}>
-            <input
-              type="number"
-              step="0.0001"
-              className="inp inp-need"
-              value={form.bidRate}
-              onChange={(e) => set("bidRate", e.target.value)}
-              /* The recommendation fills the cell live as the drivers are typed,
-                 so it's a number you can see and accept — not the word "auto". */
-              placeholder={econ ? String(econ.bidRatePerLb) : ""}
-            />
+            <div className="inp inp-need flex items-center gap-1">
+              <span className="text-rebar select-none">$</span>
+              <input
+                type="number"
+                step="0.0001"
+                className="w-full bg-transparent text-concrete focus:outline-none"
+                value={form.bidRate}
+                onChange={(e) => set("bidRate", e.target.value)}
+                /* The recommendation fills the cell live as the drivers are typed,
+                   so it's a number you can see and accept — not the word "auto". */
+                placeholder={econ ? String(econ.bidRatePerLb) : ""}
+              />
+            </div>
           </Field>
           <Field label="Productivity (LBS/MH)"><input type="number" className="inp inp-need" value={form.productivity} onChange={(e) => set("productivity", e.target.value)} /></Field>
-          <Field label="Base wage"><input type="number" className="inp inp-need" value={form.baseWage} onChange={(e) => set("baseWage", e.target.value)} /></Field>
+          <Field label="Base wage"><div className="inp inp-need flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="number" className="w-full bg-transparent text-concrete focus:outline-none" value={form.baseWage} onChange={(e) => set("baseWage", e.target.value)} /></div></Field>
           <Field label="Crew size"><input type="number" className="inp inp-need" value={form.crewSize} onChange={(e) => set("crewSize", e.target.value)} placeholder="8" /></Field>
         </div>
 
@@ -299,6 +302,7 @@ export default function NewBidForm() {
         .inp:focus { border-color: var(--accent); }
         .inp-need { border-color: var(--info); box-shadow: 0 0 0 1px var(--info); }
         .inp-need:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        .inp-need:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
       `}</style>
     </div>
   );

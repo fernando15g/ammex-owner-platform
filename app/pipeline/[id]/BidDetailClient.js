@@ -1,5 +1,5 @@
 "use client";
-import { money as moneyFmt } from "@/lib/format/numbers";
+import { money as moneyFmt, rate as rateFmt } from "@/lib/format/numbers";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -318,9 +318,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           <Grid>
             <FNum label="Estimated LBS" edit={editing} value={w.estimatedLbs} onChange={(v) => set("estimatedLbs", v)} />
             <FNum label="Productivity (LBS/MH)" edit={editing} value={w.productivity} onChange={(v) => set("productivity", v)} placeholder={String(CALC_DEFAULTS.outputLbPerMH)} />
-            <FNum label="Bid rate ($/lb)" edit={editing} value={w.bidRate} onChange={(v) => set("bidRate", v)} step="0.0001" hint="blank = use recommended" />
+            <FNum label="Bid rate ($/lb)" edit={editing} value={w.bidRate} onChange={(v) => set("bidRate", v)} step="0.0001" prefix="$" hint="blank = use recommended" />
             <FNum label="Crew size" edit={editing} value={w.crewSize} onChange={(v) => set("crewSize", v)} />
-            <FNum label="Base wage" edit={editing} value={w.baseWage} onChange={(v) => set("baseWage", v)} placeholder={String(CALC_DEFAULTS.wageRate)} />
+            <FNum label="Base wage" edit={editing} value={w.baseWage} onChange={(v) => set("baseWage", v)} placeholder={String(CALC_DEFAULTS.wageRate)} prefix="$" />
             {!editing && num0(w.ptSpecialty) ? <FNum label="PT / Specialty revenue (legacy)" edit={false} value={w.ptSpecialty} onChange={() => {}} /> : null}
           </Grid>
           {editing && (
@@ -358,7 +358,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Economics {editing && <span className="text-safety normal-case">· live</span>}</p>
           {econ ? (
             <div className="space-y-2.5 text-sm">
-              <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={`$${econ.bidRatePerLb}/lb`} big />
+              <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={rateFmt(Number(econ.bidRatePerLb))} big />
               <Row label="Contract value" value={money(econ.contractValue)} />
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
               <Row label="Operating margin" value={pctFmt(econ.operatingMargin)} tone="ok" />
@@ -409,8 +409,17 @@ function V({ children }) { return <span className="text-sm text-concrete">{child
 function F({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}</div>);
 }
-function FNum({ label, edit, value, onChange, step, placeholder, hint }) {
-  return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /> : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}</div>);
+function FNum({ label, edit, value, onChange, step, placeholder, hint, prefix }) {
+  return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? (
+    prefix ? (
+      <div className="inp flex items-center gap-1">
+        <span className="text-rebar select-none">{prefix}</span>
+        <input type="number" step={step || "any"} className="w-full bg-transparent text-concrete focus:outline-none" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+      </div>
+    ) : (
+      <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+    )
+  ) : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}</div>);
 }
 function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{fmtDateLocal(value)}</V>}</div>);

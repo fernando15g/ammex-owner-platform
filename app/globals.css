@@ -75,6 +75,8 @@ input, select, textarea { color: var(--text); }
   outline: none;
 }
 .inp:focus { border-color: var(--accent); }
+/* wrapped inputs (e.g. a "$" prefix sitting inside the box) keep the focus ring */
+.inp:focus-within { border-color: var(--accent); }
 
 /* Dates: clicking anywhere in the cell opens the picker, not just the tiny icon. */
 input[type="date"] { cursor: pointer; }
