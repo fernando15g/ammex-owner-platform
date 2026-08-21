@@ -9,14 +9,19 @@
 import { useState, useMemo, useEffect } from "react";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
+
+// typed "20" -> 0.20 for the engine; blank -> null (falls to defaults)
+const pctVal = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Number(v) / 100);
 import { computeSpecialtyRollup, SPECIALTY_TYPES, newSpecialtyLine } from "@/lib/rules/specialty";
 import ChipSelect from "@/app/components/ChipSelect";
 import ManageOptions from "@/app/components/ManageOptions";
 
 const DEFAULTS = {
   productivity: "200", baseWage: "32", crewSize: "",
-  burdenPct: "0.20", toolsPct: "0.03", contingencyPct: "0.03",
-  mobilizationHrs: "8", targetMarginPct: "0.25", hoursPerDay: "8",
+  // Percents display as WHOLE numbers (20 = 20%); pctVal converts to the
+  // decimal (0.20) the engine and storage use. Math never sees whole numbers.
+  burdenPct: "20", toolsPct: "3", contingencyPct: "3",
+  mobilizationHrs: "8", targetMarginPct: "25", hoursPerDay: "8",
 };
 
 export default function NewBidForm() {
@@ -60,10 +65,10 @@ export default function NewBidForm() {
     const n = (v) => (v === "" || v == null ? null : Number(v));
     const assumptions = {
       wageRate: n(form.baseWage) ?? CALC_DEFAULTS.wageRate,
-      burdenPct: n(form.burdenPct) ?? CALC_DEFAULTS.burdenPct,
-      toolsPct: n(form.toolsPct) ?? CALC_DEFAULTS.toolsPct,
-      contingencyPct: n(form.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
-      targetMarginPct: n(form.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
+      burdenPct: pctVal(form.burdenPct) ?? CALC_DEFAULTS.burdenPct,
+      toolsPct: pctVal(form.toolsPct) ?? CALC_DEFAULTS.toolsPct,
+      contingencyPct: pctVal(form.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
+      targetMarginPct: pctVal(form.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
     return computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
   }, [specialtyLines, specialtyOn, form.baseWage, form.burdenPct, form.toolsPct, form.contingencyPct, form.targetMarginPct]);
@@ -75,10 +80,10 @@ export default function NewBidForm() {
     // the engine defaults, never override them to zero.
     const assumptions = {
       wageRate: n(form.baseWage) ?? CALC_DEFAULTS.wageRate,
-      burdenPct: n(form.burdenPct) ?? CALC_DEFAULTS.burdenPct,
-      toolsPct: n(form.toolsPct) ?? CALC_DEFAULTS.toolsPct,
-      contingencyPct: n(form.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
-      targetMarginPct: n(form.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
+      burdenPct: pctVal(form.burdenPct) ?? CALC_DEFAULTS.burdenPct,
+      toolsPct: pctVal(form.toolsPct) ?? CALC_DEFAULTS.toolsPct,
+      contingencyPct: pctVal(form.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
+      targetMarginPct: pctVal(form.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
     const specRoll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
     const inputs = { weightLb: n(form.estimatedLbs), specialtyRevenue: specRoll.specRevenue, specialtyCost: specRoll.specCost, specialtyHours: specRoll.specHours };
@@ -87,10 +92,10 @@ export default function NewBidForm() {
     add("crewSize", n(form.crewSize));
     add("wageRate", n(form.baseWage));
     add("mobilizationHrs", n(form.mobilizationHrs));
-    add("burdenPct", n(form.burdenPct));
-    add("toolsPct", n(form.toolsPct));
-    add("contingencyPct", n(form.contingencyPct));
-    add("targetMarginPct", n(form.targetMarginPct));
+    add("burdenPct", pctVal(form.burdenPct));
+    add("toolsPct", pctVal(form.toolsPct));
+    add("contingencyPct", pctVal(form.contingencyPct));
+    add("targetMarginPct", pctVal(form.targetMarginPct));
     add("hoursPerDay", n(form.hoursPerDay));
     return priceBid(inputs, n(form.bidRate));
   }, [form, specialtyLines, specialtyOn]);
@@ -232,19 +237,19 @@ export default function NewBidForm() {
         </button>
         {showAssumptions && (
           <div className="grid sm:grid-cols-3 gap-4 p-4 rounded-lg border border-line" style={{ background: "var(--surface)" }}>
-            <Field label="Burden %"><input type="number" step="0.01" className="inp inp-need" value={form.burdenPct} onChange={(e) => set("burdenPct", e.target.value)} /></Field>
-            <Field label="Tools %"><input type="number" step="0.01" className="inp inp-need" value={form.toolsPct} onChange={(e) => set("toolsPct", e.target.value)} /></Field>
-            <Field label="Contingency %"><input type="number" step="0.01" className="inp inp-need" value={form.contingencyPct} onChange={(e) => set("contingencyPct", e.target.value)} /></Field>
+            <Field label="Burden %"><div className="inp inp-need flex items-center gap-1"><input type="number" step="1" className="w-full bg-transparent text-concrete focus:outline-none" value={form.burdenPct} onChange={(e) => set("burdenPct", e.target.value)} /><span className="text-rebar select-none">%</span></div></Field>
+            <Field label="Tools %"><div className="inp inp-need flex items-center gap-1"><input type="number" step="1" className="w-full bg-transparent text-concrete focus:outline-none" value={form.toolsPct} onChange={(e) => set("toolsPct", e.target.value)} /><span className="text-rebar select-none">%</span></div></Field>
+            <Field label="Contingency %"><div className="inp inp-need flex items-center gap-1"><input type="number" step="1" className="w-full bg-transparent text-concrete focus:outline-none" value={form.contingencyPct} onChange={(e) => set("contingencyPct", e.target.value)} /><span className="text-rebar select-none">%</span></div></Field>
             <Field label="Mobilization hrs"><input type="number" className="inp inp-need" value={form.mobilizationHrs} onChange={(e) => set("mobilizationHrs", e.target.value)} /></Field>
             <Field label="Hours per day"><input type="number" className="inp inp-need" value={form.hoursPerDay} onChange={(e) => set("hoursPerDay", e.target.value)} /></Field>
-            <Field label="Target margin %"><input type="number" step="0.01" className="inp inp-need" value={form.targetMarginPct} onChange={(e) => set("targetMarginPct", e.target.value)} /></Field>
+            <Field label="Target margin %"><div className="inp inp-need flex items-center gap-1"><input type="number" step="1" className="w-full bg-transparent text-concrete focus:outline-none" value={form.targetMarginPct} onChange={(e) => set("targetMarginPct", e.target.value)} /><span className="text-rebar select-none">%</span></div></Field>
           </div>
         )}
 
         <SpecialtyPanel
           on={specialtyOn} setOn={setSpecialtyOn}
           lines={specialtyLines} rows={specRollup.rows} rollup={specRollup}
-          targetMargin={Number(form.targetMarginPct) || CALC_DEFAULTS.targetMarginPct}
+          targetMargin={Number(form.targetMarginPct) / 100 || CALC_DEFAULTS.targetMarginPct}
           toggleType={toggleType} updLine={updLine} removeLine={removeLine}
         />
 

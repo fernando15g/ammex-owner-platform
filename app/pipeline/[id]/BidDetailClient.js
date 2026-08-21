@@ -20,6 +20,8 @@ import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 import { computeSpecialtyRollup, SPECIALTY_TYPES, SPECIALTY_DEFAULT_PRODUCTIVITY, newSpecialtyLine } from "@/lib/rules/specialty";
 
 const money = (n) => (typeof n !== "number" ? "—" : moneyFmt(n));
+// stored decimal (0.20) -> whole-number display string ("20"); FP-safe (0.03 -> "3")
+const pctLoad = (v) => (v == null || v === "" ? "" : String(+(Number(v) * 100).toFixed(4)));
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 
@@ -67,16 +69,20 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     baseWage: bid.baseWage ?? "",
     bidRate: bid.bidRate ?? "",
     ptSpecialty: bid.ptSpecialtyRevenue ?? "",
-    burdenPct: bid.burdenPct ?? "",
-    toolsPct: bid.toolsPct ?? "",
-    contingencyPct: bid.contingencyPct ?? "",
+    // Percent fields display as WHOLE numbers (20 = 20%) but are STORED as
+    // decimals (0.20) — pctLoad converts out of storage, pctVal converts back
+    // for the engine. Storage and math never change.
+    burdenPct: pctLoad(bid.burdenPct),
+    toolsPct: pctLoad(bid.toolsPct),
+    contingencyPct: pctLoad(bid.contingencyPct),
     mobilizationHrs: bid.mobilizationHrs ?? "",
-    targetMarginPct: bid.targetMarginPct ?? "",
+    targetMarginPct: pctLoad(bid.targetMarginPct),
     hoursPerDay: bid.hoursPerDay ?? "",
     submissionDate: bid.submissionDate ?? "",
   });
   const [w, setW] = useState(initialW);
   const num0 = (v) => (v === "" || v == null ? null : Number(v)); // component-scope numeric coerce (render-safe)
+  const pctVal = (v) => { const x = num0(v); return x == null ? null : x / 100; }; // typed "20" -> 0.20 for the engine
   // Rebuild editable specialty lines from the bid's saved scope so an existing
   // PT bid opens ready to edit. Guarded: no specialty → empty, panel stays off.
   const seedSpecialty = (specialty?.rows || []).map((r) => {
@@ -105,10 +111,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     const n = (v) => (v === "" || v == null ? null : Number(v));
     const assumptions = {
       wageRate: n(w.baseWage) ?? CALC_DEFAULTS.wageRate,
-      burdenPct: n(w.burdenPct) ?? CALC_DEFAULTS.burdenPct,
-      toolsPct: n(w.toolsPct) ?? CALC_DEFAULTS.toolsPct,
-      contingencyPct: n(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
-      targetMarginPct: n(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
+      burdenPct: pctVal(w.burdenPct) ?? CALC_DEFAULTS.burdenPct,
+      toolsPct: pctVal(w.toolsPct) ?? CALC_DEFAULTS.toolsPct,
+      contingencyPct: pctVal(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
+      targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
     return computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
   }, [specialtyLines, specialtyOn, w.baseWage, w.burdenPct, w.toolsPct, w.contingencyPct, w.targetMarginPct]);
@@ -125,10 +131,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     // like the calculator). Uses the same assumptions the rebar side uses.
     const assumptions = {
       wageRate: n(w.baseWage) ?? CALC_DEFAULTS.wageRate,
-      burdenPct: n(w.burdenPct) ?? CALC_DEFAULTS.burdenPct,
-      toolsPct: n(w.toolsPct) ?? CALC_DEFAULTS.toolsPct,
-      contingencyPct: n(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
-      targetMarginPct: n(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
+      burdenPct: pctVal(w.burdenPct) ?? CALC_DEFAULTS.burdenPct,
+      toolsPct: pctVal(w.toolsPct) ?? CALC_DEFAULTS.toolsPct,
+      contingencyPct: pctVal(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
+      targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
     const specRoll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
     const inputs = {
@@ -142,10 +148,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     add("crewSize", n(w.crewSize));
     add("wageRate", n(w.baseWage));
     add("mobilizationHrs", n(w.mobilizationHrs));
-    add("burdenPct", n(w.burdenPct));
-    add("toolsPct", n(w.toolsPct));
-    add("contingencyPct", n(w.contingencyPct));
-    add("targetMarginPct", n(w.targetMarginPct));
+    add("burdenPct", pctVal(w.burdenPct));
+    add("toolsPct", pctVal(w.toolsPct));
+    add("contingencyPct", pctVal(w.contingencyPct));
+    add("targetMarginPct", pctVal(w.targetMarginPct));
     add("hoursPerDay", n(w.hoursPerDay));
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
   }, [w, specialtyLines, specialtyOn]);
@@ -327,10 +333,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <details className="mt-3">
               <summary className="text-xs text-rebar cursor-pointer hover:text-concrete">Assumptions (burden, tools, contingency, target margin, mob hrs)</summary>
               <Grid className="mt-3">
-                <FNum label="Burden %" edit value={w.burdenPct} onChange={(v) => set("burdenPct", v)} step="0.01" placeholder="0.20" />
-                <FNum label="Tools %" edit value={w.toolsPct} onChange={(v) => set("toolsPct", v)} step="0.01" placeholder="0.03" />
-                <FNum label="Contingency %" edit value={w.contingencyPct} onChange={(v) => set("contingencyPct", v)} step="0.01" placeholder="0.03" />
-                <FNum label="Target margin %" edit value={w.targetMarginPct} onChange={(v) => set("targetMarginPct", v)} step="0.01" placeholder="0.25" />
+                <FNum label="Burden %" edit value={w.burdenPct} onChange={(v) => set("burdenPct", v)} step="1" placeholder="20" suffix="%" />
+                <FNum label="Tools %" edit value={w.toolsPct} onChange={(v) => set("toolsPct", v)} step="1" placeholder="3" suffix="%" />
+                <FNum label="Contingency %" edit value={w.contingencyPct} onChange={(v) => set("contingencyPct", v)} step="1" placeholder="3" suffix="%" />
+                <FNum label="Target margin %" edit value={w.targetMarginPct} onChange={(v) => set("targetMarginPct", v)} step="1" placeholder="25" suffix="%" />
                 <FNum label="Mobilization hrs" edit value={w.mobilizationHrs} onChange={(v) => set("mobilizationHrs", v)} placeholder="8" />
                 <FNum label="Hours per day" edit value={w.hoursPerDay} onChange={(v) => set("hoursPerDay", v)} placeholder="8" />
               </Grid>
@@ -343,7 +349,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             setOn={setSpecialtyOn}
             lines={specialtyLines}
             rows={specRollup.rows}
-            targetMargin={num0(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct}
+            targetMargin={pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct}
             toggleType={toggleType}
             updLine={updLine}
             removeLine={removeLine}
@@ -409,17 +415,18 @@ function V({ children }) { return <span className="text-sm text-concrete">{child
 function F({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{value}</V>}</div>);
 }
-function FNum({ label, edit, value, onChange, step, placeholder, hint, prefix }) {
+function FNum({ label, edit, value, onChange, step, placeholder, hint, prefix, suffix }) {
   return (<div><L>{label}{hint && edit && <span className="ml-1 text-rebar/70">· {hint}</span>}</L>{edit ? (
-    prefix ? (
+    (prefix || suffix) ? (
       <div className="inp flex items-center gap-1">
-        <span className="text-rebar select-none">{prefix}</span>
+        {prefix && <span className="text-rebar select-none">{prefix}</span>}
         <input type="number" step={step || "any"} className="w-full bg-transparent text-concrete focus:outline-none" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        {suffix && <span className="text-rebar select-none">{suffix}</span>}
       </div>
     ) : (
       <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
     )
-  ) : <V>{value === "" || value == null ? "—" : `${prefix || ""}${Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}`}</V>}</div>);
+  ) : <V>{value === "" || value == null ? "—" : `${prefix || ""}${Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}${suffix || ""}`}</V>}</div>);
 }
 function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{fmtDateLocal(value)}</V>}</div>);
