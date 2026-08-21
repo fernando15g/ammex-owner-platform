@@ -457,7 +457,7 @@ export default function CreateBillClient({ data }) {
           <span className="text-xs text-rebar mb-1 block">Retention</span>
           <div className="flex items-center gap-2 pt-1.5">
             <label className="flex items-center gap-1.5 text-sm text-concrete"><input type="checkbox" checked={head.retentionEnabled} onChange={(e) => setHead({ ...head, retentionEnabled: e.target.checked })} /> held</label>
-            {head.retentionEnabled && <input type="text" inputMode="decimal" className="inp" style={{ width: 64 }} value={head.retentionPct} onChange={(e) => setHead({ ...head, retentionPct: e.target.value })} placeholder="10" />}
+            {head.retentionEnabled && <div className="inp flex items-center gap-1" style={{ width: 90 }}><input type="text" inputMode="decimal" className="w-full bg-transparent text-concrete focus:outline-none" value={head.retentionPct} onChange={(e) => setHead({ ...head, retentionPct: e.target.value })} placeholder="10" /><span className="text-rebar select-none">%</span></div>}
             {head.retentionEnabled && <span className="text-xs text-rebar">%</span>}
           </div>
         </div>
@@ -475,7 +475,7 @@ export default function CreateBillClient({ data }) {
               <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs completed</span><input type="text" inputMode="decimal" className="inp" value={adot.lbsDone} onChange={(e) => setAdot({ ...adot, lbsDone: e.target.value })} placeholder="100000" /></label>
               <label className="block"><span className="text-xs text-rebar mb-1 block">Lbs total (job) <span className="text-rebar/60">· from the bid sheet</span></span><input type="text" inputMode="decimal" className="inp" value={adot.lbsTotal} onChange={(e) => setAdot({ ...adot, lbsTotal: e.target.value })} placeholder="200000" /></label>
               <label className="block"><span className="text-xs text-rebar mb-1 block">Total sq ft</span><input type="text" inputMode="decimal" className="inp" value={adot.totalSqft} onChange={(e) => setAdot({ ...adot, totalSqft: e.target.value })} placeholder="2400" /></label>
-              <label className="block"><span className="text-xs text-rebar mb-1 block">$ / sq ft <span className="text-rebar/60">· from the bid sheet</span></span><input type="text" inputMode="decimal" className="inp" value={adot.ratePerSqft} onChange={(e) => setAdot({ ...adot, ratePerSqft: e.target.value })} placeholder="0.00" /></label>
+              <label className="block"><span className="text-xs text-rebar mb-1 block">$ / sq ft <span className="text-rebar/60">· from the bid sheet</span></span><div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="text" inputMode="decimal" className="w-full bg-transparent text-concrete focus:outline-none" value={adot.ratePerSqft} onChange={(e) => setAdot({ ...adot, ratePerSqft: e.target.value })} placeholder="0.00" /></div></label>
             </div>
 
             <div className="rounded-md border border-line px-3 py-2.5 mt-3" style={{ background: "var(--surface-2)" }}>

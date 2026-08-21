@@ -429,7 +429,7 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
           <details className="mt-2">
             <summary className="text-xs text-info cursor-pointer hover:underline">Override contract value</summary>
             <div className="mt-2 grid sm:grid-cols-2 gap-2">
-              <input type="number" className="inp" value={s.contractOverride} onChange={(e) => setS({ ...s, contractOverride: e.target.value })} placeholder="Override amount" />
+              <div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="number" className="w-full bg-transparent text-concrete focus:outline-none" value={s.contractOverride} onChange={(e) => setS({ ...s, contractOverride: e.target.value })} placeholder="Override amount" /></div>
               <input className="inp" value={s.overrideReason} onChange={(e) => setS({ ...s, overrideReason: e.target.value })} placeholder="Reason for override" />
             </div>
             <p className="text-[11px] text-rebar mt-1">Leave blank to keep the auto value from line items. A reason is recorded for the audit trail.</p>
@@ -442,10 +442,10 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
       {s.retentionEnabled && (
         <div className="grid sm:grid-cols-2 gap-4">
           <Lbl text="Retention percent" info="The % the GC holds back from each bill until the job closes (commonly 5% or 10%). Enter just the number, e.g. 10. Use this OR flat amount, not both.">
-            <input type="number" step="0.1" className="inp" value={s.retentionPercent} onChange={(e) => setS({ ...s, retentionPercent: e.target.value })} placeholder="10" />
+            <div className="inp flex items-center gap-1"><input type="number" step="0.1" className="w-full bg-transparent text-concrete focus:outline-none" value={s.retentionPercent} onChange={(e) => setS({ ...s, retentionPercent: e.target.value })} placeholder="10" /><span className="text-rebar select-none">%</span></div>
           </Lbl>
           <Lbl text="Retention flat amount" info="A fixed dollar retention for the whole job, instead of a percentage. Only use if the GC holds a set amount rather than a %. Most jobs use percent — leave blank if so.">
-            <input type="number" className="inp" value={s.retentionFlatAmount} onChange={(e) => setS({ ...s, retentionFlatAmount: e.target.value })} placeholder="(optional)" />
+            <div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="number" className="w-full bg-transparent text-concrete focus:outline-none" value={s.retentionFlatAmount} onChange={(e) => setS({ ...s, retentionFlatAmount: e.target.value })} placeholder="(optional)" /></div>
           </Lbl>
         </div>
       )}
@@ -504,7 +504,7 @@ function EditEventForm({ event, busy, onCancel, onSave }) {
         {!isInvoice && (
           <label className="block">
             <span className="text-xs text-rebar mb-1 block">Amount</span>
-            <input type="text" inputMode="decimal" className="inp" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} />
+            <div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="text" inputMode="decimal" className="w-full bg-transparent text-concrete focus:outline-none" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} /></div>
           </label>
         )}
         {(isInvoice || event.type === "Payment") && (
@@ -616,7 +616,7 @@ function ChangeOrderForm({ projectId, relatedBidId, onClose, onSaved }) {
               {CO_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
             </select>
           </label>
-          <label className="block"><span className="text-xs text-rebar mb-1 block">Unit price</span><input type="text" inputMode="decimal" className="inp" value={f.unitPrice} onChange={(e) => setF({ ...f, unitPrice: e.target.value })} placeholder="0.30" /></label>
+          <label className="block"><span className="text-xs text-rebar mb-1 block">Unit price</span><div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="text" inputMode="decimal" className="w-full bg-transparent text-concrete focus:outline-none" value={f.unitPrice} onChange={(e) => setF({ ...f, unitPrice: e.target.value })} placeholder="0.30" /></div></label>
         </div>
       )}
 
@@ -732,7 +732,7 @@ function AddEventForm({ type, projectId, projectIdLabel, onClose, onSaved }) {
       <p className="text-sm font-medium text-concrete mb-3">Log a {type.toLowerCase()}</p>
       {err && <div className="text-sm text-danger mb-3">{err}</div>}
       <div className="grid sm:grid-cols-2 gap-3">
-        <Lbl text="Amount"><input type="number" className="inp" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="0.00" /></Lbl>
+        <Lbl text="Amount"><div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="number" className="w-full bg-transparent text-concrete focus:outline-none" value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} placeholder="0.00" /></div></Lbl>
         <Lbl text="Date"><input type="date" className="inp" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Lbl>
         {isBill && <Lbl text="Due date" info="When this invoice is due (net 30/60). Drives the aging buckets."><input type="date" className="inp" value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} /></Lbl>}
         {isBill && <Lbl text="Invoice number" info="Auto-generates as ProjectID-INV-N (e.g. 26-18-INV-3). You can also type your own.">
@@ -866,7 +866,7 @@ function RetentionPanel({ data, b, refresh, setBusy, setErr, busy }) {
         <div className="rounded-md border border-line p-3 space-y-2" style={{ background: "var(--surface-2)" }}>
           <p className="text-xs text-concrete font-medium">{mode === "bill" ? "Bill retention" : "Log retention payment"}</p>
           <div className="grid sm:grid-cols-2 gap-2">
-            <input type="number" className="inp" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="Amount" />
+            <div className="inp flex items-center gap-1"><span className="text-rebar select-none">$</span><input type="number" className="w-full bg-transparent text-concrete focus:outline-none" value={amt} onChange={(e) => setAmt(e.target.value)} placeholder="Amount" /></div>
             <input type="date" className="inp" value={date} onChange={(e) => setDate(e.target.value)} />
             <input className="inp" value={inv} onChange={(e) => setInv(e.target.value)} placeholder="Invoice # (optional)" />
             <input className="inp" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" />
