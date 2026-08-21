@@ -321,7 +321,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <FNum label="Bid rate ($/lb)" edit={editing} value={w.bidRate} onChange={(v) => set("bidRate", v)} step="0.0001" prefix="$" hint="blank = use recommended" />
             <FNum label="Crew size" edit={editing} value={w.crewSize} onChange={(v) => set("crewSize", v)} />
             <FNum label="Base wage" edit={editing} value={w.baseWage} onChange={(v) => set("baseWage", v)} placeholder={String(CALC_DEFAULTS.wageRate)} prefix="$" />
-            {!editing && num0(w.ptSpecialty) ? <FNum label="PT / Specialty revenue (legacy)" edit={false} value={w.ptSpecialty} onChange={() => {}} /> : null}
+            {!editing && num0(w.ptSpecialty) ? <FNum label="PT / Specialty revenue (legacy)" edit={false} value={w.ptSpecialty} onChange={() => {}} prefix="$" /> : null}
           </Grid>
           {editing && (
             <details className="mt-3">
@@ -419,7 +419,7 @@ function FNum({ label, edit, value, onChange, step, placeholder, hint, prefix })
     ) : (
       <input type="number" step={step || "any"} className="inp" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
     )
-  ) : <V>{value === "" || value == null ? "—" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}</V>}</div>);
+  ) : <V>{value === "" || value == null ? "—" : `${prefix || ""}${Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })}`}</V>}</div>);
 }
 function FDate({ label, edit, value, onChange }) {
   return (<div><L>{label}</L>{edit ? <input type="date" className="inp" value={value} onChange={(e) => onChange(e.target.value)} /> : <V>{fmtDateLocal(value)}</V>}</div>);
