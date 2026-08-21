@@ -1,4 +1,5 @@
 "use client";
+import { money as moneyFmt } from "@/lib/format/numbers";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -18,7 +19,7 @@ import ProposalButton from "@/app/pipeline/ProposalButton";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 import { computeSpecialtyRollup, SPECIALTY_TYPES, SPECIALTY_DEFAULT_PRODUCTIVITY, newSpecialtyLine } from "@/lib/rules/specialty";
 
-const money = (n) => (typeof n !== "number" ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`);
+const money = (n) => (typeof n !== "number" ? "—" : moneyFmt(n));
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
 

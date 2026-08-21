@@ -13,11 +13,7 @@
 // =============================================================================
 
 import { useState, useMemo, useRef, useEffect } from "react";
-
-const money = (n) =>
-  typeof n === "number" ? `$${Math.round(n).toLocaleString()}` : null;
-const lbs = (n) =>
-  typeof n === "number" ? `${Math.round(n).toLocaleString()} lbs` : null;
+import { moneyOrNull as money, lbsOrNull as lbs } from "@/lib/format/numbers";
 
 export default function BidPicker({ bids = [], value, onChange, autoFocus = false }) {
   const [open, setOpen] = useState(false);

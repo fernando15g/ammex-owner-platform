@@ -7,7 +7,7 @@ import { useSort, SortHeader } from "@/app/components/Sortable";
 // (like the paper report), but with computed aging, outstanding, retention,
 // and unbilled-in-field. Click a project → its billing workspace.
 
-const money = (n) => (typeof n !== "number" ? "—" : n < 0 ? `-$${Math.abs(Math.round(n)).toLocaleString()}` : `$${Math.round(n).toLocaleString()}`);
+import { money } from "@/lib/format/numbers";
 
 const STATUS_TONE = {
   "Overdue": "text-danger",

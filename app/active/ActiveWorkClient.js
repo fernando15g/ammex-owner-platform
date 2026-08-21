@@ -11,6 +11,7 @@ import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
 import BulkUpdate from "@/app/active/BulkUpdate";
 import POEmailButton from "@/app/projects/POEmailButton";
+import { rate, moneyShort, lbsBare, num as numFmt, pct as pctFmt } from "@/lib/format/numbers";
 import HoursControl from "@/app/components/HoursControl";
 import ProjectDetailsModal from "@/app/projects/ProjectDetailsModal";
 import ProjectEditModal from "@/app/projects/ProjectEditModal";
@@ -18,11 +19,10 @@ import { useEffect } from "react";
 import StagePath from "@/app/components/StagePath";
 
 // ---- formatters ----
-const money = (n) =>
-  typeof n !== "number" ? "—" : Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `$${Math.round(n / 1e3)}k` : `$${Math.round(n)}`;
-const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
-const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
-const num = (n, d = 0) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: d }) : "—");
+const money = (n) => moneyShort(n);
+const pct = (f) => pctFmt(f);
+const lbs = (n) => lbsBare(n);
+const num = (n, d = 0) => numFmt(n, d);
 import { fmtDateLocal } from "@/lib/format/dates";
 const dateStr = (s) => fmtDateLocal(s);
 
@@ -405,7 +405,7 @@ function DetailPanel({ row, onClose, onEdit }) {
       <Section title="Economics">
         <Row label="Contract value" value={money(row.contractValue)} />
         <Row label="Operating profit" value={<>{money(row.operatingProfit)}{typeof row.operatingMargin === "number" && <span className="text-ok"> · {pct(row.operatingMargin)}</span>}</>} />
-        <Row label="Bid rate" value={d.bidRate != null ? `$${d.bidRate}/lb` : "—"} />
+        <Row label="Bid rate" value={rate(d.bidRate)} />
         <Row label="Bid productivity" value={row.bidProductivity != null ? `${num(row.bidProductivity)} lbs/MH` : "—"} />
       </Section>
 

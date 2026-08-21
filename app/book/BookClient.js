@@ -10,12 +10,7 @@
 
 import { useState } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
-
-const money = (n) =>
-  typeof n !== "number"
-    ? "—"
-    : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
-const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
+import { moneyShort as money, pct } from "@/lib/format/numbers";
 
 // project lifecycle → pill tone (matches the phases getBook carries)
 const PHASE_TONE = { backlog: "text-info", running: "text-ok", billing: "text-safety", complete: "text-rebar" };

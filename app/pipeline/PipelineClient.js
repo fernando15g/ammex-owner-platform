@@ -1,4 +1,5 @@
 "use client";
+import { moneyShort, pct as pctFmt, rateCents } from "@/lib/format/numbers";
 
 import { useState, Fragment } from "react";
 import { useSort, SortHeader } from "@/app/components/Sortable";
@@ -13,8 +14,8 @@ import { useSort, SortHeader } from "@/app/components/Sortable";
 const lbsOf = (tons) => (typeof tons === "number" ? tons * 2000 : null);
 const lbsStr = (lbs) => (typeof lbs === "number" ? `${Math.round(lbs).toLocaleString()} lbs` : "—");
 const tonsStr = (t) => (typeof t === "number" ? `${Math.round(t).toLocaleString()} tons` : "—");
-const money = (n) => (typeof n !== "number" ? "—" : Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `$${Math.round(n / 1e3)}k` : `$${Math.round(n)}`);
-const pct = (f) => (typeof f === "number" ? `${Math.round(f * 100)}%` : "—");
+const money = (n) => moneyShort(n);
+const pct = (f) => pctFmt(f);
 import { fmtDateLocal } from "@/lib/format/dates";
 const dateStr = (s) => fmtDateLocal(s, { month: "short", day: "numeric" });
 
@@ -294,7 +295,7 @@ export default function PipelineClient({ data }) {
 }
 
 const ALL_STATUSES = ["Reviewing", "Estimating", "Need Weights", "Contingent", "Negotiating", "Submitted", "Follow Up", "Awarded", "Lost", "No Bid"];
-const centsStr = (rate) => (typeof rate === "number" ? `${(rate * 100).toFixed(2)}¢` : "—");
+const centsStr = (r) => rateCents(r);
 
 function BidRow({ r }) {
   const [status, setStatus] = useState(r.status);

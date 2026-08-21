@@ -1,4 +1,5 @@
 "use client";
+import { moneyCents } from "@/lib/format/numbers";
 import { confirmDialog } from "@/app/components/Dialog";
 
 import ProposalButton from "@/app/pipeline/ProposalButton";
@@ -14,7 +15,7 @@ import ProposalButton from "@/app/pipeline/ProposalButton";
 import { useState, useRef, useMemo } from "react";
 import ManageOptions from "@/app/components/ManageOptions";
 
-const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const money = (n) => moneyCents(n);
 
 const FURN_OPTIONS = ["", "Furnish", "Install", "Furnish+Install"];
 // PT LBS is deliberately its own unit: it bills by weight like rebar, but the

@@ -1,4 +1,5 @@
 "use client";
+import { moneyCents } from "@/lib/format/numbers";
 
 // =============================================================================
 // CREATE BILL — the admin's billing template, live.
@@ -33,7 +34,7 @@ function net30(dateStr) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-const money = (n) => (typeof n !== "number" || isNaN(n) ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+const money = (n) => moneyCents(n);
 const qf = (n) => (typeof n !== "number" || isNaN(n) ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 const num = (v) => (v === "" || v == null ? null : Number(v));
 

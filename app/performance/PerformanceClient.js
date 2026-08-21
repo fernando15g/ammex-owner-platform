@@ -1,4 +1,5 @@
 "use client";
+import { moneyShort, lbsBare, lbsPerMHBare, num as numFmt } from "@/lib/format/numbers";
 
 // =============================================================================
 // PERFORMANCE — realized vs. bid productivity, with trust states baked in.
@@ -19,13 +20,12 @@ import { useSort, SortHeader } from "@/app/components/Sortable";
 import ProjectPerformanceModal from "./ProjectPerformanceModal";
 
 // ---- formatters (house style) ----
-const money = (n) =>
-  typeof n !== "number" ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
+const money = (n) => moneyShort(n);
 const pct = (f, signed = false) =>
   typeof f !== "number" ? "—" : `${signed && f > 0 ? "+" : ""}${Math.round(f * 100)}%`;
-const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
-const num = (n, d = 0) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: d }) : "—");
-const rate = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
+const lbs = (n) => lbsBare(n);
+const num = (n, d = 0) => numFmt(n, d);
+const rate = (n) => lbsPerMHBare(n);
 
 // margin banding (rules layer decides the state; this only picks the color):
 // below-floor = the hard red · eroded = profitable but > 2 pts under bid ·

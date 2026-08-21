@@ -17,10 +17,9 @@
 
 import { useEffect, useState } from "react";
 import StagePath from "@/app/components/StagePath";
+import { money, lbs, lbsPerMH, rate as bidRate } from "@/lib/format/numbers";
 
-const money = (n) => (typeof n === "number" ? `$${Math.round(n).toLocaleString()}` : "—");
-const lbs = (n) => (typeof n === "number" ? `${Math.round(n).toLocaleString()} lbs` : "—");
-const rate = (n) => (typeof n === "number" ? `${n.toFixed(1)} lbs/MH` : "—");
+const rate = (n) => lbsPerMH(n, 1);
 const dateStr = (s) => {
   if (!s) return "—";
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -120,7 +119,7 @@ function Body({ d, projectId }) {
       {/* money */}
       <Section title="Contract">
         <Row label="Contract value" value={money(d.contractValue)} lead />
-        <Row label="Bid rate" value={typeof d.bidRate === "number" ? `${(d.bidRate * 100).toFixed(2)}¢/lb` : "—"} />
+        <Row label="Bid rate" value={bidRate(d.bidRate)} />
         <Row label="Billed to date" value={money(d.billedToDate)} />
         <Row label="Remaining to bill" value={money(d.remainingToBill)} />
         <Row label="Outstanding" value={money(d.outstanding)} tone={d.outstanding > 0 ? "warn" : null} />

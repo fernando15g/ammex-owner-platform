@@ -25,13 +25,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import HoursControl from "@/app/components/HoursControl";
 import { PERF } from "@/lib/rules/performance";
+import { moneyShort, lbsBare, lbsPerMHBare, num as numFmt } from "@/lib/format/numbers";
 
-const money = (n) =>
-  typeof n !== "number" || isNaN(n) ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n)).toLocaleString()}`;
+const money = (n) => moneyShort(n);
 const pct = (f, signed = false) => (typeof f !== "number" ? "—" : `${signed && f > 0 ? "+" : ""}${Math.round(f * 100)}%`);
-const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
-const num = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
-const rate = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
+const lbs = (n) => lbsBare(n);
+const num = (n) => numFmt(n);
+const rate = (n) => lbsPerMHBare(n);
 const dateStr = (s) => {
   if (!s) return "—";
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);

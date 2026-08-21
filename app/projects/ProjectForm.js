@@ -32,6 +32,7 @@ import dynamic from "next/dynamic";
 import BidPicker from "@/app/projects/BidPicker";
 import ChipSelect from "@/app/components/ChipSelect";
 import AddressAutocomplete from "@/app/projects/AddressAutocomplete";
+import { money as moneyFmt, num as numFmt, rate as rateFmt } from "@/lib/format/numbers";
 
 const PinPicker = dynamic(() => import("@/app/projects/PinPicker"), {
   ssr: false,
@@ -43,9 +44,9 @@ const PROJECT_STATUSES = [
   "Punchlist", "Waiting on billing", "Closed", "Paid",
 ];
 
-const money = (n) => (typeof n === "number" ? `$${Math.round(n).toLocaleString()}` : "—");
-const num = (n, suffix = "") => (typeof n === "number" ? `${Math.round(n).toLocaleString()}${suffix}` : "—");
-const cents = (n) => (typeof n === "number" ? `${(n * 100).toFixed(2)}¢/lb` : "—");
+const money = (n) => moneyFmt(n);
+const num = (n, suffix = "") => (typeof n === "number" ? `${numFmt(n)}${suffix}` : "—");
+const cents = (n) => rateFmt(n);
 
 export default function ProjectForm({
   project = null, bidOptions = [], presetBidId = null, presetName = "",

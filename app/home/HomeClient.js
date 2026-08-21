@@ -11,17 +11,17 @@
 
 import { useState, useEffect } from "react";
 import { SUPPLIERS, resolvePOFields } from "@/lib/suppliers";
+import { moneyShort, lbsBare, lbsPerMHBare, num as numFmt } from "@/lib/format/numbers";
 import { useRouter } from "next/navigation";
 import { confirmDialog } from "@/app/components/Dialog";
 import { AZ_COUNTIES, AZ_VIEWBOX, projectAZ } from "./azCounties";
 import AddressAutocomplete from "@/app/projects/AddressAutocomplete";
 
-const money = (n) =>
-  typeof n !== "number" ? "—" : `${n < 0 ? "−" : ""}$${Math.abs(n) >= 1e6 ? `${(Math.abs(n) / 1e6).toFixed(2)}M` : Math.abs(n) >= 1e3 ? `${Math.round(Math.abs(n) / 1e3)}k` : Math.round(Math.abs(n))}`;
+const money = (n) => moneyShort(n);
 const pct = (f, signed = false) => (typeof f !== "number" ? "—" : `${signed && f > 0 ? "+" : ""}${Math.round(f * 100)}%`);
-const rate = (n) => (typeof n === "number" ? `${Math.round(n)}` : "—");
-const lbs = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
-const num = (n) => (typeof n === "number" ? n.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—");
+const rate = (n) => lbsPerMHBare(n);
+const lbs = (n) => lbsBare(n);
+const num = (n) => numFmt(n);
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
 const today = () => new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
