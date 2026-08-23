@@ -6,11 +6,13 @@
 // assumptions hidden behind a toggle, driver cells outlined in blue.
 // =============================================================================
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 
 // typed "20" -> 0.20 for the engine; blank -> null (falls to defaults)
+import UnsavedGuard from "@/app/components/UnsavedGuard";
+
 const pctVal = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Number(v) / 100);
 import { computeSpecialtyRollup, SPECIALTY_TYPES, newSpecialtyLine } from "@/lib/rules/specialty";
 import ChipSelect from "@/app/components/ChipSelect";
@@ -31,6 +33,10 @@ export default function NewBidForm() {
     cityCounty: "", detailer: "", submissionDate: "", bidDueDate: "", status: "Reviewing", scope: "", notes: "",
     estimatedLbs: "", bidRate: "", ptSpecialty: "", ...DEFAULTS,
   });
+  // guard baseline: the untouched form. On success the confirmation screen
+  // replaces the form (early return), unmounting the guard — no disarm needed.
+  const initSnap = useRef(null);
+  if (initSnap.current == null) initSnap.current = JSON.stringify(form);
   const [specialtyLines, setSpecialtyLines] = useState([]);
   const [specialtyOn, setSpecialtyOn] = useState(false);
   const toggleType = (t) => setSpecialtyLines((ls) => ls.some((l) => l.type === t) ? ls.filter((l) => l.type !== t) : [...ls, newSpecialtyLine(t)]);
@@ -182,6 +188,7 @@ export default function NewBidForm() {
         {state.error && <div className="rounded-lg border border-danger/50 bg-danger/10 p-3 text-sm text-concrete/80">Couldn&apos;t save: {state.error}</div>}
 
         <SectionTitle>Bid info</SectionTitle>
+        <UnsavedGuard dirty={() => !state.saving && JSON.stringify(form) !== initSnap.current} what="this new bid" />
         <Field label="Project name" required><input className="inp" value={form.projectName} onChange={(e) => set("projectName", e.target.value)} placeholder="SR96 Santa Maria Bridge" /></Field>
         <div className="grid sm:grid-cols-2 gap-5">
           <Field label="Bid status"><select className="inp" value={form.status} onChange={(e) => set("status", e.target.value)}>{BID_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>

@@ -1,5 +1,6 @@
 "use client";
 import { confirmDialog } from "@/app/components/Dialog";
+import UnsavedGuard, { disarmUnsavedGuard } from "@/app/components/UnsavedGuard";
 import { createPortal } from "react-dom";
 
 // =============================================================================
@@ -91,6 +92,9 @@ export default function ProjectForm({
   const [saved, setSaved] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const savedSnap = useRef(null);
+  // guard baseline: what the form looked like on arrival (savedSnap supersedes after a save)
+  const mountSnap = useRef(null);
+  if (mountSnap.current == null) mountSnap.current = JSON.stringify(f);
   const router = useRouter();
 
   // Once saved, the confirmation clears the moment you change anything again —
@@ -179,10 +183,10 @@ export default function ProjectForm({
       });
       const d = await res.json();
       if (!d.ok) throw new Error(d.error);
-      if (modal) { setBusy(false); onSaved?.(); return; }
+      if (modal) { setBusy(false); savedSnap.current = JSON.stringify(f); onSaved?.(); return true; }
       // After creating a project, land on the PROJECT page (its details), not
       // billing — you've just made it and want to see/finish the project itself.
-      if (isNew) { window.location.href = `/projects/${d.id}`; return; }
+      if (isNew) { disarmUnsavedGuard(); window.location.href = `/projects/${d.id}`; return true; }
       // Editing an existing project: don't hard-reload to the same form (which
       // looks like nothing happened). Confirm the save in place and soft-refresh
       // the server data behind it.
@@ -190,6 +194,7 @@ export default function ProjectForm({
       savedSnap.current = JSON.stringify(f);
       setSaved(true);
       router.refresh();
+      return true;
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
 
@@ -214,6 +219,7 @@ export default function ProjectForm({
       // wait out Notion's ~1s read lag so the Active Work list arrives without
       // a ghost of the just-deleted project (same fix as bid delete)
       await new Promise((r) => setTimeout(r, 1800));
+      disarmUnsavedGuard();
       window.location.href = "/active";
     } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   }
@@ -321,6 +327,7 @@ export default function ProjectForm({
               <input className="inp sm:col-span-3" value={f.siteCity} onChange={(e) => setF({ ...f, siteCity: e.target.value })} placeholder="City" />
               <input className="inp sm:col-span-1" value={f.siteState} onChange={(e) => setF({ ...f, siteState: e.target.value })} placeholder="State" />
               <input className="inp sm:col-span-2" value={f.siteZip} onChange={(e) => setF({ ...f, siteZip: e.target.value })} placeholder="Zip" />
+              <UnsavedGuard dirty={() => !busy && JSON.stringify(f) !== (savedSnap.current ?? mountSnap.current)} onSave={save} what="this project" />
               <input className="inp sm:col-span-6" value={f.siteCrossroads} onChange={(e) => setF({ ...f, siteCrossroads: e.target.value })} placeholder="Crossroads (used for supplier PO if no street address)" />
             </div>
             <div className="mt-2 flex items-center gap-3 flex-wrap">

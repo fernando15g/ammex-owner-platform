@@ -1,5 +1,6 @@
 "use client";
 import { moneyCents } from "@/lib/format/numbers";
+import UnsavedGuard, { disarmUnsavedGuard } from "@/app/components/UnsavedGuard";
 
 // =============================================================================
 // CREATE BILL — the admin's billing template, live.
@@ -106,11 +107,7 @@ export default function CreateBillClient({ data }) {
     } catch {}
   }, [rows, head, adot]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const onLeave = (e) => { if (!savedRef.current && hasInput()) { e.preventDefault(); e.returnValue = ""; } };
-    window.addEventListener("beforeunload", onLeave);
-    return () => window.removeEventListener("beforeunload", onLeave);
-  }, [rows, head, adot]); // eslint-disable-line react-hooks/exhaustive-deps
+  // leave-protection now lives in <UnsavedGuard> (styled dialog + beforeunload backstop)
 
   function restoreDraft() {
     if (!draftFound) return;
@@ -332,7 +329,7 @@ export default function CreateBillClient({ data }) {
       });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
       try { localStorage.removeItem(draftKey); } catch {}
-      savedRef.current = true;
+      savedRef.current = true; disarmUnsavedGuard();
       window.location.href = `/billing/${data.id}`;
     } catch (e) { setState({ saving: false, genning: false, error: String(e.message || e) }); }
   }
@@ -344,7 +341,7 @@ export default function CreateBillClient({ data }) {
     try {
       const res = await fetch("/api/billing/undo-bill", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ eventId: lastBill.id }) });
       const d = await res.json(); if (!d.ok) throw new Error(d.error);
-      window.location.reload();
+      (disarmUnsavedGuard(), window.location.reload());
     } catch (e) { setState((s) => ({ ...s, saving: false, error: String(e.message || e) })); }
   }
 
@@ -392,6 +389,7 @@ export default function CreateBillClient({ data }) {
         <span className="ml-auto" />
         {lastBill && <button onClick={() => setShowLast((s) => !s)} className="text-sm px-3 py-2 rounded-md border border-line text-rebar hover:text-concrete">{showLast ? "Hide" : "Last invoice"}</button>}
         <button onClick={() => setShowPaste((s) => !s)} className="text-sm px-3 py-2 rounded-md border border-line text-concrete hover:bg-graphite">Paste weight sheet</button>
+        <UnsavedGuard dirty={() => !savedRef.current && hasInput()} what="this invoice" />
         <button onClick={saveBill} disabled={state.saving || calc.gross <= 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save invoice"}</button>
       </div>
 

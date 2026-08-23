@@ -1,5 +1,6 @@
 "use client";
 import { money as moneyFmt, lbsBare } from "@/lib/format/numbers";
+import UnsavedGuard from "@/app/components/UnsavedGuard";
 
 // =============================================================================
 // PROJECT BILLING WORKSPACE — the admin's ONE place to work a project's money.
@@ -410,6 +411,8 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
     contractOverride: data.settings.billingContractValue ?? "",
     overrideReason: "",
   });
+  const settingsSnap = useRef(null);
+  if (settingsSnap.current == null) settingsSnap.current = JSON.stringify(s);
   async function save() {
     setBusy(true); setErr(null);
     try {
@@ -441,6 +444,7 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
       </div>
       {s.retentionEnabled && (
         <div className="grid sm:grid-cols-2 gap-4">
+          <UnsavedGuard dirty={() => !busy && JSON.stringify(s) !== settingsSnap.current} what="billing settings" />
           <Lbl text="Retention percent" info="The % the GC holds back from each bill until the job closes (commonly 5% or 10%). Enter just the number, e.g. 10. Use this OR flat amount, not both.">
             <div className="inp flex items-center gap-1"><input type="number" step="0.1" className="w-full bg-transparent text-concrete focus:outline-none" value={s.retentionPercent} onChange={(e) => setS({ ...s, retentionPercent: e.target.value })} placeholder="10" /><span className="text-rebar select-none">%</span></div>
           </Lbl>

@@ -44,6 +44,8 @@ const UNIT_MAP_KEY = "ammex-unit-map";
 const loadUnitMap = () => {
   try { return JSON.parse(localStorage.getItem(UNIT_MAP_KEY) || "{}"); } catch { return {}; }
 };
+import UnsavedGuard, { disarmUnsavedGuard } from "@/app/components/UnsavedGuard";
+
 const saveUnitMap = (m) => { try { localStorage.setItem(UNIT_MAP_KEY, JSON.stringify(m)); } catch {} };
 const canonUnit = (v, known, map) => {
   const t = String(v || "").trim();
@@ -124,7 +126,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
           if (!d.ok) throw new Error(d.error);
           // a closed line is NOT deleted — it stays as a closed line. Reload so it
           // reappears in its true state instead of vanishing like a clean delete.
-          window.location.reload();
+          (disarmUnsavedGuard(), window.location.reload());
           return;
         } else { setState((st) => ({ ...st, saving: false })); return; }
       } else if (!d.ok) throw new Error(d.error);
@@ -135,6 +137,8 @@ export default function BidSheetClient({ data, linkedProject = null }) {
 
   const ext = (r) => (num(r.quantity) || 0) * (num(r.unitPrice) || 0);
   const filled = rows.filter((r) => r.description.trim() !== "" || r.itemNo.trim() !== "");
+  const sheetSnap = useRef(null);
+  if (sheetSnap.current == null) sheetSnap.current = JSON.stringify(rows);
   const savedLineCount = rows.filter((r) => r.id).length;
   const total = filled.reduce((a, r) => a + ext(r), 0);
   const totalQty = filled.reduce((a, r) => a + (num(r.quantity) || 0), 0);
@@ -206,7 +210,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
         const d = await res.json(); if (!d.ok) throw new Error(d.error);
       }
       setState({ saving: false, saved: true, error: null });
-      setTimeout(() => window.location.reload(), 600);
+      setTimeout(() => (disarmUnsavedGuard(), window.location.reload()), 600);
     } catch (e) {
       setState({ saving: false, saved: false, error: String(e.message || e) });
     }
@@ -249,6 +253,7 @@ export default function BidSheetClient({ data, linkedProject = null }) {
           </>
         ) : (
           <>
+            <UnsavedGuard dirty={() => JSON.stringify(rows) !== sheetSnap.current} what="this bid sheet" />
             <button onClick={saveSheet} disabled={state.saving || filled.length === 0} className="text-sm px-4 py-2 rounded-md bg-safety text-steel font-medium disabled:opacity-40">{state.saving ? "Saving…" : "Save sheet"}</button>
             {/* The proposal IS this sheet — the real Excel template, so it lands
                 at the GC looking the way it always has. */}

@@ -10,6 +10,7 @@
 // =============================================================================
 
 import { useState } from "react";
+import UnsavedGuard from "@/app/components/UnsavedGuard";
 
 const CELL = "w-full bg-transparent text-sm px-2 py-1.5 text-concrete focus:outline-none focus:ring-1 focus:ring-rebar rounded-sm";
 const TD = "border border-line align-middle";
@@ -67,6 +68,8 @@ export default function BulkUpdate({ rows, onClose }) {
           </div>
           <button onClick={onClose} className="ml-auto text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
         </div>
+
+        <UnsavedGuard dirty={() => dirtyCount > 0 && !busy} what="these quick edits" />
 
         <div className="overflow-auto">
           <table className="w-full text-sm border-collapse">

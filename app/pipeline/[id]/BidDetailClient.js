@@ -1,5 +1,6 @@
 "use client";
 import { money as moneyFmt, rate as rateFmt } from "@/lib/format/numbers";
+import UnsavedGuard from "@/app/components/UnsavedGuard";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -10,7 +11,7 @@ import { confirmDialog } from "@/app/components/Dialog";
 // This detail+edit pattern is the template the Billing workspace reuses.
 // =============================================================================
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ManageOptions from "@/app/components/ManageOptions";
 import { fmtDateLocal } from "@/lib/format/dates";
@@ -28,6 +29,10 @@ const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—"
 export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject = null, specialty = null }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  // guard baseline: snapshot at edit-start; cleared on leave-edit (save OR cancel —
+  // Cancel is an explicit choice to discard, the guard is for accidental exits)
+  const editSnap = useRef(null);
+  useEffect(() => { editSnap.current = editing ? JSON.stringify({ w, specialtyLines }) : null; }, [editing]); // eslint-disable-line react-hooks/exhaustive-deps
   const [w0, setW0] = useState(null);   // pristine copy, to detect real changes
   const [options, setOptions] = useState({});   // the real Notion option lists
 
@@ -266,6 +271,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       await new Promise((r) => setTimeout(r, 300));
       setState({ saving: false, saved: true, error: null });
       setEditing(false);
+      return true;
     } catch (e) {
       setState({ saving: false, saved: false, error: String(e.message || e) });
     }
@@ -322,6 +328,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
 
         <Section title="Drivers" hint={editing ? "change any of these — economics recompute live →" : null}>
           <Grid>
+            <UnsavedGuard dirty={() => editing && !state.saving && editSnap.current != null && JSON.stringify({ w, specialtyLines }) !== editSnap.current} onSave={save} what="this bid" />
             <FNum label="Estimated LBS" edit={editing} value={w.estimatedLbs} onChange={(v) => set("estimatedLbs", v)} />
             <FNum label="Productivity (LBS/MH)" edit={editing} value={w.productivity} onChange={(v) => set("productivity", v)} placeholder={String(CALC_DEFAULTS.outputLbPerMH)} />
             <FNum label="Bid rate ($/lb)" edit={editing} value={w.bidRate} onChange={(v) => set("bidRate", v)} step="0.0001" prefix="$" hint="blank = use recommended" />
