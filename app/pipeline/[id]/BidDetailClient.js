@@ -21,6 +21,13 @@ import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
 import { computeSpecialtyRollup, SPECIALTY_TYPES, SPECIALTY_DEFAULT_PRODUCTIVITY, newSpecialtyLine } from "@/lib/rules/specialty";
 
 const money = (n) => (typeof n !== "number" ? "—" : moneyFmt(n));
+// Margin for one side of the bid. Null when there is no revenue to divide by,
+// so an empty side reads "—" instead of a misleading 0% or Infinity.
+const safeMargin = (revenue, cost) => {
+  const r = Number(revenue) || 0;
+  if (!r) return null;
+  return (r - (Number(cost) || 0)) / r;
+};
 // stored decimal (0.20) -> whole-number display string ("20"); FP-safe (0.03 -> "3")
 const pctLoad = (v) => (v == null || v === "" ? "" : String(+(Number(v) * 100).toFixed(4)));
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
@@ -98,6 +105,26 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   });
   const [specialtyLines, setSpecialtyLines] = useState(seedSpecialty);
   const [specialtyOn, setSpecialtyOn] = useState(seedSpecialty.length > 0);
+  // A bid priced in the CALCULATOR stores specialty as four totals with no line
+  // detail (specialtyForBid -> source "calc", rows: []). There is nothing to
+  // seed the editor with, so those totals feed the economics directly. The
+  // moment real lines exist here, they win — same precedence specialtyForBid
+  // uses (OS lines > calc columns > legacy column).
+  const storedSpec =
+    specialty && (specialty.rows?.length ?? 0) === 0 &&
+    (Number(specialty.revenue) || Number(specialty.cost) || Number(specialty.hours))
+      ? {
+          revenue: Number(specialty.revenue) || 0,
+          cost: Number(specialty.cost) || 0,
+          hours: Number(specialty.hours) || 0,
+          missingBasis: specialty.missingBasis || 0,
+          types: specialty.types || [],
+          source: specialty.source || "calc",
+        }
+      : null;
+  // Which specialty numbers the economics should use: live lines if the editor
+  // has any, otherwise the stored totals.
+  const useStoredSpec = (lines) => storedSpec != null && !(specialtyOn && lines.length > 0);
   const toggleType = (t) => setSpecialtyLines((ls) => ls.some((l) => l.type === t) ? ls.filter((l) => l.type !== t) : [...ls, newSpecialtyLine(t)]);
   const updLine = (id, patch) => setSpecialtyLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const removeLine = (id) => setSpecialtyLines((ls) => ls.filter((l) => l.id !== id));
@@ -121,8 +148,22 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       contingencyPct: pctVal(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
       targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
-    return computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
-  }, [specialtyLines, specialtyOn, w.baseWage, w.burdenPct, w.toolsPct, w.contingencyPct, w.targetMarginPct]);
+    const roll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
+    if (!useStoredSpec(specialtyLines)) return roll;
+    // Calculator-sourced: no rows to price, so surface the stored totals.
+    const profit = storedSpec.revenue - storedSpec.cost;
+    return {
+      ...roll,
+      specRevenue: storedSpec.revenue,
+      specCost: storedSpec.cost,
+      specHours: storedSpec.hours,
+      missingBasis: storedSpec.missingBasis,
+      specProfit: profit,
+      specMargin: storedSpec.revenue ? profit / storedSpec.revenue : 0,
+      storedOnly: true,
+      types: storedSpec.types,
+    };
+  }, [specialtyLines, specialtyOn, storedSpec, w.baseWage, w.burdenPct, w.toolsPct, w.contingencyPct, w.targetMarginPct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const econ = useMemo(() => {
     const n = (v) => (v === "" || v == null ? null : Number(v));
@@ -142,11 +183,14 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
     const specRoll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
+    // Calculator-sourced specialty has no lines to price — use its stored
+    // totals so contract value, profit and margin include it.
+    const useStored = useStoredSpec(specialtyLines);
     const inputs = {
       weightLb: n(w.estimatedLbs),
-      specialtyRevenue: specRoll.specRevenue,
-      specialtyCost: specRoll.specCost,
-      specialtyHours: specRoll.specHours,
+      specialtyRevenue: useStored ? storedSpec.revenue : specRoll.specRevenue,
+      specialtyCost: useStored ? storedSpec.cost : specRoll.specCost,
+      specialtyHours: useStored ? storedSpec.hours : specRoll.specHours,
     };
     const add = (k, v) => { if (v != null) inputs[k] = v; };
     add("outputLbPerMH", n(w.productivity));
@@ -159,7 +203,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     add("targetMarginPct", pctVal(w.targetMarginPct));
     add("hoursPerDay", n(w.hoursPerDay));
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
-  }, [w, specialtyLines, specialtyOn]);
+  }, [w, specialtyLines, specialtyOn, storedSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Save" only says Update once something has actually changed.
   const dirty = editing && JSON.stringify(w) !== JSON.stringify(w0);
@@ -374,7 +418,27 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
               <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={rateFmt(Number(econ.bidRatePerLb))} big />
               <Row label="Contract value" value={money(econ.contractValue)} />
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
-              <Row label="Operating margin" value={pctFmt(econ.operatingMargin)} tone="ok" />
+              <Row label={econ.specialtyRevenue > 0 ? "Operating margin (combined)" : "Operating margin"} value={pctFmt(econ.operatingMargin)} tone="ok" />
+              {/* With specialty in the bid, one blended margin hides which side
+                  carries the job — so break it out. Combined stays the headline
+                  because that is what actually gets paid. */}
+              {econ.specialtyRevenue > 0 && (
+                <div className="pl-3 space-y-1.5 border-l border-line ml-0.5">
+                  <Row
+                    label="· Rebar margin"
+                    value={pctFmt(safeMargin(econ.rebarRevenue, econ.rebarCost))}
+                    sub={`${money(econ.rebarRevenue)} rev`}
+                  />
+                  <Row
+                    label="· Specialty margin"
+                    value={specRollup.missingBasis > 0 ? "—" : pctFmt(safeMargin(econ.specialtyRevenue, econ.specialtyCost))}
+                    sub={specRollup.missingBasis > 0
+                      ? "no cost basis stored — margin unknown"
+                      : `${money(econ.specialtyRevenue)} rev`}
+                    tone={specRollup.missingBasis > 0 ? "warn" : undefined}
+                  />
+                </div>
+              )}
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               {!(specRollup.specRevenue > 0) && <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />}
               <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMHCombined ?? econ.totalMH))} sub={econ.specialtyHours > 0 ? `rebar ${lbsFmt(Math.round(econ.totalMH))} + specialty ${lbsFmt(Math.round(econ.specialtyHours))}` : null} />
@@ -400,7 +464,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
 
 // ---- field components: render text in view mode, inputs in edit mode --------
 function Row({ label, value, big, tone, sub }) {
-  const c = tone === "ok" ? "text-ok" : "text-concrete";
+  const c = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "text-concrete";
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
