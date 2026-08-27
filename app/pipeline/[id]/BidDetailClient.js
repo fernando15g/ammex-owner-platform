@@ -129,7 +129,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     // the default (markup ON) rather than reading a missing column as "off".
     travelMarkupOn: bid.travelOn ? !!bid.travelMarkupOn : TRAVEL_DEFAULTS.travelMarkupOn,
     travelMarkupPct: pctLoad(bid.travelMarkupPct ?? TRAVEL_DEFAULTS.travelMarkupPct),
-    travelAddToBid: false,
+    // Set by the calculator (or a previous OS save). Travel is never billed to
+    // the GC separately, so this is the only thing that recovers the cost.
+    travelAddToBid: !!bid.travelAddToBid,
   });
   const [t, setT] = useState(seedTravel);
   const setTv = (k, v) => setT((s) => ({ ...s, [k]: v }));
@@ -247,6 +249,34 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   const bidWithTravelCents = placementCents + (t.travelOn ? travel.centsPerLb : 0);
   const dailyFuel = dailyTripFuel({ ...t }, econ?.crewDays ?? 0);
 
+  // Travel is NEVER billed to the GC on its own line. So the cash goes out
+  // either way, and the only question is whether the bid rate recovered it:
+  //   absorbed  -> revenue unchanged, cost up by the real spend  (profit DOWN)
+  //   in rate   -> revenue up by the marked-up total             (profit UP by the markup)
+  // The markup is margin on travel, not a cost, so cost is rawTotal in both.
+  const travelStates = useMemo(() => {
+    if (!econ || !t.travelOn || !(travel.total > 0)) return null;
+    const spend = travel.rawTotal;
+    const absorbedProfit = econ.operatingProfit - spend;
+    const addedRevenue = econ.contractValue + travel.total;
+    const addedProfit = econ.operatingProfit + (travel.total - spend);
+    return {
+      spend,
+      absorbed: {
+        rateCents: placementCents,
+        revenue: econ.contractValue,
+        profit: absorbedProfit,
+        margin: econ.contractValue ? absorbedProfit / econ.contractValue : 0,
+      },
+      added: {
+        rateCents: placementCents + travel.centsPerLb,
+        revenue: addedRevenue,
+        profit: addedProfit,
+        margin: addedRevenue ? addedProfit / addedRevenue : 0,
+      },
+    };
+  }, [econ, t.travelOn, travel, placementCents]);
+
   // "Save" only says Update once something has actually changed.
   const dirty = editing && JSON.stringify(w) !== JSON.stringify(w0);
 
@@ -325,6 +355,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         changes.subsistenceInLabor = !!t.subsistenceInLabor;
         changes.travelMarkupOn = !!t.travelMarkupOn;
         changes.travelMarkupPct = pctVal(t.travelMarkupPct);
+        changes.travelAddToBid = !!t.travelAddToBid;
         // computed outputs, so Notion and the OS agree without recomputing
         changes.hotelCost = travel.hotelCost;
         changes.fuelCost = travel.fuelCost;
@@ -496,17 +527,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             <div className="space-y-2.5 text-sm">
               <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={rateFmt(Number(econ.bidRatePerLb))} big />
               {t.travelOn && travel.total > 0 && (
-                <>
-                  <Row label="Travel add-on" value={rateFmt(travel.centsPerLb / 100)} sub={`${money(travel.total)} total`} />
-                  <Row
-                    label={travelFoldsIn ? "Bid rate + travel (quoted)" : "Bid rate + travel (not applied)"}
-                    value={rateFmt(bidWithTravelCents / 100)}
-                    tone={travelFoldsIn ? "ok" : undefined}
-                    sub={travelFoldsIn ? "travel folded into the quote" : "add-on shown separately"}
-                  />
-                </>
+                <Row label="Travel add-on" value={rateFmt(travel.centsPerLb / 100)} sub={`${money(travel.total)} to recover`} />
               )}
-              <Row label="Contract value" value={money(travelFoldsIn ? econ.contractValue + travel.total : econ.contractValue)} sub={travelFoldsIn ? `${money(econ.contractValue)} placement + ${money(travel.total)} travel` : undefined} />
+              <Row label="Contract value" value={money(econ.contractValue)} />
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
               <Row label={econ.specialtyRevenue > 0 ? "Operating margin (combined)" : "Operating margin"} value={pctFmt(econ.operatingMargin)} tone="ok" />
               {/* With specialty in the bid, one blended margin hides which side
@@ -529,6 +552,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
                   />
                 </div>
               )}
+              {travelStates && <TravelImpact st={travelStates} foldsIn={travelFoldsIn} target={pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct} placementMargin={econ.operatingMargin} />}
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               {!(specRollup.specRevenue > 0) && <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />}
               <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMHCombined ?? econ.totalMH))} sub={econ.specialtyHours > 0 ? `rebar ${lbsFmt(Math.round(econ.totalMH))} + specialty ${lbsFmt(Math.round(econ.specialtyHours))}` : null} />
@@ -569,13 +593,57 @@ function Row({ label, value, big, tone, sub }) {
 function Section({ title, hint, children }) {
   return (<section><h2 className="text-sm font-semibold text-concrete border-b border-line pb-2 mb-4">{title}{hint && <span className="text-xs text-safety font-normal ml-2">{hint}</span>}</h2><div className="space-y-4">{children}</div></section>);
 }
+// What travel actually does to the bottom line. Travel is never billed to the
+// GC separately, so the spend happens either way — the bid rate is the only
+// thing that recovers it. Shows both outcomes; the live one is highlighted.
+function TravelImpact({ st, foldsIn, target, placementMargin }) {
+  const Line = ({ live, title, note, s, judge }) => (
+    <div className={`rounded-md border p-2.5 ${live ? "border-safety" : "border-line"}`}
+      style={{ background: live ? "var(--surface-2)" : "transparent" }}>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className={`text-[11px] ${live ? "text-concrete font-medium" : "text-rebar"}`}>
+          {title}{live && <span className="text-safety ml-1">\u00b7 live</span>}
+        </span>
+        <span className="text-[11px] text-rebar tabular-nums">{rateFmt(s.rateCents / 100)}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2 mt-1">
+        <span className="text-[10px] text-rebar/70">{note}</span>
+        <span className="text-sm tabular-nums text-concrete">
+          {money(s.profit)}
+          {/* Only the absorbed case is judged against the target: there, travel
+              eats into the margin on the WORK. When it is recovered in the rate
+              the work margin is untouched and the blend just sits lower by
+              design, so scoring it against the placement target would be wrong. */}
+          <span className={`ml-2 ${judge ? (s.margin >= target ? "text-ok" : "text-warn") : "text-rebar"}`}>
+            {(s.margin * 100).toFixed(1)}%
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+  return (
+    <div className="space-y-1.5 pt-1">
+      <div className="text-[10px] uppercase tracking-wider text-rebar">
+        Travel impact \u00b7 {money(st.spend)} out of pocket
+      </div>
+      <Line live={!foldsIn} title="Not in the bid rate" note="you absorb it \u2014 comes out of the work" s={st.absorbed} judge />
+      <Line live={foldsIn} title="Added to the bid rate" note="recovered from the GC" s={st.added} judge={false} />
+      <p className="text-[10px] text-rebar/70">
+        Recovered, the work keeps its {(placementMargin * 100).toFixed(1)}% margin and travel rides at its own markup,
+        so the blended figure sits a little lower on purpose. Absorbed, it comes straight out of the
+        work \u2014 that one is scored against your {(target * 100).toFixed(0)}% target.
+      </p>
+    </div>
+  );
+}
+
 // Out-of-town cost add-on: hotel + fuel + subsistence, labor-independent.
 // Read-only summary when not editing; full inputs when editing.
 function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }) {
   const on = !!t.travelOn;
   if (!editing && !on) return null;               // nothing to show on local jobs
   return (
-    <div className="rounded-lg border border-line p-4" style={{ background: "var(--surface-2)" }}>
+    <div className="mt-4 rounded-lg border border-line p-4" style={{ background: "var(--surface)" }}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-concrete">Out-of-town costs</h3>
@@ -598,13 +666,13 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Hotel</p>
                 <Grid>
-                  <FNum label="Rooms" edit value={t.hotelRooms} onChange={(v) => setTv("hotelRooms", v)} />
-                  <FNum label="Nightly rate" edit value={t.hotelNightlyRate} onChange={(v) => setTv("hotelNightlyRate", v)} prefix="$" />
-                  <FNum label="Nights" edit value={t.hotelNights} onChange={(v) => setTv("hotelNights", v)}
-                    hint={`${crewDays ? crewDays.toFixed(1) : 0} crew days`} />
-                  <FNum label="Lodging tax" edit value={t.hotelTaxPct} onChange={(v) => setTv("hotelTaxPct", v)} suffix="%" step="0.1" />
+                  <SF label="Rooms" value={t.hotelRooms} onChange={(v) => setTv("hotelRooms", v)} />
+                  <SF label="Nightly rate" value={t.hotelNightlyRate} onChange={(v) => setTv("hotelNightlyRate", v)} prefix="$" />
+                  <SF label="Nights" value={t.hotelNights} onChange={(v) => setTv("hotelNights", v)}
+                    hint={`${crewDays ? crewDays.toFixed(1) : 0} crew days \u2192 suggest ${travel.suggestedNights}`} />
+                  <SF label="Lodging tax" value={t.hotelTaxPct} onChange={(v) => setTv("hotelTaxPct", v)} suffix="%" />
                   <div>
-                    <L>Week basis</L>
+                    <span className="text-[10px] text-rebar block mb-1">Week basis</span>
                     <div className="flex gap-1">
                       {[5, 7].map((b) => (
                         <button key={b} type="button" onClick={() => setTv("hotelNightsBasis", b)}
@@ -614,24 +682,17 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <L>Suggested nights</L>
-                    <button type="button" onClick={() => setTv("hotelNights", travel.suggestedNights)}
-                      className="w-full text-xs px-2 py-2 rounded-md border border-line text-concrete hover:bg-graphite">
-                      Use {travel.suggestedNights}
-                    </button>
-                  </div>
                 </Grid>
               </div>
 
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Fuel</p>
                 <Grid>
-                  <FNum label="Round-trip miles" edit value={t.fuelMiles} onChange={(v) => setTv("fuelMiles", v)} />
-                  <FNum label="Trips" edit value={t.fuelTrips} onChange={(v) => setTv("fuelTrips", v)} />
-                  <FNum label="MPG" edit value={t.fuelMPG} onChange={(v) => setTv("fuelMPG", v)} />
-                  <FNum label="Price per gallon" edit value={t.fuelPerGal} onChange={(v) => setTv("fuelPerGal", v)} prefix="$" step="0.01" />
-                  <FNum label="Or enter fuel total" edit value={t.fuelCostManual} onChange={(v) => setTv("fuelCostManual", v)} prefix="$"
+                  <SF label="Round-trip miles" value={t.fuelMiles} onChange={(v) => setTv("fuelMiles", v)} />
+                  <SF label="Trips" value={t.fuelTrips} onChange={(v) => setTv("fuelTrips", v)} />
+                  <SF label="MPG" value={t.fuelMPG} onChange={(v) => setTv("fuelMPG", v)} />
+                  <SF label="Price per gallon" value={t.fuelPerGal} onChange={(v) => setTv("fuelPerGal", v)} prefix="$" />
+                  <SF label="Or enter fuel total" value={t.fuelCostManual} onChange={(v) => setTv("fuelCostManual", v)} prefix="$"
                     hint="overrides the mileage math" />
                 </Grid>
                 {dailyFuel.cost != null && (
@@ -644,18 +705,18 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
               <div>
                 <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Subsistence &amp; markup</p>
                 <Grid>
-                  <FNum label="Per worker per day" edit value={t.subsistenceRate} onChange={(v) => setTv("subsistenceRate", v)} prefix="$" />
+                  <SF label="Per worker per day" value={t.subsistenceRate} onChange={(v) => setTv("subsistenceRate", v)} prefix="$" />
                   <div>
-                    <L>Already in the wage?</L>
+                    <span className="text-[10px] text-rebar block mb-1">Already in the wage?</span>
                     <button type="button" onClick={() => setTv("subsistenceInLabor", !t.subsistenceInLabor)}
                       className={`w-full text-xs px-2 py-2 rounded-md border ${t.subsistenceInLabor ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
                       {t.subsistenceInLabor ? "Yes \u2014 not charged again" : "No \u2014 charge it"}
                     </button>
                   </div>
-                  <FNum label="Travel markup" edit value={t.travelMarkupPct} onChange={(v) => setTv("travelMarkupPct", v)} suffix="%" step="0.5"
+                  <SF label="Travel markup" value={t.travelMarkupPct} onChange={(v) => setTv("travelMarkupPct", v)} suffix="%"
                     hint={t.travelMarkupOn ? "" : "currently off"} />
                   <div>
-                    <L>Apply markup</L>
+                    <span className="text-[10px] text-rebar block mb-1">Apply markup</span>
                     <button type="button" onClick={() => setTv("travelMarkupOn", !t.travelMarkupOn)}
                       className={`w-full text-xs px-2 py-2 rounded-md border ${t.travelMarkupOn ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
                       {t.travelMarkupOn ? "On" : "Off"}
@@ -994,7 +1055,7 @@ function SpecialtyLive({ rollup }) {
           <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{pct(rollup.specMargin)}</span>
         </div>
         {rollup.missingBasis > 0 && (
-          <p className="text-[11px] text-warn pt-1">\u25b2 {rollup.missingBasis} line{rollup.missingBasis === 1 ? "" : "s"} book revenue with no cost basis \u2014 add productivity.</p>
+          <p className="text-[11px] text-warn pt-1">▲ {rollup.missingBasis} line{rollup.missingBasis === 1 ? "" : "s"} book revenue with no cost basis — add productivity.</p>
         )}
       </div>
     </div>
