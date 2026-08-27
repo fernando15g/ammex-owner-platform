@@ -597,41 +597,39 @@ function Section({ title, hint, children }) {
 // GC separately, so the spend happens either way — the bid rate is the only
 // thing that recovers it. Shows both outcomes; the live one is highlighted.
 function TravelImpact({ st, foldsIn, target, placementMargin }) {
-  const Line = ({ live, title, note, s, judge }) => (
-    <div className={`rounded-md border p-2.5 ${live ? "border-safety" : "border-line"}`}
-      style={{ background: live ? "var(--surface-2)" : "transparent" }}>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={`text-[11px] ${live ? "text-concrete font-medium" : "text-rebar"}`}>
-          {title}{live && <span className="text-safety ml-1">\u00b7 live</span>}
-        </span>
-        <span className="text-[11px] text-rebar tabular-nums">{rateFmt(s.rateCents / 100)}</span>
-      </div>
-      <div className="flex items-baseline justify-between gap-2 mt-1">
-        <span className="text-[10px] text-rebar/70">{note}</span>
-        <span className="text-sm tabular-nums text-concrete">
-          {money(s.profit)}
-          {/* Only the absorbed case is judged against the target: there, travel
-              eats into the margin on the WORK. When it is recovered in the rate
-              the work margin is untouched and the blend just sits lower by
-              design, so scoring it against the placement target would be wrong. */}
-          <span className={`ml-2 ${judge ? (s.margin >= target ? "text-ok" : "text-warn") : "text-rebar"}`}>
-            {(s.margin * 100).toFixed(1)}%
-          </span>
-        </span>
-      </div>
-    </div>
-  );
+  // Only the state you actually chose is shown. Absorbed is scored against the
+  // work target because travel comes straight out of the work's margin there.
+  // Recovered is not scored: the work keeps its margin and travel rides at its
+  // own markup, so the blended figure sits lower by design.
+  const s2 = foldsIn ? st.added : st.absorbed;
   return (
     <div className="space-y-1.5 pt-1">
       <div className="text-[10px] uppercase tracking-wider text-rebar">
-        Travel impact \u00b7 {money(st.spend)} out of pocket
+        Travel impact · {money(st.spend)} out of pocket
       </div>
-      <Line live={!foldsIn} title="Not in the bid rate" note="you absorb it \u2014 comes out of the work" s={st.absorbed} judge />
-      <Line live={foldsIn} title="Added to the bid rate" note="recovered from the GC" s={st.added} judge={false} />
+      <div className="rounded-md border border-line p-2.5" style={{ background: "var(--surface-2)" }}>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-[11px] text-concrete font-medium">
+            {foldsIn ? "Added to the bid rate" : "Not in the bid rate"}
+          </span>
+          <span className="text-[11px] text-rebar tabular-nums">{rateFmt(s2.rateCents / 100)}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-2 mt-1">
+          <span className="text-[10px] text-rebar/70">
+            {foldsIn ? "recovered from the GC" : "you absorb it — comes out of the work"}
+          </span>
+          <span className="text-sm tabular-nums text-concrete">
+            {money(s2.profit)}
+            <span className={`ml-2 ${foldsIn ? "text-rebar" : (s2.margin >= target ? "text-ok" : "text-warn")}`}>
+              {(s2.margin * 100).toFixed(1)}%
+            </span>
+          </span>
+        </div>
+      </div>
       <p className="text-[10px] text-rebar/70">
-        Recovered, the work keeps its {(placementMargin * 100).toFixed(1)}% margin and travel rides at its own markup,
-        so the blended figure sits a little lower on purpose. Absorbed, it comes straight out of the
-        work \u2014 that one is scored against your {(target * 100).toFixed(0)}% target.
+        {foldsIn
+          ? `The work keeps its ${(placementMargin * 100).toFixed(1)}% margin; travel rides at its own markup, so the blended figure sits a little lower on purpose.`
+          : `Travel comes straight out of the work here, scored against your ${(target * 100).toFixed(0)}% target. Add it to the bid rate to recover it.`}
       </p>
     </div>
   );
