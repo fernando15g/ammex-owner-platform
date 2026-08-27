@@ -18,7 +18,7 @@ import ManageOptions from "@/app/components/ManageOptions";
 import { fmtDateLocal } from "@/lib/format/dates";
 import { BID_STATUSES } from "@/lib/rules/bidSchema";
 import ProposalButton from "@/app/pipeline/ProposalButton";
-import { priceBid, CALC_DEFAULTS } from "@/lib/rules/bidCostEngine";
+import { priceBid, CALC_DEFAULTS, roundToQuarterCent } from "@/lib/rules/bidCostEngine";
 import { computeSpecialtyRollup, SPECIALTY_TYPES, SPECIALTY_DEFAULT_PRODUCTIVITY, newSpecialtyLine } from "@/lib/rules/specialty";
 
 const money = (n) => (typeof n !== "number" ? "—" : moneyFmt(n));
@@ -30,6 +30,22 @@ const safeMargin = (revenue, cost) => {
   return (r - (Number(cost) || 0)) / r;
 };
 // stored decimal (0.20) -> whole-number display string ("20"); FP-safe (0.03 -> "3")
+// When a bid was saved with travel folded in, "Bid Rate ($/LB)" holds the
+// COMBINED placement+travel rate (quarter-cent rounded) to match the calculator.
+// The screen and the engine always work in PLACEMENT terms, so recover it here.
+// Rebar Revenue stays pure placement, so revenue / lbs gives the placement rate
+// exactly. Subtracting the add-on does NOT work: the rounding was applied to the
+// sum, so 30.75 - 2.14 = 28.61, not the 28.50 that was actually bid.
+const placementRateOf = (bid) => {
+  if (!bid?.travelAddToBid) return bid?.bidRate ?? "";
+  const lbs = Number(bid.estimatedLbs) || 0;
+  const rev = Number(bid.rebarRevenue) || 0;
+  if (lbs > 0 && rev > 0) return Number((rev / lbs).toFixed(6));
+  // last resort for a bid saved before Rebar Revenue existed
+  const cents = (Number(bid.bidRate) || 0) * 100 - (Number(bid.travelAddOnCents) || 0);
+  return cents > 0 ? Number((cents / 100).toFixed(6)) : (bid.bidRate ?? "");
+};
+
 const pctLoad = (v) => (v == null || v === "" ? "" : String(+(Number(v) * 100).toFixed(4)));
 const pctFmt = (f) => (typeof f === "number" ? `${(f * 100).toFixed(1)}%` : "—");
 const lbsFmt = (n) => (typeof n === "number" ? n.toLocaleString("en-US") : "—");
@@ -80,7 +96,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     productivity: bid.productivity ?? "",
     crewSize: bid.crewSize ?? "",
     baseWage: bid.baseWage ?? "",
-    bidRate: bid.bidRate ?? "",
+    bidRate: placementRateOf(bid),
     ptSpecialty: bid.ptSpecialtyRevenue ?? "",
     // Percent fields display as WHOLE numbers (20 = 20%) but are STORED as
     // decimals (0.20) — pctLoad converts out of storage, pctVal converts back
@@ -365,7 +381,13 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       }
       if (econ) {
         // amended economics — same engine as the calculator, saved to this bid
-        changes.bidRate = econ.bidRatePerLb;
+        // Bid Rate matches the calculator: with travel folded in we store the
+        // COMBINED placement+travel rate, quarter-cent rounded on the SUM.
+        // Rebar Revenue below stays PURE placement, which is also what lets the
+        // placement rate be recovered when this bid is reopened.
+        changes.bidRate = travelFoldsIn
+          ? roundToQuarterCent(econ.bidRatePerLb * 100 + travel.centsPerLb) / 100
+          : econ.bidRatePerLb;
         changes.operatingProfit = econ.operatingProfit;
         changes.operatingMargin = econ.operatingMargin;
         changes.fullyLoadedCost = econ.fullyLoadedCost;
