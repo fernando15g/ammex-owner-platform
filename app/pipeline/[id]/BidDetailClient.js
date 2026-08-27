@@ -236,7 +236,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   // Travel prices off the SAME engine outputs the calculator uses: crew days for
   // hotel-night prefill and subsistence, rebar weight for the c/lb conversion.
   const travel = useMemo(() => computeTravel(
-    { weightLb: n(w.estimatedLbs), crewSize: n(w.crewSize) },
+    { weightLb: num0(w.estimatedLbs), crewSize: num0(w.crewSize) },
     { ...t, hotelTaxPct: pctVal(t.hotelTaxPct), travelMarkupPct: pctVal(t.travelMarkupPct) },
     econ?.crewDays ?? 0,
   ), [t, w.estimatedLbs, w.crewSize, econ?.crewDays]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -636,7 +636,7 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
                 </Grid>
                 {dailyFuel.cost != null && (
                   <p className="text-[11px] text-rebar/70 mt-2">
-                    One round trip per crew day would be {dailyFuel.trips} trips \u2014 {money(dailyFuel.cost)}. Reference only.
+                    One round trip per crew day would be {dailyFuel.trips} trips — {money(dailyFuel.cost)}. Reference only.
                   </p>
                 )}
               </div>
@@ -686,7 +686,7 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
             </button>
           )}
           <p className="text-[10px] text-rebar/70 mt-2">
-            The saved bid rate stays placement-only \u2014 travel is stored in its own columns, so rebar revenue keeps matching rate \u00d7 lbs.
+            The saved bid rate stays placement-only — travel is stored in its own columns, so rebar revenue keeps matching rate × lbs.
           </p>
         </>
       )}
