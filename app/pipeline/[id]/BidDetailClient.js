@@ -1,6 +1,7 @@
 "use client";
 import { money as moneyFmt, rate as rateFmt } from "@/lib/format/numbers";
 import UnsavedGuard from "@/app/components/UnsavedGuard";
+import { computeTravel, suggestHotelNights, dailyTripFuel, TRAVEL_DEFAULTS } from "@/lib/rules/travel";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -105,6 +106,33 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   });
   const [specialtyLines, setSpecialtyLines] = useState(seedSpecialty);
   const [specialtyOn, setSpecialtyOn] = useState(seedSpecialty.length > 0);
+  // ---- Out-of-town (travel) add-on -----------------------------------------
+  // Percent fields follow the OS convention: whole numbers in the box (12.5),
+  // ratios in storage (0.125). travelAddToBid and fuelCostManual are NOT stored
+  // — fold-in is a quote-time choice and fuel persists as its final dollar cost.
+  const seedTravel = () => ({
+    ...TRAVEL_DEFAULTS,
+    travelOn: !!bid.travelOn,
+    hotelRooms: bid.hotelRooms ?? "",
+    hotelNightlyRate: bid.hotelNightlyRate ?? "",
+    hotelNights: bid.hotelNights ?? "",
+    hotelTaxPct: pctLoad(bid.hotelTaxPct ?? TRAVEL_DEFAULTS.hotelTaxPct),
+    hotelNightsBasis: bid.hotelNightsBasis ?? TRAVEL_DEFAULTS.hotelNightsBasis,
+    fuelMiles: bid.fuelMiles ?? "",
+    fuelTrips: bid.fuelTrips ?? "",
+    fuelMPG: bid.fuelMPG ?? TRAVEL_DEFAULTS.fuelMPG,
+    fuelPerGal: bid.fuelPerGal ?? "",
+    fuelCostManual: "",
+    subsistenceRate: bid.subsistenceRate ?? TRAVEL_DEFAULTS.subsistenceRate,
+    subsistenceInLabor: !!bid.subsistenceInLabor,
+    // A bid saved before travel existed has no checkbox to read, so fall back to
+    // the default (markup ON) rather than reading a missing column as "off".
+    travelMarkupOn: bid.travelOn ? !!bid.travelMarkupOn : TRAVEL_DEFAULTS.travelMarkupOn,
+    travelMarkupPct: pctLoad(bid.travelMarkupPct ?? TRAVEL_DEFAULTS.travelMarkupPct),
+    travelAddToBid: false,
+  });
+  const [t, setT] = useState(seedTravel);
+  const setTv = (k, v) => setT((s) => ({ ...s, [k]: v }));
   // A bid priced in the CALCULATOR stores specialty as four totals with no line
   // detail (specialtyForBid -> source "calc", rows: []). There is nothing to
   // seed the editor with, so those totals feed the economics directly. The
@@ -205,6 +233,20 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
   }, [w, specialtyLines, specialtyOn, storedSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Travel prices off the SAME engine outputs the calculator uses: crew days for
+  // hotel-night prefill and subsistence, rebar weight for the c/lb conversion.
+  const travel = useMemo(() => computeTravel(
+    { weightLb: n(w.estimatedLbs), crewSize: n(w.crewSize) },
+    { ...t, hotelTaxPct: pctVal(t.hotelTaxPct), travelMarkupPct: pctVal(t.travelMarkupPct) },
+    econ?.crewDays ?? 0,
+  ), [t, w.estimatedLbs, w.crewSize, econ?.crewDays]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Folds into the quoted rate only when BOTH toggles are on; the master switch wins.
+  const travelFoldsIn = !!(t.travelOn && t.travelAddToBid);
+  const placementCents = (econ?.bidRatePerLb ?? 0) * 100;
+  const bidWithTravelCents = placementCents + (t.travelOn ? travel.centsPerLb : 0);
+  const dailyFuel = dailyTripFuel({ ...t }, econ?.crewDays ?? 0);
+
   // "Save" only says Update once something has actually changed.
   const dirty = editing && JSON.stringify(w) !== JSON.stringify(w0);
 
@@ -263,6 +305,33 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         baseWage: n(w.baseWage),
         ptSpecialty: n(w.ptSpecialty),
       };
+      // Travel add-on. Written only when travel is on for this bid (or was, so
+      // turning it off persists). Every key sent is one the user just edited —
+      // toNotionProps writes only the keys present, so nothing else is touched.
+      // travelAddToBid and fuelCostManual are deliberately NOT sent: fold-in is
+      // a quote-time choice, and fuel persists as its final dollar cost.
+      if (t.travelOn || bid.travelOn) {
+        changes.travelOn = !!t.travelOn;
+        changes.hotelRooms = n(t.hotelRooms);
+        changes.hotelNightlyRate = n(t.hotelNightlyRate);
+        changes.hotelNights = n(t.hotelNights);
+        changes.hotelTaxPct = pctVal(t.hotelTaxPct);
+        changes.hotelNightsBasis = n(t.hotelNightsBasis);
+        changes.fuelMiles = n(t.fuelMiles);
+        changes.fuelTrips = n(t.fuelTrips);
+        changes.fuelMPG = n(t.fuelMPG);
+        changes.fuelPerGal = n(t.fuelPerGal);
+        changes.subsistenceRate = n(t.subsistenceRate);
+        changes.subsistenceInLabor = !!t.subsistenceInLabor;
+        changes.travelMarkupOn = !!t.travelMarkupOn;
+        changes.travelMarkupPct = pctVal(t.travelMarkupPct);
+        // computed outputs, so Notion and the OS agree without recomputing
+        changes.hotelCost = travel.hotelCost;
+        changes.fuelCost = travel.fuelCost;
+        changes.subsistenceCost = travel.subsistenceCost;
+        changes.travelTotal = travel.total;
+        changes.travelAddOnCents = travel.centsPerLb;
+      }
       if (econ) {
         // amended economics — same engine as the calculator, saved to this bid
         changes.bidRate = econ.bidRatePerLb;
@@ -406,6 +475,16 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             removeLine={removeLine}
             rollup={specRollup}
           />
+
+          <TravelPanel
+            editing={editing}
+            t={t}
+            setTv={setTv}
+            travel={travel}
+            dailyFuel={dailyFuel}
+            crewDays={econ?.crewDays ?? 0}
+            foldsIn={travelFoldsIn}
+          />
         </Section>
       </div>
 
@@ -416,7 +495,18 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
           {econ ? (
             <div className="space-y-2.5 text-sm">
               <Row label={Number(w.bidRate) > 0 ? "Bid rate (yours)" : "Bid rate (recommended)"} value={rateFmt(Number(econ.bidRatePerLb))} big />
-              <Row label="Contract value" value={money(econ.contractValue)} />
+              {t.travelOn && travel.total > 0 && (
+                <>
+                  <Row label="Travel add-on" value={rateFmt(travel.centsPerLb / 100)} sub={`${money(travel.total)} total`} />
+                  <Row
+                    label={travelFoldsIn ? "Bid rate + travel (quoted)" : "Bid rate + travel (not applied)"}
+                    value={rateFmt(bidWithTravelCents / 100)}
+                    tone={travelFoldsIn ? "ok" : undefined}
+                    sub={travelFoldsIn ? "travel folded into the quote" : "add-on shown separately"}
+                  />
+                </>
+              )}
+              <Row label="Contract value" value={money(travelFoldsIn ? econ.contractValue + travel.total : econ.contractValue)} sub={travelFoldsIn ? `${money(econ.contractValue)} placement + ${money(travel.total)} travel` : undefined} />
               <Row label="Operating profit" value={money(econ.operatingProfit)} tone="ok" />
               <Row label={econ.specialtyRevenue > 0 ? "Operating margin (combined)" : "Operating margin"} value={pctFmt(econ.operatingMargin)} tone="ok" />
               {/* With specialty in the bid, one blended margin hides which side
@@ -479,6 +569,131 @@ function Row({ label, value, big, tone, sub }) {
 function Section({ title, hint, children }) {
   return (<section><h2 className="text-sm font-semibold text-concrete border-b border-line pb-2 mb-4">{title}{hint && <span className="text-xs text-safety font-normal ml-2">{hint}</span>}</h2><div className="space-y-4">{children}</div></section>);
 }
+// Out-of-town cost add-on: hotel + fuel + subsistence, labor-independent.
+// Read-only summary when not editing; full inputs when editing.
+function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }) {
+  const on = !!t.travelOn;
+  if (!editing && !on) return null;               // nothing to show on local jobs
+  return (
+    <div className="rounded-lg border border-line p-4" style={{ background: "var(--surface-2)" }}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-concrete">Out-of-town costs</h3>
+          <p className="text-[11px] text-rebar mt-0.5">
+            Hotel, fuel and subsistence. Priced outside the labor multipliers and the target margin.
+          </p>
+        </div>
+        {editing && (
+          <button type="button" onClick={() => setTv("travelOn", !on)}
+            className={`text-xs px-3 py-1.5 rounded-md border ${on ? "bg-safety text-steel border-safety font-medium" : "border-line text-rebar hover:text-concrete"}`}>
+            {on ? "On" : "Off"}
+          </button>
+        )}
+      </div>
+
+      {on && (
+        <>
+          {editing && (
+            <div className="mt-4 space-y-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Hotel</p>
+                <Grid>
+                  <FNum label="Rooms" edit value={t.hotelRooms} onChange={(v) => setTv("hotelRooms", v)} />
+                  <FNum label="Nightly rate" edit value={t.hotelNightlyRate} onChange={(v) => setTv("hotelNightlyRate", v)} prefix="$" />
+                  <FNum label="Nights" edit value={t.hotelNights} onChange={(v) => setTv("hotelNights", v)}
+                    hint={`${crewDays ? crewDays.toFixed(1) : 0} crew days`} />
+                  <FNum label="Lodging tax" edit value={t.hotelTaxPct} onChange={(v) => setTv("hotelTaxPct", v)} suffix="%" step="0.1" />
+                  <div>
+                    <L>Week basis</L>
+                    <div className="flex gap-1">
+                      {[5, 7].map((b) => (
+                        <button key={b} type="button" onClick={() => setTv("hotelNightsBasis", b)}
+                          className={`flex-1 text-xs px-2 py-2 rounded-md border ${Number(t.hotelNightsBasis) === b ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
+                          {b === 5 ? "5-day (stay over)" : "7-day"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <L>Suggested nights</L>
+                    <button type="button" onClick={() => setTv("hotelNights", travel.suggestedNights)}
+                      className="w-full text-xs px-2 py-2 rounded-md border border-line text-concrete hover:bg-graphite">
+                      Use {travel.suggestedNights}
+                    </button>
+                  </div>
+                </Grid>
+              </div>
+
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Fuel</p>
+                <Grid>
+                  <FNum label="Round-trip miles" edit value={t.fuelMiles} onChange={(v) => setTv("fuelMiles", v)} />
+                  <FNum label="Trips" edit value={t.fuelTrips} onChange={(v) => setTv("fuelTrips", v)} />
+                  <FNum label="MPG" edit value={t.fuelMPG} onChange={(v) => setTv("fuelMPG", v)} />
+                  <FNum label="Price per gallon" edit value={t.fuelPerGal} onChange={(v) => setTv("fuelPerGal", v)} prefix="$" step="0.01" />
+                  <FNum label="Or enter fuel total" edit value={t.fuelCostManual} onChange={(v) => setTv("fuelCostManual", v)} prefix="$"
+                    hint="overrides the mileage math" />
+                </Grid>
+                {dailyFuel.cost != null && (
+                  <p className="text-[11px] text-rebar/70 mt-2">
+                    One round trip per crew day would be {dailyFuel.trips} trips \u2014 {money(dailyFuel.cost)}. Reference only.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Subsistence &amp; markup</p>
+                <Grid>
+                  <FNum label="Per worker per day" edit value={t.subsistenceRate} onChange={(v) => setTv("subsistenceRate", v)} prefix="$" />
+                  <div>
+                    <L>Already in the wage?</L>
+                    <button type="button" onClick={() => setTv("subsistenceInLabor", !t.subsistenceInLabor)}
+                      className={`w-full text-xs px-2 py-2 rounded-md border ${t.subsistenceInLabor ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
+                      {t.subsistenceInLabor ? "Yes \u2014 not charged again" : "No \u2014 charge it"}
+                    </button>
+                  </div>
+                  <FNum label="Travel markup" edit value={t.travelMarkupPct} onChange={(v) => setTv("travelMarkupPct", v)} suffix="%" step="0.5"
+                    hint={t.travelMarkupOn ? "" : "currently off"} />
+                  <div>
+                    <L>Apply markup</L>
+                    <button type="button" onClick={() => setTv("travelMarkupOn", !t.travelMarkupOn)}
+                      className={`w-full text-xs px-2 py-2 rounded-md border ${t.travelMarkupOn ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
+                      {t.travelMarkupOn ? "On" : "Off"}
+                    </button>
+                  </div>
+                </Grid>
+              </div>
+            </div>
+          )}
+
+          {/* totals — always visible when travel is on */}
+          <div className="mt-4 pt-3 border-t border-line space-y-1.5">
+            <Row label="Hotel" value={money(travel.hotelCost)} />
+            <Row label="Fuel" value={money(travel.fuelCost)} />
+            <Row label="Subsistence" value={money(travel.subsistenceCost)}
+              sub={t.subsistenceInLabor ? "already in the wage" : undefined} />
+            {travel.markupPct > 0 && (
+              <Row label={`Markup (${pctFmt(travel.markupPct)})`} value={money(travel.total - travel.rawTotal)} />
+            )}
+            <Row label="Travel total" value={money(travel.total)} big />
+            <Row label="Add-on" value={rateFmt(travel.centsPerLb / 100)} tone="ok" />
+          </div>
+
+          {editing && (
+            <button type="button" onClick={() => setTv("travelAddToBid", !t.travelAddToBid)}
+              className={`mt-3 w-full text-xs px-3 py-2 rounded-md border ${foldsIn ? "bg-safety text-steel border-safety font-medium" : "border-line text-concrete hover:bg-graphite"}`}>
+              {foldsIn ? "Travel is folded into the bid rate" : "Add travel to the bid rate"}
+            </button>
+          )}
+          <p className="text-[10px] text-rebar/70 mt-2">
+            The saved bid rate stays placement-only \u2014 travel is stored in its own columns, so rebar revenue keeps matching rate \u00d7 lbs.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Grid({ children, className = "" }) { return <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}>{children}</div>; }
 function L({ children }) { return <span className="text-xs text-rebar block mb-1">{children}</span>; }
 function V({ children }) { return <span className="text-sm text-concrete">{children || "—"}</span>; }
