@@ -1,4 +1,5 @@
 "use client";
+import SpecialtyTag from "@/app/components/SpecialtyTag";
 
 // =============================================================================
 // ACTIVE WORK — first real zone (spec §7.3). Procore-inspired: scannable table
@@ -167,7 +168,7 @@ export default function ActiveWorkClient({ data }) {
                     <td className="px-4 py-3">
                       <div className="font-medium text-concrete flex items-center gap-2">
                         <span className={`inline-block w-1.5 h-1.5 rounded-full ${sev.dot}`} />
-                        <span className="truncate">{r.name || "—"}</span>
+                        <span className="truncate">{r.name || "—"}</span><SpecialtyTag types={r.specialtyTypes} />
                         {r.multiBid && <span className="text-[10px] text-warn border border-warn/40 rounded px-1">multi-bid</span>}
                       </div>
                       <div className="text-xs text-rebar mt-0.5 pl-3.5">
@@ -326,7 +327,7 @@ function DetailPanel({ row, onClose, onEdit }) {
     <div className="rounded-lg border border-line bg-graphite lg:sticky lg:top-24 overflow-hidden">
       <div className="px-6 py-5 border-b border-line flex items-start gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-concrete truncate">{row.name}</h2>
+          <h2 className="text-lg font-semibold text-concrete truncate">{row.name}<SpecialtyTag types={row.specialtyTypes} /></h2>
           <p className="text-sm text-rebar mt-1">{row.projectId} · {row.status}</p>
         </div>
         <div className="ml-auto shrink-0 flex flex-col items-stretch gap-2">

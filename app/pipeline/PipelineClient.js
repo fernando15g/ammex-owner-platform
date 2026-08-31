@@ -1,4 +1,5 @@
 "use client";
+import SpecialtyTag from "@/app/components/SpecialtyTag";
 import { moneyShort, pct as pctFmt, rateCents } from "@/lib/format/numbers";
 
 import { useState, Fragment } from "react";
@@ -326,7 +327,7 @@ function BidRow({ r }) {
     <tr className="border-t border-line hover:bg-graphite/60">
       <td className="px-4 py-3 cursor-pointer max-w-0" onClick={go}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="font-medium text-concrete truncate">{r.name || "—"}</span>
+          <span className="font-medium text-concrete truncate">{r.name || "—"}</span><SpecialtyTag types={r.specialtyTypes} />
           {r.project?.projectId && (
             <span className="text-[10px] rounded-full px-1.5 py-0.5 border border-ok/40 text-ok shrink-0">{r.project.projectId}</span>
           )}
