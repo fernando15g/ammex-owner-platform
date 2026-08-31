@@ -327,7 +327,7 @@ function DetailPanel({ row, onClose, onEdit }) {
     <div className="rounded-lg border border-line bg-graphite lg:sticky lg:top-24 overflow-hidden">
       <div className="px-6 py-5 border-b border-line flex items-start gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-concrete truncate">{row.name}<SpecialtyTag types={row.specialtyTypes} /></h2>
+          <h2 className="text-lg font-semibold text-concrete flex items-baseline min-w-0"><span className="truncate">{row.name}</span><SpecialtyTag types={row.specialtyTypes} /></h2>
           <p className="text-sm text-rebar mt-1">{row.projectId} · {row.status}</p>
         </div>
         <div className="ml-auto shrink-0 flex flex-col items-stretch gap-2">

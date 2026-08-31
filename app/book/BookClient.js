@@ -74,7 +74,7 @@ export default function BookClient({ data }) {
                 className="border-t border-line cursor-pointer hover:bg-graphite/60 transition-colors"
               >
                 <td className="px-4 py-3">
-                  <div className="font-medium text-concrete truncate">{r.name || "—"}<SpecialtyTag types={r.specialtyTypes} /></div>
+                  <div className="flex items-baseline min-w-0"><span className="font-medium text-concrete truncate">{r.name || "—"}</span><SpecialtyTag types={r.specialtyTypes} /></div>
                   <div className="text-xs text-rebar mt-0.5">{r.projectId || "no ID"}{r.gc?.length ? ` · ${r.gc.join(", ")}` : ""}</div>
                 </td>
                 <td className="px-3 py-3 hidden sm:table-cell"><StatusPill status={r.status} phase={r.phase} /></td>
@@ -135,7 +135,7 @@ export default function BookClient({ data }) {
                 className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/60 cursor-pointer"
               >
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-concrete truncate">{r.name || "—"}<SpecialtyTag types={r.specialtyTypes} /></div>
+                  <div className="flex items-baseline min-w-0"><span className="text-sm font-medium text-concrete truncate">{r.name || "—"}</span><SpecialtyTag types={r.specialtyTypes} /></div>
                   <div className="text-xs text-rebar mt-0.5">{r.projectId || "no ID"}{r.gc?.length ? ` · ${r.gc.join(", ")}` : ""}</div>
                 </div>
                 <div className="ml-auto flex items-center gap-8 shrink-0 text-sm tabular-nums text-right">
