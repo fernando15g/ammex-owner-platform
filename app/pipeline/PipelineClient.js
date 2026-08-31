@@ -112,16 +112,15 @@ export default function PipelineClient({ data }) {
   const q = query.trim().toLowerCase();
   const active = FILTERS.find((f) => f.key === filter) || FILTERS[0];
   const searched = q
-    ? rows.filter((r) => [r.name, r.project?.projectId, (r.gc || []).join(" "), (r.fabricator || []).join(" "), r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
+    ? rows.filter((r) => [r.name, r.project?.projectId, (r.gc || []).join(" "), (r.fabricator || []).join(" "), (r.projectType || []).join(" "), r.cityCounty, r.status].filter(Boolean).join(" ").toLowerCase().includes(q))
     : rows;
   const filtered = searched.filter(active.test).filter(advTest);
   const isFlight = filter === "flight";
-  const { sorted: shown, sort, toggle } = useSort(filtered, "bidDueDate", "asc", "bids");
+  const { sorted: shown, sort, toggle, touched: sortTouched } = useSort(filtered, "bidDueDate", "asc", "bids");
   // Sorting the grouped in-flight view sorts WITHIN each stage (keeps hottest on
   // top). Until a header is clicked, groups keep their default order. We reuse
   // the exact useSort comparator by ordering group items to match `shown`.
-  const [sortTouched, setSortTouched] = useState(false);
-  const toggleSort = (key) => { setSortTouched(true); toggle(key); };
+  const toggleSort = toggle;
   const orderBy = sortTouched ? new Map(shown.map((r, i) => [r.id, i])) : null;
   const groups = buildGroups(filtered, orderBy);
   const flightSort = sortTouched ? sort : { key: null, dir: "asc" };

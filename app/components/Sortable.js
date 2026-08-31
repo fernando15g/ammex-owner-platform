@@ -16,21 +16,28 @@ import { useState, useMemo, useEffect } from "react";
 // starts clean rather than inheriting a choice you've forgotten making.
 export function useSort(rows, defaultKey = null, defaultDir = "asc", name = null) {
   const [sort, setSort] = useState({ key: defaultKey, dir: defaultDir });
+  // Was this sort actually chosen (now or earlier this session), as opposed to
+  // the untouched default? Callers that render a grouped view need to know, and
+  // restoring a saved sort has to count as "chosen" — otherwise the choice comes
+  // back from storage but the view still draws itself as if nothing was picked.
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     if (!name) return;
     try {
       const saved = sessionStorage.getItem(`ammex-sort-${name}`);
-      if (saved) setSort(JSON.parse(saved));
+      if (saved) { setSort(JSON.parse(saved)); setTouched(true); }
     } catch {}
   }, [name]);
 
-  const toggle = (key) =>
+  const toggle = (key) => {
+    setTouched(true);
     setSort((s) => {
       const next = s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
       if (name) { try { sessionStorage.setItem(`ammex-sort-${name}`, JSON.stringify(next)); } catch {} }
       return next;
     });
+  };
 
   const sorted = useMemo(() => {
     if (!sort.key) return rows;
@@ -51,7 +58,7 @@ export function useSort(rows, defaultKey = null, defaultDir = "asc", name = null
     });
   }, [rows, sort]);
 
-  return { sorted, sort, toggle };
+  return { sorted, sort, toggle, touched };
 }
 
 // Supports dotted paths ("billing.outstanding") so nested rows can be sorted.
