@@ -16,9 +16,12 @@ export default function SpecialtyTag({ types }) {
   if (tags.length === 0) return null;
   return (
     <>
-      {tags.map((t) => (
+      {tags.map((t, i) => (
         <sup key={t}
           className="ml-1 align-super text-[9px] font-semibold uppercase tracking-wide text-safety whitespace-nowrap">
+          {/* At this size the tags run together without a separator, so a
+              dimmed dot sits between them when a job carries both. */}
+          {i > 0 && <span className="text-safety/40 mr-1">·</span>}
           {t}
         </sup>
       ))}
