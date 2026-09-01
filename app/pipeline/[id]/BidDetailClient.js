@@ -419,7 +419,17 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       });
       const sdata = await sres.json().catch(() => ({}));
       if (!sdata.ok) throw new Error(`Specialty lines did not save: ${sdata.error || "unknown error"}`);
-      changes.specialtyTypes = specialtyOn ? [...new Set(specRollup.rows.map((r) => r.type))] : [];
+      // Only restate the types when this screen actually owns the lines. A bid
+      // priced in the CALCULATOR stores specialty as totals with no line detail,
+      // so specRollup.rows is empty here — writing [] would wipe the bid's real
+      // Specialty Type in Notion (losing the PT/Mesh tag and the classification
+      // with it). Leave the key off entirely and Notion keeps what it has.
+      if (specialtyOn && specRollup.rows.length > 0) {
+        changes.specialtyTypes = [...new Set(specRollup.rows.map((r) => r.type))];
+      } else if (specialtyLines.length > 0 && !specialtyOn) {
+        // the editor was used and then deliberately turned off — that IS a clear
+        changes.specialtyTypes = [];
+      }
 
       // 2) save the bid + its combined rollup
       const res = await fetch(`/api/bids/${bid.id}`, {

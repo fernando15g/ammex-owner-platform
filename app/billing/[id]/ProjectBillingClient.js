@@ -409,7 +409,7 @@ function SettingsPanel({ data, setBusy, setErr, onSaved, busy }) {
     retentionPercent: data.settings.retentionPercent ?? "",
     retentionFlatAmount: data.settings.retentionFlatAmount ?? "",
     contractOverride: data.settings.billingContractValue ?? "",
-    overrideReason: "",
+    overrideReason: data.settings.contractOverrideReason ?? "",
   });
   const settingsSnap = useRef(null);
   if (settingsSnap.current == null) settingsSnap.current = JSON.stringify(s);
