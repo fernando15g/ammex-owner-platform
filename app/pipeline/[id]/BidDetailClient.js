@@ -1,5 +1,5 @@
 "use client";
-import { money as moneyFmt, rate as rateFmt } from "@/lib/format/numbers";
+import { money as moneyFmt, rate as rateFmt, num as numFmt } from "@/lib/format/numbers";
 import UnsavedGuard from "@/app/components/UnsavedGuard";
 import { computeTravel, suggestHotelNights, dailyTripFuel, TRAVEL_DEFAULTS } from "@/lib/rules/travel";
 import { confirmDialog } from "@/app/components/Dialog";
@@ -150,6 +150,20 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     travelAddToBid: !!bid.travelAddToBid,
   });
   const [t, setT] = useState(seedTravel);
+  // ---- Overtime ---------------------------------------------------------
+  // otPct is the source of truth. Hours/week is the friendlier way to think
+  // about it (50 hrs -> 20%), so the two inputs stay in sync both directions.
+  const [ot, setOt] = useState(() => ({
+    otOn: (Number(bid.otPct) || 0) > 0,
+    otPct: pctLoad(bid.otPct ?? CALC_DEFAULTS.otPct),
+  }));
+  const otPctVal = () => pctVal(ot.otPct) ?? 0;
+  const hrsFromPct = (p) => (p >= 1 ? "" : String(Math.round((40 / (1 - p)) * 10) / 10));
+  const setOtHrs = (h) => {
+    const hrs = Number(h);
+    if (!hrs || hrs <= 40) { setOt((s) => ({ ...s, otPct: "0" })); return; }
+    setOt((s) => ({ ...s, otPct: String(Math.round(((hrs - 40) / hrs) * 10000) / 100) }));
+  };
   const setTv = (k, v) => setT((s) => ({ ...s, [k]: v }));
   // A bid priced in the CALCULATOR stores specialty as four totals with no line
   // detail (specialtyForBid -> source "calc", rows: []). There is nothing to
@@ -194,7 +208,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       contingencyPct: pctVal(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
       targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
     };
-    const roll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], assumptions, { revenue: 0, cost: 0, hours: 0 });
+    const roll = computeSpecialtyRollup(specialtyOn ? specialtyLines : [], { ...assumptions, otOn: !!ot.otOn, otPct: otPctVal() }, { revenue: 0, cost: 0, hours: 0 });
     if (!useStoredSpec(specialtyLines)) return roll;
     // Calculator-sourced: no rows to price, so surface the stored totals.
     const profit = storedSpec.revenue - storedSpec.cost;
@@ -209,7 +223,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       storedOnly: true,
       types: storedSpec.types,
     };
-  }, [specialtyLines, specialtyOn, storedSpec, w.baseWage, w.burdenPct, w.toolsPct, w.contingencyPct, w.targetMarginPct]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [specialtyLines, specialtyOn, storedSpec, ot, w.baseWage, w.burdenPct, w.toolsPct, w.contingencyPct, w.targetMarginPct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const econ = useMemo(() => {
     const n = (v) => (v === "" || v == null ? null : Number(v));
@@ -237,6 +251,8 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
       specialtyRevenue: useStored ? storedSpec.revenue : specRoll.specRevenue,
       specialtyCost: useStored ? storedSpec.cost : specRoll.specCost,
       specialtyHours: useStored ? storedSpec.hours : specRoll.specHours,
+      otOn: !!ot.otOn,
+      otPct: otPctVal(),
     };
     const add = (k, v) => { if (v != null) inputs[k] = v; };
     add("outputLbPerMH", n(w.productivity));
@@ -249,7 +265,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     add("targetMarginPct", pctVal(w.targetMarginPct));
     add("hoursPerDay", n(w.hoursPerDay));
     return priceBid(inputs, n(w.bidRate)); // hold the active rate; null -> recommended
-  }, [w, specialtyLines, specialtyOn, storedSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [w, specialtyLines, specialtyOn, storedSpec, ot]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Travel prices off the SAME engine outputs the calculator uses: crew days for
   // hotel-night prefill and subsistence, rebar weight for the c/lb conversion.
@@ -264,6 +280,19 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   const placementCents = (econ?.bidRatePerLb ?? 0) * 100;
   const bidWithTravelCents = placementCents + (t.travelOn ? travel.centsPerLb : 0);
   const dailyFuel = dailyTripFuel({ ...t }, econ?.crewDays ?? 0);
+
+  // Combined OT across rebar and specialty — what the "Estimated OT" line shows
+  // and what the (calc) columns store. Already inside fully-loaded cost, so this
+  // is for display only: never add it to cost again.
+  const otTotals = (() => {
+    if (!ot.otOn || !econ) return { hours: 0, premium: 0 };
+    const specHours = (specRollup?.rows || []).reduce((a, r) => a + (r.hours || 0), 0);
+    const specPrem = (specRollup?.rows || []).reduce((a, r) => a + (r.otPremium || 0), 0);
+    return {
+      hours: (econ.otHours || 0) + specHours * otPctVal(),
+      premium: (econ.otPremium || 0) + specPrem,
+    };
+  })();
 
   // Travel is NEVER billed to the GC on its own line. So the cash goes out
   // either way, and the only question is whether the bid rate recovered it:
@@ -400,6 +429,12 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         // Keep the bid's specialty rollup in step with its line items, so
         // performance and realized economics read the same figure the bid shows.
         changes.rebarRevenue = econ.rebarRevenue;
+        // OT: otPct is the source of truth; the other three are display totals
+        // across rebar + specialty. Zeros when off keeps old bids comparable.
+        changes.otPct = ot.otOn ? otPctVal() : 0;
+        changes.otCentsPerLb = ot.otOn ? (econ.otCentsPerLb || 0) : 0;
+        changes.otHours = ot.otOn ? otTotals.hours : 0;
+        changes.otPremium = ot.otOn ? otTotals.premium : 0;
         changes.specialtyRevenue = econ.specialtyRevenue;
         changes.specialtyCost = econ.specialtyCost;
         changes.specialtyHours = econ.specialtyHours;
@@ -519,7 +554,21 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
                 <FNum label="Burden %" edit value={w.burdenPct} onChange={(v) => set("burdenPct", v)} step="1" placeholder="20" suffix="%" />
                 <FNum label="Tools %" edit value={w.toolsPct} onChange={(v) => set("toolsPct", v)} step="1" placeholder="3" suffix="%" />
                 <FNum label="Contingency %" edit value={w.contingencyPct} onChange={(v) => set("contingencyPct", v)} step="1" placeholder="3" suffix="%" />
-                <FNum label="Target margin %" edit value={w.targetMarginPct} onChange={(v) => set("targetMarginPct", v)} step="1" placeholder="25" suffix="%" />
+                <div>
+              <L>Overtime</L>
+              <button type="button" onClick={() => setOt((s) => ({ ...s, otOn: !s.otOn }))}
+                className={`w-full text-xs px-2 py-2 rounded-md border ${ot.otOn ? "bg-safety text-steel border-safety font-medium" : "border-line text-rebar hover:text-concrete"}`}>
+                {ot.otOn ? "On" : "Off"}
+              </button>
+            </div>
+            {ot.otOn && (
+              <>
+                <SF label="Planned hrs/week" value={hrsFromPct(otPctVal())} onChange={setOtHrs}
+                  hint="per person \u2014 50 hrs is 20% OT" />
+                <SF label="OT %" value={ot.otPct} onChange={(v) => setOt((s) => ({ ...s, otPct: v }))} suffix="%" />
+              </>
+            )}
+            <FNum label="Target margin %" edit value={w.targetMarginPct} onChange={(v) => set("targetMarginPct", v)} step="1" placeholder="25" suffix="%" />
                 <FNum label="Mobilization hrs" edit value={w.mobilizationHrs} onChange={(v) => set("mobilizationHrs", v)} placeholder="8" />
                 <FNum label="Hours per day" edit value={w.hoursPerDay} onChange={(v) => set("hoursPerDay", v)} placeholder="8" />
               </Grid>
@@ -585,6 +634,10 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
                 </div>
               )}
               {travelStates && <TravelImpact st={travelStates} foldsIn={travelFoldsIn} target={pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct} placementMargin={econ.operatingMargin} />}
+              {ot.otOn && otTotals.premium > 0 && (
+                <Row label="Estimated OT" value={`${numFmt(otTotals.hours)} hrs`}
+                  sub={`${money(otTotals.premium)} premium at ${pctFmt(otPctVal())} \u00b7 already in cost`} />
+              )}
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               {!(specRollup.specRevenue > 0) && <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />}
               <Row label="Total man-hours" value={lbsFmt(Math.round(econ.totalMHCombined ?? econ.totalMH))} sub={econ.specialtyHours > 0 ? `rebar ${lbsFmt(Math.round(econ.totalMH))} + specialty ${lbsFmt(Math.round(econ.specialtyHours))}` : null} />
