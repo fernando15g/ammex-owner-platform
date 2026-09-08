@@ -2,7 +2,7 @@
 import { money as moneyFmt, rate as rateFmt, num as numFmt } from "@/lib/format/numbers";
 import UnsavedGuard from "@/app/components/UnsavedGuard";
 import { computeTravel, suggestHotelNights, dailyTripFuel, TRAVEL_DEFAULTS } from "@/lib/rules/travel";
-import { rebarLadder, specialtyLadder, sensitivityBlocker } from "@/lib/rules/sensitivity";
+import { rebarLadder, sensitivityBlocker } from "@/lib/rules/sensitivity";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -299,8 +299,9 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
     const floor = A.targetMarginPct;
     return {
       floor,
+      // With no specialty, rebar margin IS the combined margin — one column, not two.
+      hasSpecialty: (econ.specialtyRevenue || 0) > 0,
       rebar: rebarLadder({ inputs, assumptions: A, lines: specialtyLines, specialtyOn, storedSpec, floor }),
-      specialty: specialtyLadder({ inputs, assumptions: A, lines: specialtyOn ? specialtyLines : [], storedSpec, floor }),
     };
   }, [w, ot, econ, specialtyLines, specialtyOn, storedSpec]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -896,7 +897,7 @@ function Sensitivity({ sens }) {
       {r.cushion ? (
         <p className="text-[11px] text-rebar/80 leading-relaxed mb-3">
           Rebar can fall to <span className="text-concrete font-medium">{r.cushion.at} {r.unit}</span> before
-          the combined margin drops under {pctf(sens.floor)} — a {Math.round(r.cushion.pct * 100)}% cushion.
+          {sens.hasSpecialty ? "the combined margin" : "the margin"} drops under {pctf(sens.floor)} — a {Math.round(r.cushion.pct * 100)}% cushion.
         </p>
       ) : (
         <p className="text-[11px] text-rebar/80 mb-3">Holds above {pctf(sens.floor)} across the range below.</p>
@@ -904,16 +905,19 @@ function Sensitivity({ sens }) {
 
       <div className="space-y-1.5 text-sm">
         <div className="flex items-baseline gap-2 text-[10px] uppercase tracking-wide text-rebar/60">
-          <span>Rebar {r.unit}</span><span className="ml-auto">Rebar</span>
-          <span className="w-14 text-right">Combined</span>
+          <span>Rebar {r.unit}</span>
+          <span className="ml-auto">{sens.hasSpecialty ? "Rebar" : "Margin"}</span>
+          {sens.hasSpecialty && <span className="w-14 text-right">Combined</span>}
         </div>
         {r.rows.map((row) => (
           <div key={row.value} className={`flex items-baseline gap-2 ${row.isBid ? "" : "opacity-80"}`}>
             <span className={`tabular-nums text-xs ${row.isBid ? "text-concrete font-medium" : "text-rebar"}`}>
               {row.value}{row.isBid && <span className="text-safety ml-1">· bid</span>}
             </span>
-            <span className="ml-auto tabular-nums text-xs text-concrete/70">{pctf(row.rebar)}</span>
-            <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
+            <span className={`ml-auto tabular-nums text-xs ${sens.hasSpecialty ? "text-concrete/70" : tone(row.rebar)}`}>{pctf(row.rebar)}</span>
+            {sens.hasSpecialty && (
+              <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
+            )}
           </div>
         ))}
       </div>
