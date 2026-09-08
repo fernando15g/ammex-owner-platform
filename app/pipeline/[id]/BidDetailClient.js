@@ -592,7 +592,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
             {ot.otOn && (
               <>
                 <SF label="Planned hrs/week" value={hrsFromPct(otPctVal())} onChange={setOtHrs}
-                  hint="per person \u2014 50 hrs is 20% OT" />
+                  hint="per person — 50 hrs is 20% OT" />
                 <SF label="OT %" value={ot.otPct} onChange={(v) => setOt((s) => ({ ...s, otPct: v }))} suffix="%" />
               </>
             )}
@@ -664,7 +664,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
               {travelStates && <TravelImpact st={travelStates} foldsIn={travelFoldsIn} target={pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct} placementMargin={econ.operatingMargin} />}
               {ot.otOn && otTotals.premium > 0 && (
                 <Row label="Estimated OT" value={`${numFmt(otTotals.hours)} hrs`}
-                  sub={`${money(otTotals.premium)} premium at ${pctFmt(otPctVal())} \u00b7 already in cost`} />
+                  sub={`${money(otTotals.premium)} premium at ${pctFmt(otPctVal())} · already in cost`} />
               )}
               <Row label="Fully-loaded cost" value={money(econ.fullyLoadedCost)} />
               {!(specRollup.specRevenue > 0) && <Row label="Burdened labor" value={money(econ.burdenedLaborCost)} />}
@@ -787,7 +787,7 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
                   <SF label="Rooms" value={t.hotelRooms} onChange={(v) => setTv("hotelRooms", v)} />
                   <SF label="Nightly rate" value={t.hotelNightlyRate} onChange={(v) => setTv("hotelNightlyRate", v)} prefix="$" />
                   <SF label="Nights" value={t.hotelNights} onChange={(v) => setTv("hotelNights", v)}
-                    hint={`${crewDays ? crewDays.toFixed(1) : 0} crew days \u2192 suggest ${travel.suggestedNights}`} />
+                    hint={`${crewDays ? crewDays.toFixed(1) : 0} crew days → suggest ${travel.suggestedNights}`} />
                   <SF label="Lodging tax" value={t.hotelTaxPct} onChange={(v) => setTv("hotelTaxPct", v)} suffix="%" />
                   <div>
                     <span className="text-[10px] text-rebar block mb-1">Week basis</span>
@@ -828,7 +828,7 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
                     <span className="text-[10px] text-rebar block mb-1">Already in the wage?</span>
                     <button type="button" onClick={() => setTv("subsistenceInLabor", !t.subsistenceInLabor)}
                       className={`w-full text-xs px-2 py-2 rounded-md border ${t.subsistenceInLabor ? "bg-graphite text-concrete border-line" : "border-line text-rebar hover:text-concrete"}`}>
-                      {t.subsistenceInLabor ? "Yes \u2014 not charged again" : "No \u2014 charge it"}
+                      {t.subsistenceInLabor ? "Yes — not charged again" : "No — charge it"}
                     </button>
                   </div>
                   <SF label="Travel markup" value={t.travelMarkupPct} onChange={(v) => setTv("travelMarkupPct", v)} suffix="%"
@@ -878,7 +878,7 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
 // locked, however it was arrived at. Read-only; nothing here is ever saved.
 function Sensitivity({ sens }) {
   if (!sens) return null;
-  const pctf = (v) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "\u2014");
+  const pctf = (v) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "—");
   const tone = (m) => (m >= sens.floor ? "text-ok" : m > 0 ? "text-warn" : "text-danger");
   if (sens.blocker) {
     return (
@@ -896,7 +896,7 @@ function Sensitivity({ sens }) {
       {r.cushion ? (
         <p className="text-[11px] text-rebar/80 leading-relaxed mb-3">
           Rebar can fall to <span className="text-concrete font-medium">{r.cushion.at} {r.unit}</span> before
-          the combined margin drops under {pctf(sens.floor)} \u2014 a {Math.round(r.cushion.pct * 100)}% cushion.
+          the combined margin drops under {pctf(sens.floor)} — a {Math.round(r.cushion.pct * 100)}% cushion.
         </p>
       ) : (
         <p className="text-[11px] text-rebar/80 mb-3">Holds above {pctf(sens.floor)} across the range below.</p>
@@ -910,7 +910,7 @@ function Sensitivity({ sens }) {
         {r.rows.map((row) => (
           <div key={row.value} className={`flex items-baseline gap-2 ${row.isBid ? "" : "opacity-80"}`}>
             <span className={`tabular-nums text-xs ${row.isBid ? "text-concrete font-medium" : "text-rebar"}`}>
-              {row.value}{row.isBid && <span className="text-safety ml-1">\u00b7 bid</span>}
+              {row.value}{row.isBid && <span className="text-safety ml-1">· bid</span>}
             </span>
             <span className="ml-auto tabular-nums text-xs text-concrete/70">{pctf(row.rebar)}</span>
             <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
@@ -918,23 +918,6 @@ function Sensitivity({ sens }) {
         ))}
       </div>
 
-      {sens.specialty && (
-        <div className="mt-4 pt-3 border-t border-line space-y-1.5 text-sm">
-          <div className="flex items-baseline gap-2 text-[10px] uppercase tracking-wide text-rebar/60">
-            <span>Specialty</span><span className="ml-auto">Specialty</span>
-            <span className="w-14 text-right">Combined</span>
-          </div>
-          {sens.specialty.rows.map((row) => (
-            <div key={row.label} className={`flex items-baseline gap-2 ${row.isBid ? "" : "opacity-80"}`}>
-              <span className={`tabular-nums text-xs ${row.isBid ? "text-concrete font-medium" : "text-rebar"}`}>
-                {row.label}{row.isBid && <span className="text-safety ml-1">\u00b7 bid</span>}
-              </span>
-              <span className="ml-auto tabular-nums text-xs text-concrete/70">{pctf(row.specMargin)}</span>
-              <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
-            </div>
-          ))}
-        </div>
-      )}
       <p className="text-[10px] text-rebar/60 mt-3">Rate held at what this bid carries. Nothing here is saved.</p>
     </div>
   );
@@ -1084,10 +1067,10 @@ function FChips({ label, edit, items, onChange, options = [], manageProp, onOpti
 function unitRateLabel(r) {
   const qty = Number(r.qty ?? r.lbs ?? r.sqft ?? r.hours) || 0;
   const rev = Number(r.revenue) || 0;
-  if (!qty || !rev) return "\u2014";
+  if (!qty || !rev) return "—";
   const per = rev / qty;
-  if (r.type === "PT Building") return `${(per * 100).toFixed(2)}\u00a2/lb`;
-  if (r.type === "Mesh") return `$${per.toFixed(2)}/sqft`;
+  if (r.type === "PT Building") return `${(per * 100).toFixed(2)}¢/lb`;
+  if (r.type === "Mesh") return `${(per * 100).toFixed(2)}¢/sqft`;
   if (r.type === "PT Bridge") return `$${Math.round(per).toLocaleString()}/hr`;
   return `$${per.toFixed(2)}`;
 }

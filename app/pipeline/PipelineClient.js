@@ -245,7 +245,7 @@ export default function PipelineClient({ data }) {
           {groups.length === 0 && (
             <div className="rounded-lg border border-line px-4 py-10 text-center text-rebar">{elsewhere.length > 0
               ? <>No matches here — {elsewhere.map((f, i) => (
-                  <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
+                  <span key={f.key}>{i > 0 ? " · " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
                 ))}</>
               : "No bids in flight. Click “+ New Bid” to add one."}</div>
           )}
@@ -277,7 +277,7 @@ export default function PipelineClient({ data }) {
                 {shown.map((r) => <BidRow key={r.id} r={r} />)}
                 {shown.length === 0 && <tr><td colSpan={6} className="px-4 py-10 text-center text-rebar">{elsewhere.length > 0
                     ? <>No matches here — {elsewhere.map((f, i) => (
-                        <span key={f.key}>{i > 0 ? " \u00b7 " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
+                        <span key={f.key}>{i > 0 ? " · " : ""}<button onClick={() => setFilter(f.key)} className="text-safety hover:underline">{countOf(f)} in {f.label}</button></span>
                       ))}</>
                     : "No bids with this status."}</td></tr>}
               </>
