@@ -2,6 +2,7 @@
 import { money as moneyFmt, rate as rateFmt, num as numFmt } from "@/lib/format/numbers";
 import UnsavedGuard from "@/app/components/UnsavedGuard";
 import { computeTravel, suggestHotelNights, dailyTripFuel, TRAVEL_DEFAULTS } from "@/lib/rules/travel";
+import { rebarLadder, specialtyLadder, sensitivityBlocker } from "@/lib/rules/sensitivity";
 import { confirmDialog } from "@/app/components/Dialog";
 
 // =============================================================================
@@ -276,6 +277,33 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   ), [t, w.estimatedLbs, w.crewSize, econ?.crewDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Folds into the quoted rate only when BOTH toggles are on; the master switch wins.
+  // What-if view only — never written, never saved.
+  const sens = useMemo(() => {
+    if (!econ) return null;
+    const A = {
+      wageRate: num0(w.baseWage) ?? CALC_DEFAULTS.wageRate,
+      burdenPct: pctVal(w.burdenPct) ?? CALC_DEFAULTS.burdenPct,
+      toolsPct: pctVal(w.toolsPct) ?? CALC_DEFAULTS.toolsPct,
+      contingencyPct: pctVal(w.contingencyPct) ?? CALC_DEFAULTS.contingencyPct,
+      targetMarginPct: pctVal(w.targetMarginPct) ?? CALC_DEFAULTS.targetMarginPct,
+      otOn: !!ot.otOn, otPct: otPctVal(),
+    };
+    const inputs = {
+      weightLb: num0(w.estimatedLbs), outputLbPerMH: num0(w.productivity),
+      crewSize: num0(w.crewSize), mobilizationHrs: num0(w.mobilizationHrs) ?? CALC_DEFAULTS.mobilizationHrs,
+      hoursPerDay: num0(w.hoursPerDay) ?? CALC_DEFAULTS.hoursPerDay, ...A,
+      activeRate: econ.bidRatePerLb ?? null,
+    };
+    const blocker = sensitivityBlocker({ inputs });
+    if (blocker) return { blocker };
+    const floor = A.targetMarginPct;
+    return {
+      floor,
+      rebar: rebarLadder({ inputs, assumptions: A, lines: specialtyLines, specialtyOn, storedSpec, floor }),
+      specialty: specialtyLadder({ inputs, assumptions: A, lines: specialtyOn ? specialtyLines : [], storedSpec, floor }),
+    };
+  }, [w, ot, econ, specialtyLines, specialtyOn, storedSpec]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const travelFoldsIn = !!(t.travelOn && t.travelAddToBid);
   const placementCents = (econ?.bidRatePerLb ?? 0) * 100;
   const bidWithTravelCents = placementCents + (t.travelOn ? travel.centsPerLb : 0);
@@ -489,7 +517,7 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
   }
 
   return (
-    <div className="lg:flex lg:gap-8 max-w-5xl">
+    <div className="lg:flex lg:gap-8 max-w-5xl 2xl:max-w-[1500px]">
       <div className="flex-1 min-w-0 space-y-6">
         <div className="flex items-center gap-3">
           <span className="ml-auto" />
@@ -656,6 +684,13 @@ export default function BidDetailClient({ bid, lineItemCount = 0, linkedProject 
         </div>
 
         {specRollup.specRevenue > 0 && <SpecialtyLive rollup={specRollup} />}
+      </div>
+
+      {/* Third column, very wide screens only — fills space that was otherwise
+          empty. Hidden below 2xl so the two-column layout is untouched on
+          laptops and phones. */}
+      <div className="hidden 2xl:block 2xl:w-80 shrink-0">
+        <Sensitivity sens={sens} />
       </div>
     </div>
   );
@@ -838,6 +873,73 @@ function TravelPanel({ editing, t, setTv, travel, dailyFuel, crewDays, foldsIn }
   );
 }
 
+// SENSITIVITY — what the margin does if the crews miss the productivity the bid
+// assumed. The rate is held at whatever this bid carries: once submitted it is
+// locked, however it was arrived at. Read-only; nothing here is ever saved.
+function Sensitivity({ sens }) {
+  if (!sens) return null;
+  const pctf = (v) => (typeof v === "number" ? `${(v * 100).toFixed(1)}%` : "\u2014");
+  const tone = (m) => (m >= sens.floor ? "text-ok" : m > 0 ? "text-warn" : "text-danger");
+  if (sens.blocker) {
+    return (
+      <div className="rounded-lg border border-line p-5" style={{ background: "var(--surface)" }}>
+        <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">If production slips</p>
+        <p className="text-[11px] text-rebar/70">{sens.blocker}</p>
+      </div>
+    );
+  }
+  const r = sens.rebar;
+  if (!r) return null;
+  return (
+    <div className="rounded-lg border border-line p-5" style={{ background: "var(--surface)" }}>
+      <p className="text-[11px] uppercase tracking-wider text-rebar mb-1">If production slips</p>
+      {r.cushion ? (
+        <p className="text-[11px] text-rebar/80 leading-relaxed mb-3">
+          Rebar can fall to <span className="text-concrete font-medium">{r.cushion.at} {r.unit}</span> before
+          the combined margin drops under {pctf(sens.floor)} \u2014 a {Math.round(r.cushion.pct * 100)}% cushion.
+        </p>
+      ) : (
+        <p className="text-[11px] text-rebar/80 mb-3">Holds above {pctf(sens.floor)} across the range below.</p>
+      )}
+
+      <div className="space-y-1.5 text-sm">
+        <div className="flex items-baseline gap-2 text-[10px] uppercase tracking-wide text-rebar/60">
+          <span>Rebar {r.unit}</span><span className="ml-auto">Rebar</span>
+          <span className="w-14 text-right">Combined</span>
+        </div>
+        {r.rows.map((row) => (
+          <div key={row.value} className={`flex items-baseline gap-2 ${row.isBid ? "" : "opacity-80"}`}>
+            <span className={`tabular-nums text-xs ${row.isBid ? "text-concrete font-medium" : "text-rebar"}`}>
+              {row.value}{row.isBid && <span className="text-safety ml-1">\u00b7 bid</span>}
+            </span>
+            <span className="ml-auto tabular-nums text-xs text-concrete/70">{pctf(row.rebar)}</span>
+            <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
+          </div>
+        ))}
+      </div>
+
+      {sens.specialty && (
+        <div className="mt-4 pt-3 border-t border-line space-y-1.5 text-sm">
+          <div className="flex items-baseline gap-2 text-[10px] uppercase tracking-wide text-rebar/60">
+            <span>Specialty</span><span className="ml-auto">Specialty</span>
+            <span className="w-14 text-right">Combined</span>
+          </div>
+          {sens.specialty.rows.map((row) => (
+            <div key={row.label} className={`flex items-baseline gap-2 ${row.isBid ? "" : "opacity-80"}`}>
+              <span className={`tabular-nums text-xs ${row.isBid ? "text-concrete font-medium" : "text-rebar"}`}>
+                {row.label}{row.isBid && <span className="text-safety ml-1">\u00b7 bid</span>}
+              </span>
+              <span className="ml-auto tabular-nums text-xs text-concrete/70">{pctf(row.specMargin)}</span>
+              <span className={`w-14 text-right tabular-nums text-xs ${tone(row.combined)}`}>{pctf(row.combined)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-rebar/60 mt-3">Rate held at what this bid carries. Nothing here is saved.</p>
+    </div>
+  );
+}
+
 function Grid({ children, className = "" }) { return <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 ${className}`}>{children}</div>; }
 function L({ children }) { return <span className="text-xs text-rebar block mb-1">{children}</span>; }
 function V({ children }) { return <span className="text-sm text-concrete">{children || "—"}</span>; }
@@ -976,6 +1078,20 @@ function FChips({ label, edit, items, onChange, options = [], manageProp, onOpti
 // can be built entirely in the OS. Each line computes revenue/cost/hours/margin
 // live and saves as a billable line item. Same three types, same cost stack.
 // -----------------------------------------------------------------------------
+// What we bid per unit, derived from the row itself (revenue / quantity) so it
+// works on calculator bids that stored only totals. lb-based scopes read in
+// cents to match the bid-rate convention; sqft and hourly read in dollars.
+function unitRateLabel(r) {
+  const qty = Number(r.qty ?? r.lbs ?? r.sqft ?? r.hours) || 0;
+  const rev = Number(r.revenue) || 0;
+  if (!qty || !rev) return "\u2014";
+  const per = rev / qty;
+  if (r.type === "PT Building") return `${(per * 100).toFixed(2)}\u00a2/lb`;
+  if (r.type === "Mesh") return `$${per.toFixed(2)}/sqft`;
+  if (r.type === "PT Bridge") return `$${Math.round(per).toLocaleString()}/hr`;
+  return `$${per.toFixed(2)}`;
+}
+
 function SpecialtyEditor({ editing, on, setOn, lines, rows, targetMargin, toggleType, updLine, removeLine, rollup }) {
   const usd = (v) => `$${Math.round(v || 0).toLocaleString()}`;
   const pct = (v) => `${((v || 0) * 100).toFixed(1)}%`;
@@ -989,18 +1105,18 @@ function SpecialtyEditor({ editing, on, setOn, lines, rows, targetMargin, toggle
       <div className="mt-4 rounded-lg border border-line p-4" style={{ background: "var(--surface)" }}>
         <p className="text-[11px] uppercase tracking-wider text-rebar mb-2">Specialty scope</p>
         <div className="space-y-1.5 text-sm">
+          {/* WHAT WE BID — scope and pricing. The economics box in the sidebar
+              carries cost and margin, so nothing is repeated between the two. */}
           {rows.map((r) => (
             <div key={r.id} className="flex items-baseline gap-2">
               <span className="text-[10px] uppercase tracking-wide text-safety">{r.type}</span>
               <span className="text-rebar text-xs">{r.qtyLabel}</span>
-              <span className="ml-auto text-concrete tabular-nums">{usd(r.revenue)}</span>
-              <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{r.hasCostBasis ? pct(r.margin) : "—"}</span>
+              <span className="ml-auto text-concrete tabular-nums text-xs">{unitRateLabel(r)}</span>
             </div>
           ))}
           <div className="flex items-baseline gap-2 pt-1.5 border-t border-line">
             <span className="text-concrete font-medium text-xs">Specialty total</span>
             <span className="ml-auto text-concrete font-medium tabular-nums">{usd(rollup.specRevenue)}</span>
-            <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{rollup.specRevenue > 0 ? pct(rollup.specMargin) : "—"}</span>
           </div>
         </div>
       </div>
@@ -1123,18 +1239,20 @@ function SpecialtyLive({ rollup }) {
     <div className="rounded-lg border border-line p-5 mt-4" style={{ background: "var(--surface)" }}>
       <p className="text-[11px] uppercase tracking-wider text-rebar mb-3">Specialty scope</p>
       <div className="space-y-1.5 text-sm">
+        {/* WHAT IT COSTS — hours, cost and margin. Scope and rate live in the
+            bid-info box, so the two boxes complement rather than repeat. */}
         {rollup.rows.map((r) => (
           <div key={r.id} className="flex items-baseline gap-2">
             <span className="text-[10px] uppercase tracking-wide text-safety">{r.type}</span>
-            <span className="text-rebar text-xs">{r.qtyLabel}</span>
-            <span className="ml-auto text-concrete tabular-nums">{usd(r.revenue)}</span>
+            <span className="text-rebar text-xs">{r.hasCostBasis ? `${Math.round(r.hours).toLocaleString()} MH` : "no cost basis"}</span>
+            <span className="ml-auto text-concrete tabular-nums text-xs">{r.hasCostBasis ? usd(r.cost) : "—"}</span>
             <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{r.hasCostBasis ? pct(r.margin) : "—"}</span>
           </div>
         ))}
         <div className="flex items-baseline gap-2 pt-1.5 border-t border-line">
           <span className="text-concrete font-medium text-xs">Specialty total</span>
-          <span className="text-rebar text-[11px]">{Math.round(rollup.specHours).toLocaleString()} MH · cost {usd(rollup.specCost)}</span>
-          <span className="ml-auto text-concrete font-medium tabular-nums">{usd(rollup.specRevenue)}</span>
+          <span className="text-rebar text-[11px]">{Math.round(rollup.specHours).toLocaleString()} MH</span>
+          <span className="ml-auto text-concrete font-medium tabular-nums">{usd(rollup.specCost)}</span>
           <span className="text-concrete/70 tabular-nums text-xs w-14 text-right">{pct(rollup.specMargin)}</span>
         </div>
         {rollup.missingBasis > 0 && (
