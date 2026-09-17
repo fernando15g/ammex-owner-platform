@@ -37,7 +37,7 @@ const SEV = {
 
 export default function ActiveWorkClient({ data }) {
   const [selected, setSelected] = useState(null);
-  const { rows, counts, backlog = [], closed = [] } = data;
+  const { rows, counts, backlog = [], billing = [], closed = [], unfiled = [] } = data;
   const { sorted, sort, toggle } = useSort(rows, "name", "asc", "active");
   const [query, setQuery] = useState("");
   const [bulk, setBulk] = useState(false);
@@ -220,6 +220,63 @@ export default function ActiveWorkClient({ data }) {
         )}
       </div>
       </div>
+
+      {/* UNFILED — a status that maps to no phase. Almost always a typo or a new
+          Notion option nobody mapped. Shown loudly because the alternative is the
+          job being invisible everywhere in the OS. */}
+      {unfiled.length > 0 && (
+        <div className="rounded-lg border border-warn/40 mt-6 overflow-hidden" style={{ background: "var(--surface)" }}>
+          <div className="w-full flex items-center gap-2 px-4 py-2.5">
+            <span className="text-sm text-warn font-medium">Unrecognized status</span>
+            <span className="text-xs text-rebar">these fit no phase — check the status in Notion</span>
+            <span className="ml-auto text-xs text-rebar">{unfiled.length} job{unfiled.length === 1 ? "" : "s"}</span>
+          </div>
+          <div className="border-t border-line divide-y divide-line" style={{ background: "var(--surface-2)" }}>
+            {unfiled.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/40">
+                <a href={`/projects/${u.id}`} className="text-sm text-concrete hover:text-safety truncate">{u.name}</a>
+                <SpecialtyTag types={u.specialtyTypes} />
+                <span className="text-xs text-warn truncate">{u.status || "no status set"}</span>
+                <span className="ml-auto text-xs text-rebar truncate">{(u.gc || []).join(", ")}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* WAITING ON BILLING — work done, money not. Always expanded: unlike closed
+          jobs these still need chasing, and this page not showing PHASE.BILLING at
+          all is what made a job seem to vanish when its status was flipped. */}
+      {billing.length > 0 && (() => {
+        const value = billing.reduce((a, b) => a + (b.contractValue || 0), 0);
+        return (
+          <div className="rounded-lg border border-line mt-6 overflow-hidden" style={{ background: "var(--surface)" }}>
+            <div className="w-full flex items-center gap-2 px-4 py-2.5">
+              <span className="text-sm text-concrete font-medium">Waiting on billing</span>
+              <span className="text-xs text-rebar">work done, money not</span>
+              <span className="ml-auto flex items-center gap-3 text-xs">
+                <span className="text-rebar">{billing.length} job{billing.length === 1 ? "" : "s"}</span>
+                {value > 0 && <span className="text-concrete tabular-nums font-medium">${Math.round(value).toLocaleString()}</span>}
+              </span>
+            </div>
+            <div className="border-t border-line divide-y divide-line" style={{ background: "var(--surface-2)" }}>
+              {billing.map((b) => (
+                <div key={b.id} className="flex items-center gap-3 px-4 py-3 hover:bg-graphite/40">
+                  <a href={`/projects/${b.id}`} className="text-sm text-concrete hover:text-safety truncate">{b.name}</a>
+                  <SpecialtyTag types={b.specialtyTypes} />
+                  <span className="text-xs text-rebar truncate">{(b.gc || []).join(", ")}</span>
+                  <span className="ml-auto flex items-center gap-3 text-xs">
+                    {typeof b.contractValue === "number" && (
+                      <span className="text-concrete tabular-nums">{money(b.contractValue)}</span>
+                    )}
+                    <a href={`/billing/${b.id}`} className="text-safety hover:underline whitespace-nowrap">Billing</a>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* CLOSED — finished jobs. Out of the active list, but not gone: a collapsed
           section so you can still pull up a completed job's data or its bid. */}
