@@ -396,11 +396,11 @@ function DetailPanel({ row, onClose, onEdit }) {
             <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
           </div>
           <div className="[&_button]:w-full [&_button]:justify-center">
-            <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="open" />
+            <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site, supplierPoNotified: row.supplierPoNotified }} mode="open" />
           </div>
           {/closed|complete/i.test(row.status || "") && (
             <div className="[&_button]:w-full [&_button]:justify-center">
-              <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site }} mode="close" />
+              <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site, supplierPoNotified: row.supplierPoNotified }} mode="close" />
             </div>
           )}
         </div>

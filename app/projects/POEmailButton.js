@@ -7,23 +7,48 @@
 // if both are missing it warns instead of sending a blank address.
 import { useState } from "react";
 import { SUPPLIERS, resolvePOFields } from "@/lib/suppliers";
+import { fmtDateLocal } from "@/lib/format/dates";
 
 export default function POEmailButton({ project, mode = "open" }) {
   const [picking, setPicking] = useState(false);
+  // "Supplier PO Notified" is already written to Notion when an email is sent —
+  // this just surfaces it. Local state so the tick appears immediately after
+  // sending, without waiting for a reload.
+  // Two different events, deliberately kept on separate fields:
+  //   close-out notification -> supplierPoNotified (the dashboard close-out alert
+  //     fires on COMPLETE && !supplierPoNotified, so the PO request must not set it)
+  //   material PO request    -> supplierPoSentDate / supplierPoSentTo
+  const isCloseMode = mode === "close";
+  const [sentAt, setSentAt] = useState(project?.supplierPoSentDate ?? null);
+  const [sentTo, setSentTo] = useState(project?.supplierPoSentTo ?? null);
+  const [closeNotified, setCloseNotified] = useState(!!project?.supplierPoNotified);
+  const sent = isCloseMode ? closeNotified : !!sentAt;
   const fields = resolvePOFields(project);
   const isClose = mode === "close";
+
+  // Phoenix-local date, not the server's: a late-evening send must not record
+  // tomorrow. Compared as a "YYYY-MM-DD" string like every other date here.
+  const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Phoenix" });
+
+  const markSent = async (label) => {
+    if (!project?.id) return;
+    const changes = isClose
+      ? { supplierPoNotified: true }
+      : { supplierPoSentDate: today(), supplierPoSentTo: label };
+    try {
+      await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes }),
+      });
+      if (isClose) setCloseNotified(true);
+      else { setSentAt(today()); setSentTo(label); }
+    } catch {}
+  };
 
   const compose = async (supplier) => {
     const subject = isClose ? supplier.closeSubject(fields) : supplier.subject(fields);
     const body = isClose ? supplier.closeBody(fields) : supplier.body(fields);
-    if (isClose && project.id) {
-      try {
-        await fetch(`/api/projects/${project.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ changes: { supplierPoNotified: true } }),
-        });
-      } catch {}
-    }
+    await markSent(supplier.name || supplier.label || "supplier");
     openMail({ to: supplier.email, subject, body });
     setPicking(false);
   };
@@ -32,14 +57,7 @@ export default function POEmailButton({ project, mode = "open" }) {
     const s0 = SUPPLIERS[0];
     const subject = isClose ? s0.closeSubject(fields) : s0.subject(fields);
     const body = isClose ? s0.closeBody(fields) : s0.body(fields);
-    if (isClose && project.id) {
-      try {
-        await fetch(`/api/projects/${project.id}`, {
-          method: "PATCH", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ changes: { supplierPoNotified: true } }),
-        });
-      } catch {}
-    }
+    await markSent(SUPPLIERS.map((x) => x.name).join(", "));
     openMail({ to: SUPPLIERS[0].email, bcc: SUPPLIERS.slice(1).map((s) => s.email).join(","), subject, body });
     setPicking(false);
   };
@@ -51,6 +69,7 @@ export default function POEmailButton({ project, mode = "open" }) {
     const a = document.createElement("a");
     a.href = href; a.style.display = "none";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setSent(true);
   };
 
   return (
@@ -60,6 +79,16 @@ export default function POEmailButton({ project, mode = "open" }) {
         className={`text-sm px-3 py-1.5 rounded-md font-medium ${isClose ? "border border-line text-concrete hover:border-rebar" : "bg-safety text-steel"}`}
       >
         {isClose ? "Notify supplier of close-out" : "Request material PO"}
+        {/* Sent already — the button stays live so a second supplier can be
+            emailed or the request re-sent. */}
+        {sent && (
+          <span className="ml-1.5 text-[11px] align-middle"
+            title={isCloseMode
+              ? "Close-out notification sent"
+              : `PO requested${sentTo ? ` · ${sentTo}` : ""}${sentAt ? ` · ${fmtDateLocal(sentAt)}` : ""}`}>
+            ✓
+          </span>
+        )}
       </button>
 
       {picking && (
