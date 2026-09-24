@@ -59,8 +59,11 @@ export default function SuppliersPanel() {
           body: JSON.stringify({ create: { name: r.name, emails: r.emails, template: r.template, active: true } }),
         });
       }
-      setMsg("Copied into Notion — they are editable now.");
+      // Notion has about a second of write lag, so an immediate read can still
+      // come back empty and leave the panel looking like nothing happened.
+      await new Promise((r) => setTimeout(r, 2000));
       await load();
+      setMsg("Copied into Notion — they are editable now.");
     } catch (err) {
       setMsg(String(err?.message || err));
     }
