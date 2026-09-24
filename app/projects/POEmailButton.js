@@ -6,11 +6,27 @@
 // completed jobs. Address uses Site Street, falling back to Site Crossroads;
 // if both are missing it warns instead of sending a blank address.
 import { useState } from "react";
-import { SUPPLIERS, resolvePOFields } from "@/lib/suppliers";
+import { SUPPLIERS as BUILT_IN, TEMPLATES, TEMPLATES_NEEDING_SALES_AMOUNT, resolvePOFields } from "@/lib/suppliers";
 import { fmtDateLocal } from "@/lib/format/dates";
 
 export default function POEmailButton({ project, mode = "open" }) {
   const [picking, setPicking] = useState(false);
+  // Contacts come from Notion so they can change without a push; the built-in
+  // list is the fallback so a PO is never blocked by a settings read. Loaded
+  // lazily when the picker opens — no cost on a page that never sends one.
+  const [suppliers, setSuppliers] = useState(BUILT_IN);
+  const loadSuppliers = async () => {
+    try {
+      const d = await fetch("/api/suppliers").then((r) => r.json());
+      if (d?.ok && Array.isArray(d.suppliers) && d.suppliers.length) {
+        setSuppliers(d.suppliers.map((x) => ({ ...x, ...(TEMPLATES[x.template] || TEMPLATES.standard) })));
+      }
+    } catch {}
+  };
+  // Atlas asks for an estimated sales amount. Preselected on big jobs (over 1M
+  // lbs is always over $2,500); below that it must be chosen deliberately.
+  const bigJob = (Number(project?.estimatedLbs ?? project?.awardedLbs ?? project?.bid?.estimatedLbs) || 0) > 1_000_000;
+  const [salesAmount, setSalesAmount] = useState(bigJob ? "MORE THAN $2500" : null);
   // "Supplier PO Notified" is already written to Notion when an email is sent —
   // this just surfaces it. Local state so the tick appears immediately after
   // sending, without waiting for a reload.
@@ -46,19 +62,25 @@ export default function POEmailButton({ project, mode = "open" }) {
   };
 
   const compose = async (supplier) => {
-    const subject = isClose ? supplier.closeSubject(fields) : supplier.subject(fields);
-    const body = isClose ? supplier.closeBody(fields) : supplier.body(fields);
+    const f = { ...fields, salesAmount, today: fmtDateLocal(today()) };
+    const subject = isClose ? supplier.closeSubject(f) : supplier.subject(f);
+    const body = isClose ? supplier.closeBody(f) : supplier.body(f);
     await markSent(supplier.name || supplier.label || "supplier");
-    openMail({ to: supplier.email, subject, body });
+    openMail({ to: (supplier.emails || [supplier.email]).filter(Boolean).join(","), subject, body });
     setPicking(false);
   };
 
   const composeBoth = async () => {
-    const s0 = SUPPLIERS[0];
-    const subject = isClose ? s0.closeSubject(fields) : s0.subject(fields);
-    const body = isClose ? s0.closeBody(fields) : s0.body(fields);
-    await markSent(SUPPLIERS.map((x) => x.name).join(", "));
-    openMail({ to: SUPPLIERS[0].email, bcc: SUPPLIERS.slice(1).map((s) => s.email).join(","), subject, body });
+    const s0 = suppliers[0];
+    const f = { ...fields, salesAmount, today: fmtDateLocal(today()) };
+    const subject = isClose ? s0.closeSubject(f) : s0.subject(f);
+    const body = isClose ? s0.closeBody(f) : s0.body(f);
+    await markSent(suppliers.map((x) => x.name).join(", "));
+    openMail({
+      to: (s0.emails || [s0.email]).filter(Boolean).join(","),
+      bcc: suppliers.slice(1).flatMap((x) => x.emails || [x.email]).filter(Boolean).join(","),
+      subject, body,
+    });
     setPicking(false);
   };
 
@@ -75,7 +97,7 @@ export default function POEmailButton({ project, mode = "open" }) {
   return (
     <>
       <button
-        onClick={() => setPicking(true)}
+        onClick={() => { setPicking(true); loadSuppliers(); }}
         className={`text-sm px-3 py-1.5 rounded-md font-medium ${isClose ? "border border-line text-concrete hover:border-rebar" : "bg-safety text-steel"}`}
       >
         {isClose ? "Notify supplier of close-out" : "Request material PO"}
@@ -111,26 +133,45 @@ export default function POEmailButton({ project, mode = "open" }) {
               </div>
             )}
 
+            {/* Atlas's form asks for this; the others do not. Preselected on jobs
+                over 1M lbs, otherwise it has to be chosen before composing. */}
+            {!isClose && suppliers.some((s) => TEMPLATES_NEEDING_SALES_AMOUNT.includes(s.template)) && (
+              <div className="mb-4">
+                <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-2">Project estimated sales amount</div>
+                <div className="flex gap-2">
+                  {["LESS THAN $2500", "MORE THAN $2500"].map((opt) => (
+                    <button key={opt} onClick={() => setSalesAmount(opt)}
+                      className={`flex-1 text-xs px-3 py-2 rounded-md border ${salesAmount === opt ? "bg-safety text-steel border-safety font-medium" : "border-line text-rebar hover:text-concrete"}`}>
+                      {opt.replace("$2500", "$2,500")}
+                    </button>
+                  ))}
+                </div>
+                {!salesAmount && <p className="text-[11px] text-warn mt-1.5">Pick one — Atlas asks for it on their form.</p>}
+              </div>
+            )}
+
             <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-2">Supplier</div>
             <div className="space-y-2">
-              {SUPPLIERS.map((s) => (
+              {suppliers.map((s) => (
                 <button key={s.id} onClick={() => compose(s)}
-                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group">
+                  disabled={!isClose && TEMPLATES_NEEDING_SALES_AMOUNT.includes(s.template) && !salesAmount}
+                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group disabled:opacity-40 disabled:hover:border-line disabled:cursor-not-allowed">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-concrete">{s.name}</span>
                     <span className="text-[11px] text-rebar group-hover:text-safety shrink-0">Compose →</span>
                   </div>
-                  <div className="text-[11px] text-rebar mt-0.5 truncate">{s.email}</div>
+                  <div className="text-[11px] text-rebar mt-0.5 truncate">{(s.emails || [s.email]).filter(Boolean).join(", ")}</div>
                 </button>
               ))}
-              {SUPPLIERS.length > 1 && (
+              {suppliers.length > 1 && (
                 <button onClick={composeBoth}
-                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group">
+                  disabled={!isClose && suppliers.some((x) => TEMPLATES_NEEDING_SALES_AMOUNT.includes(x.template)) && !salesAmount}
+                  className="w-full rounded-lg border border-line px-4 py-3 text-left hover:border-safety hover:bg-graphite/40 transition-colors group disabled:opacity-40 disabled:cursor-not-allowed">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium text-concrete">Send to both</span>
                     <span className="text-[11px] text-rebar group-hover:text-safety shrink-0">Compose →</span>
                   </div>
-                  <div className="text-[11px] text-rebar mt-0.5">One email — {SUPPLIERS[0].name} in To, others BCC'd (they won't see each other)</div>
+                  <div className="text-[11px] text-rebar mt-0.5">One email — {suppliers[0].name} in To, others BCC'd (they won't see each other)</div>
                 </button>
               )}
             </div>

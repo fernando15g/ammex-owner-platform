@@ -13,6 +13,7 @@ import MergeTypesPanel from "./MergeTypesPanel";
 import AuditSetupPanel from "./AuditSetupPanel";
 import ReconcilePanel from "./ReconcilePanel";
 import TemplatePanel from "./TemplatePanel";
+import SuppliersPanel from "./SuppliersPanel";
 import { isAuditConfigured } from "@/lib/notion/auditRepository";
 
 export const dynamic = "force-dynamic"; // always fresh — never cache a stale check
@@ -49,6 +50,7 @@ export default async function SystemCheckPage() {
       <AuditSetupPanel configured={isAuditConfigured()} />
       <ReconcilePanel />
       <TemplatePanel />
+        <SuppliersPanel />
       <TemplatePanel kind="invoice" />
       <BackfillPanel />
       <MergeTypesPanel />
