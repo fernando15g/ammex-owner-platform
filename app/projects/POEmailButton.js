@@ -140,7 +140,7 @@ export default function POEmailButton({ project, mode = "open" }) {
                 <div className="text-[10px] uppercase tracking-wider text-rebar/60 mb-2">Project estimated sales amount</div>
                 <div className="flex gap-2">
                   {["LESS THAN $2500", "MORE THAN $2500"].map((opt) => (
-                    <button key={opt} onClick={() => setSalesAmount(opt)}
+                    <button key={opt} onClick={() => setSalesAmount((cur) => (cur === opt ? null : opt))}
                       className={`flex-1 text-xs px-3 py-2 rounded-md border ${salesAmount === opt ? "bg-safety text-steel border-safety font-medium" : "border-line text-rebar hover:text-concrete"}`}>
                       {opt.replace("$2500", "$2,500")}
                     </button>
@@ -172,6 +172,9 @@ export default function POEmailButton({ project, mode = "open" }) {
                     <span className="text-[11px] text-rebar group-hover:text-safety shrink-0">Compose →</span>
                   </div>
                   <div className="text-[11px] text-rebar mt-0.5">One email — {suppliers[0].name} in To, others BCC'd (they won't see each other)</div>
+                  {/* One email carries one body, and the two templates now differ.
+                      Atlas's is a superset, so the others just see a few extra lines. */}
+                  <div className="text-[11px] text-rebar/70 mt-0.5">Uses the {suppliers[0].name} format for everyone</div>
                 </button>
               )}
             </div>
