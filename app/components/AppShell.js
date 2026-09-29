@@ -96,7 +96,12 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
   // Which nav item was just tapped. Cleared by the page load itself — a full
   // navigation remounts this component, so there is nothing to reset.
   const [pending, setPending] = useState(null);
-  const go = (key) => { setPending(key); setOpen(false); };
+  // Do NOT close the drawer here. Navigation is a full page load, so closing it
+  // immediately leaves you staring at the OLD page with no menu and nothing
+  // happening — it reads as though the tap failed. Keeping it open shows the
+  // tapped item highlighted with its spinner until the new page arrives, and
+  // that page remounts this component, so the drawer closes on its own.
+  const go = (key) => { setPending(key); };
   const { theme, toggle } = useTheme();
   const pathname = usePathname();
 
