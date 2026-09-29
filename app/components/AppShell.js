@@ -93,6 +93,10 @@ function Breadcrumbs({ trail }) {
 
 export default function AppShell({ current, title, subtitle, breadcrumbs, actions, children }) {
   const [open, setOpen] = useState(false);
+  // Which nav item was just tapped. Cleared by the page load itself — a full
+  // navigation remounts this component, so there is nothing to reset.
+  const [pending, setPending] = useState(null);
+  const go = (key) => { setPending(key); setOpen(false); };
   const { theme, toggle } = useTheme();
   const pathname = usePathname();
 
@@ -108,6 +112,14 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
   return (
     <div className="min-h-screen lg:flex">
       <IdentityGate />
+      {/* Thin top bar while a page loads. It cannot show real progress — the
+          browser is fetching a whole document — so it animates to roughly
+          three-quarters and waits, rather than pretending to finish. */}
+      {pending && (
+        <div className="fixed top-0 left-0 right-0 h-0.5 z-[60] bg-transparent" aria-hidden>
+          <div className="h-full bg-safety animate-[navbar_2s_ease-out_forwards]" style={{ width: "0%" }} />
+        </div>
+      )}
       {/* Left rail (desktop) / drawer (mobile) */}
       <aside
         className={`${open ? "block" : "hidden"} lg:block fixed lg:static inset-0 z-40 lg:z-auto lg:w-60 shrink-0 border-r border-line bg-graphite`}
@@ -115,19 +127,24 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
         <div className="flex items-center gap-2 px-5 h-16 border-b border-line">
           <span className="inline-block w-2.5 h-2.5 rounded-sm bg-safety" />
           <span className="font-semibold tracking-tight text-concrete">AMMEX<span className="text-rebar font-normal"> OS</span></span>
+          {/* Mobile only — the drawer could previously only be dismissed by
+              tapping the dim overlay or picking a page. */}
+          <button onClick={() => setOpen(false)}
+            className="lg:hidden ml-auto -mr-1 p-2 text-rebar hover:text-concrete"
+            aria-label="Close navigation">✕</button>
         </div>
         <nav className="p-3 space-y-0.5">
           {NAV.filter((n) => n.key === "home").map((n) => (
-            <NavItem key={n.key} item={n} active={n.key === current} />
+            <NavItem key={n.key} item={n} active={n.key === current} pending={pending} onNavigate={go} />
           ))}
           <div className="pt-3 mt-3 border-t border-line space-y-0.5">
             {NAV.filter((n) => !n.minor && n.key !== "home").map((n) => (
-              <NavItem key={n.key} item={n} active={n.key === current} />
+              <NavItem key={n.key} item={n} active={n.key === current} pending={pending} onNavigate={go} />
             ))}
           </div>
           <div className="pt-3 mt-3 border-t border-line">
             {NAV.filter((n) => n.minor).map((n) => (
-              <NavItem key={n.key} item={n} active={n.key === current} />
+              <NavItem key={n.key} item={n} active={n.key === current} pending={pending} onNavigate={go} />
             ))}
           </div>
         </nav>
@@ -174,8 +191,8 @@ export default function AppShell({ current, title, subtitle, breadcrumbs, action
   );
 }
 
-function NavItem({ item, active }) {
-  const base = "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors";
+function NavItem({ item, active, pending, onNavigate }) {
+  const base = "flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-150";
   if (!item.ready) {
     return (
       <div className={`${base} text-rebar/50 cursor-default`}>
@@ -184,13 +201,22 @@ function NavItem({ item, active }) {
       </div>
     );
   }
+  // Every nav click is a FULL page load (the app uses plain <a> links), so
+  // nothing changes on screen until the new page arrives — which on a cold
+  // start can take seconds. Highlighting the tapped item immediately is what
+  // tells you the tap registered.
+  const pressed = pending === item.key;
   return (
     <a
       href={item.href}
-      className={`${base} ${active ? "text-concrete font-medium" : "text-rebar hover:text-concrete"}`}
-      style={active ? { background: "var(--surface-2)" } : undefined}
+      onClick={() => onNavigate?.(item.key)}
+      className={`${base} ${active || pressed ? "text-concrete font-medium" : "text-rebar hover:text-concrete hover:translate-x-0.5"} ${pressed ? "opacity-70" : ""}`}
+      style={active || pressed ? { background: "var(--surface-2)" } : undefined}
     >
       <span className="flex-1">{item.label}</span>
+      {pressed && !active && (
+        <span className="w-3 h-3 rounded-full border-2 border-rebar/40 border-t-safety animate-spin" aria-hidden />
+      )}
     </a>
   );
 }

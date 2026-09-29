@@ -388,12 +388,17 @@ function DetailPanel({ row, onClose, onEdit }) {
           <p className="text-sm text-rebar mt-1">{row.projectId} · {row.status}</p>
         </div>
         <div className="ml-auto shrink-0 flex flex-col items-stretch gap-2">
-          <div className="flex items-center gap-2 justify-end">
-            {row.bidId && (
-              <a href={`/pipeline/${row.bidId}`} title="Open this job's bid" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to bid →</a>
-            )}
-            <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
-            <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1" aria-label="Close">✕</button>
+          {/* The ✕ sits outside the wrapping group so it always stays on the
+              first row no matter how many buttons are present. */}
+          <div className="flex items-start gap-2 justify-end">
+            <div className="flex items-center gap-2 justify-end flex-wrap">
+              <a href={`/projects/${row.id}`} title="Open this project" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to project →</a>
+              {row.bidId && (
+                <a href={`/pipeline/${row.bidId}`} title="Open this job's bid" className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Go to bid →</a>
+              )}
+              <button onClick={onEdit} className="text-xs px-3 py-1.5 rounded-md border border-line text-concrete hover:bg-graphite">Edit</button>
+            </div>
+            <button onClick={onClose} className="text-rebar hover:text-concrete text-sm px-1 shrink-0" aria-label="Close">✕</button>
           </div>
           <div className="[&_button]:w-full [&_button]:justify-center">
             <POEmailButton project={{ id: row.id, name: row.name, projectId: row.projectId, site: row.site, supplierPoNotified: row.supplierPoNotified, estimatedLbs: row.awardedLbs ?? row.estimatedLbs }} mode="open" />

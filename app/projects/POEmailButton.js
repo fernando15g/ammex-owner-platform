@@ -100,7 +100,7 @@ export default function POEmailButton({ project, mode = "open" }) {
         onClick={() => { setPicking(true); loadSuppliers(); }}
         className={`text-sm px-3 py-1.5 rounded-md font-medium ${isClose ? "border border-line text-concrete hover:border-rebar" : "bg-safety text-steel"}`}
       >
-        {isClose ? "Notify supplier of close-out" : "Request material PO"}
+        {isClose ? "Notify supplier of close-out" : "Request PO"}
         {/* Sent already — the button stays live so a second supplier can be
             emailed or the request re-sent. */}
         {sent && (
@@ -119,7 +119,7 @@ export default function POEmailButton({ project, mode = "open" }) {
             {/* header — ✕ pinned top-right, title gets full width so it doesn't wrap */}
             <div className="relative mb-4">
               <button onClick={() => setPicking(false)} className="absolute top-0 right-0 text-rebar hover:text-concrete">✕</button>
-              <h3 className="text-concrete font-semibold text-lg leading-tight pr-8">{isClose ? "Notify supplier of close-out" : "Request material PO"}</h3>
+              <h3 className="text-concrete font-semibold text-lg leading-tight pr-8">{isClose ? "Notify supplier of close-out" : "Request PO"}</h3>
               <p className="text-sm text-rebar mt-1 pr-8">{project.name || "This job"}{project.projectId ? ` · ${project.projectId}` : ""}</p>
             </div>
 

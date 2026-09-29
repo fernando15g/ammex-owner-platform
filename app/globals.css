@@ -103,3 +103,12 @@ textarea::placeholder {
 .inp-sm {
   @apply text-xs px-2 py-1.5 rounded-md border border-line bg-transparent text-concrete placeholder:text-rebar/60 focus:outline-none focus:border-rebar;
 }
+
+/* Top progress bar during a page navigation. Every nav click is a full page
+   load, so real progress is unknowable — this eases out to 75% and holds,
+   which reads as "working" without lying about being nearly done. */
+@keyframes navbar {
+  0%   { width: 0%; }
+  40%  { width: 55%; }
+  100% { width: 75%; }
+}
